@@ -272,3 +272,19 @@
   - `uv sync --all-extras`: works
   - 27 source files + 36 test files have `Copyright (c) 2026, CloudBSD` (target: >= 10)
   - 0 secrets found in `src/`, `tests/`, `pyproject.toml`
+
+## Bug fix: --no-clobber flag enforcement (2026-06-10)
+
+- **Bug**: F3 manual QA found that `convert(..., no_clobber=True)` on an existing output path silently overwrites. The flag is parsed by the CLI into `ConversionOptions.no_clobber` (default `False`) and the CLI has a catch block for `OutputPathCollisionError`, but `Pipeline.run()` never checked the flag. The CLI catch was dead code.
+- **Single source of truth in `pipeline.py`**: The check goes in the pipeline (not the loader, not the renderer, not the API), because the pipeline is where the user's `ConversionOptions` already lives and the SVG write happens. `api.convert()` is a thin wrapper around `Pipeline`, so adding the check there covers both the API and the CLI entry points.
+- **Placement after `load_image()` (step 1a)**: The check fires after input validation (so corrupt images still raise their own errors first) but before YOLO detection (step 5). YOLO is the slowest step — failing fast saves a few seconds per rejected call. Step-marker style uses `# 1a.` (sub-step of step 1) to keep the 12-step BDD markers clean.
+- **`OutputPathCollisionError.__init__(self, path: str)`**: Constructor takes a `str`, not a `Path`. The check uses `str(output_path)` to convert. The error carries `self.path` so callers can surface the exact path in their own messages.
+- **Mtime-based assertion for "file not modified"**: The test reads `original_bytes` and `original_mtime` before the call, then asserts both unchanged. The mtime check is the strongest guarantee that no write was attempted (atomic write would update mtime even on same-content writes). Bytes check guards against any corruption.
+- **`mock_detector.detect.assert_not_called()` for fail-fast verification**: Tracking the detector mock's call count catches a regression where the guard is moved after YOLO — the test would fail with "Expected 'detect' to not have been called" if the order ever inverts.
+- **Negative-case test for `no_clobber=False`**: Added a second test (`test_pipeline_no_clobber_false_overwrites_existing_output`) to lock in the default behavior. Catches a future regression where the check fires unconditionally and breaks the normal overwrite path.
+- **Activated dead code**: The CLI catch block at `cli.py:375` for `OutputPathCollisionError` is no longer dead. End-to-end `img2svg existing.svg input.png --no-clobber` now prints the friendly error and exits non-zero.
+- **Verified `mypy` baseline unchanged**: The pre-existing `Module "img2svg.models" has no attribute "LoadedImage"` error in `pipeline.py:48` (in the `TYPE_CHECKING` block) was already present at line 47 before this change. The line shift to 48 is purely from adding the `from img2svg.errors import OutputPathCollisionError` import alphabetically between `enums` and `loader`. Same pre-existing error, same fix-it recommendation.
+- **Verified `ruff` baseline unchanged**: Pre-existing `MockVec` N806 in `test_pipeline_runs_vtracer_renderer_modes` (line 185 after my changes, was 184 before) is unchanged. The new code I added (lines 215-256) is ruff-clean.
+- **Test count: 319 → 321 (+2 new tests)**: Both new tests pass; 1 pre-existing i18n failure remains (documented since T16). Full suite: 321 passed, 1 failed, 8 deselected.
+- **3-4 line fix in `pipeline.py` + 47-line test addition**: Matches the 1-2 line code change spec from the F3 evidence. The larger test count is justified by the negative-case test and the strict mtime+bytes+detect-not-called assertions.
+

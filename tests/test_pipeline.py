@@ -20,6 +20,7 @@ from unittest import mock
 import pytest
 
 from img2svg.enums import ImageType, Mode
+from img2svg.errors import OutputPathCollisionError
 from img2svg.models import (
     BoundingBox,
     ConversionOptions,
@@ -208,6 +209,52 @@ def test_pipeline_raises_on_unsupported_format(tmp_path: Path, corrupt_path: Pat
     assert "img2svg" in type(ei.value).__module__ or "Img2SvgError" in [
         base.__name__ for base in type(ei.value).__mro__
     ]
+
+
+# ----------------------------------------------------------------------
+# No-clobber guard
+# ----------------------------------------------------------------------
+
+
+_SENTINEL_SVG = "<sentinel>do-not-overwrite</sentinel>\n"
+
+
+def test_pipeline_no_clobber_raises_on_existing_output(
+    tmp_path: Path, logo_path: Path
+) -> None:
+    """With `no_clobber=True` and a pre-existing output, raise and leave the file alone."""
+    out_svg = tmp_path / "out.svg"
+    out_svg.write_text(_SENTINEL_SVG, encoding="utf-8")
+    original_bytes = out_svg.read_bytes()
+    original_mtime = out_svg.stat().st_mtime
+
+    mock_detector = _make_mock_detector([])
+    options = ConversionOptions(mode=Mode.LABELS, no_clobber=True)
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=mock_detector),
+        pytest.raises(OutputPathCollisionError) as exc_info,
+    ):
+        Pipeline(options).run(logo_path, out_svg)
+
+    assert exc_info.value.path == str(out_svg)
+    assert out_svg.read_bytes() == original_bytes
+    assert out_svg.stat().st_mtime == original_mtime
+    mock_detector.detect.assert_not_called()
+
+
+def test_pipeline_no_clobber_false_overwrites_existing_output(
+    tmp_path: Path, logo_path: Path
+) -> None:
+    """When `no_clobber=False` (the default), a pre-existing output is overwritten."""
+    out_svg = tmp_path / "out.svg"
+    out_svg.write_text(_SENTINEL_SVG, encoding="utf-8")
+
+    with mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])):
+        result = Pipeline(ConversionOptions(mode=Mode.LABELS)).run(logo_path, out_svg)
+
+    assert out_svg.exists()
+    assert out_svg.read_text(encoding="utf-8") != _SENTINEL_SVG
+    assert result.svg_path == out_svg
 
 
 # ----------------------------------------------------------------------

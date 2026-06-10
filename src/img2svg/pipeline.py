@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 from img2svg.classifier import classify
 from img2svg.detector import get_detector
 from img2svg.enums import Mode
+from img2svg.errors import OutputPathCollisionError
 from img2svg.loader import load_image
 from img2svg.logging import get_logger
 from img2svg.metadata import compute_file_hash, write_sidecar
@@ -108,6 +109,8 @@ class Pipeline:
                 the supported set.
             img2svg.errors.CorruptImageError: Pillow could not decode the input.
             img2svg.errors.ModelLoadError: YOLO could not be loaded.
+            img2svg.errors.OutputPathCollisionError: `options.no_clobber` is
+                `True` and `output_path` already exists.
         """
         options = self.options
         timings: dict[str, float] = {}
@@ -117,6 +120,11 @@ class Pipeline:
         t0 = time.perf_counter()
         loaded = load_image(input_path)
         timings["load"] = time.perf_counter() - t0
+
+        # 1a. No-clobber guard: fail fast before running YOLO when the output
+        #     path already exists and the user has asked not to overwrite.
+        if options.no_clobber and output_path.exists():
+            raise OutputPathCollisionError(str(output_path))
 
         # 2. Global geometric analysis
         t0 = time.perf_counter()
