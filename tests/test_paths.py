@@ -1,4 +1,8 @@
+# img2svg - tests for the XDG path module.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for XDG path module."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -72,7 +76,9 @@ def test_load_config_valid_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert config == {"mode": "annotated", "conf": 0.5}
 
 
-def test_load_config_invalid_toml_returns_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_config_invalid_toml_returns_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cfg_dir = tmp_path / "img2svg"
     cfg_dir.mkdir()
     (cfg_dir / "config.toml").write_text("not valid toml [[[")

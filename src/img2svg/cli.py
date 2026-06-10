@@ -1,3 +1,6 @@
+# img2svg - Typer-based CLI entry point for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Typer-based CLI entry point for img2svg.
 
 This module is the user-facing ``img2svg`` command. It exposes three
@@ -20,12 +23,12 @@ Exit code mapping (per the plan):
     2  invalid args / unsupported format / bad mode / file not found
     3  dependency / model load failure
 """
+
 from __future__ import annotations
 
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -148,9 +151,7 @@ def _mode_callback(value: str) -> str:
         Mode(value)
     except ValueError:
         valid = ", ".join(m.value for m in Mode)
-        raise typer.BadParameter(
-            f"invalid mode {value!r}. Valid modes: {valid}"
-        ) from None
+        raise typer.BadParameter(f"invalid mode {value!r}. Valid modes: {valid}") from None
     return value
 
 
@@ -267,7 +268,7 @@ def _convert_cmd(
         ...,
         help="Input file, glob, or directory",
     ),
-    output: Optional[Path] = typer.Option(
+    output: Path | None = typer.Option(
         None,
         "-o",
         "--output",
@@ -280,9 +281,7 @@ def _convert_cmd(
         callback=_mode_callback,
     ),
     model: str = typer.Option("yolo11x.pt", "--model", help="YOLO model name"),
-    device: str = typer.Option(
-        "auto", "--device", help="auto, cpu, cuda, cuda:N, mps, rocm"
-    ),
+    device: str = typer.Option("auto", "--device", help="auto, cpu, cuda, cuda:N, mps, rocm"),
     gpu_strategy: str = typer.Option(
         "power",
         "--gpu-strategy",
@@ -294,9 +293,7 @@ def _convert_cmd(
         False, "--no-clobber", help="Don't overwrite existing output files"
     ),
     quiet: bool = typer.Option(False, "-q", "--quiet", help="Suppress non-essential output"),
-    verbose: bool = typer.Option(
-        False, "-v", "--verbose", help="Enable debug output"
-    ),
+    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug output"),
 ) -> None:
     """Convert a single image, a glob, or a directory of images to SVG.
 
@@ -356,26 +353,19 @@ def _convert_cmd(
             failures = len(results) - successes
             if failures > 0:
                 _console.print(
-                    f"[yellow]Batch complete: {successes} succeeded, "
-                    f"{failures} failed[/yellow]"
+                    f"[yellow]Batch complete: {successes} succeeded, {failures} failed[/yellow]"
                 )
                 for r in results:
                     if r.errors:
                         _console.print(f"  [red]{r.svg_path.name}:[/red] {r.errors[0]}")
                 raise typer.Exit(1)
-            _console.print(
-                f"[green]Batch complete: {successes} succeeded, 0 failed[/green]"
-            )
+            _console.print(f"[green]Batch complete: {successes} succeeded, 0 failed[/green]")
         else:
             if output is None:
-                _console.print(
-                    "[red]--output is required when converting a single file[/red]"
-                )
+                _console.print("[red]--output is required when converting a single file[/red]")
                 raise typer.Exit(2)
             result = api_convert(str(input), str(output), options=options)
-            _console.print(
-                f"[green]Converted {result.svg_path}[/green]"
-            )
+            _console.print(f"[green]Converted {result.svg_path}[/green]")
     except typer.Exit:
         # Pass through Typer/Click-managed exits (e.g. from --help).
         raise
@@ -418,9 +408,7 @@ def _list_gpus_cmd(
         strategy_enum = DeviceStrategy(strategy)
     except ValueError:
         valid = ", ".join(s.value for s in DeviceStrategy)
-        _console.print(
-            f"[red]invalid strategy {strategy!r}. Valid strategies: {valid}[/red]"
-        )
+        _console.print(f"[red]invalid strategy {strategy!r}. Valid strategies: {valid}[/red]")
         raise typer.Exit(2)
 
     gpus = list_gpus()
@@ -449,6 +437,4 @@ def _info_cmd() -> None:
     _console.print(f"Python:  {sys.version.split()[0]}")
     _console.print(f"OS:      {os_name}")
     devs = list_available_devices()
-    _console.print(
-        f"Devices: {', '.join(devs) if devs else '(none detected)'}"
-    )
+    _console.print(f"Devices: {', '.join(devs) if devs else '(none detected)'}")

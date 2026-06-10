@@ -1,8 +1,12 @@
+# img2svg - tests for `img2svg.gpu.print_gpu_recommendation`.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for `img2svg.gpu.print_gpu_recommendation` (T22).
 
 Verifies the Rich table output: column presence, recommended-row
 highlighting, empty-list fallback, and the OS / PyTorch header lines.
 """
+
 from __future__ import annotations
 
 import pytest

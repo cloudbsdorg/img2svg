@@ -1,4 +1,8 @@
+# img2svg - Pydantic v2 data models for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Pydantic v2 data models for img2svg."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

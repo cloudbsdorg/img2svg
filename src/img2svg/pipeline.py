@@ -1,3 +1,6 @@
+# img2svg - pipeline orchestrator for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Pipeline orchestrator for img2svg.
 
 Composes the full conversion flow:
@@ -13,6 +16,7 @@ pipeline to look up the renderer class for a resolved mode. `Mode.AUTO`
 is deliberately absent — the pipeline calls `select_mode()` first to
 resolve AUTO to a concrete mode, then looks up the renderer.
 """
+
 from __future__ import annotations
 
 import time
@@ -183,7 +187,10 @@ class Pipeline:
 
         _logger.debug(
             "pipeline.run(%s) -> %s (mode=%s, detections=%d, total=%.3fs)",
-            input_path.name, output_path.name, mode_used, len(detections),
+            input_path.name,
+            output_path.name,
+            mode_used,
+            len(detections),
             timings["total"],
         )
 

@@ -1,4 +1,8 @@
+# img2svg - tests for `TraceRenderer` (vtracer photo preset).
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for `TraceRenderer` (vtracer photo preset)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,8 +45,10 @@ def _make_doc() -> SVGDocument:
 
 def _fake_vectorize(svg_body: str):
     """Return a `vectorize` side_effect that writes svg_body to the output path."""
+
     def _side_effect(inp: str, outp: str) -> None:
         Path(outp).write_text(svg_body, encoding="utf-8")
+
     return _side_effect
 
 
@@ -71,6 +77,7 @@ def test_render_embeds_vtracer_output_group() -> None:
         renderer.render()
 
     from lxml import etree
+
     root = etree.fromstring(svg.to_string().encode("utf-8"))
     assert _vtracer_group(root) is not None, "vtracer-output group missing from SVG"
 
@@ -84,6 +91,7 @@ def test_render_copies_vtracer_paths_into_group() -> None:
         renderer.render()
 
     from lxml import etree
+
     root = etree.fromstring(svg.to_string().encode("utf-8"))
     group = _vtracer_group(root)
     assert group is not None
@@ -111,4 +119,5 @@ def test_render_calls_vtracer_vectorizer_with_photo_preset() -> None:
 def test_visual_and_trace_use_different_presets() -> None:
     """Sanity check: the two renderers must not share the same preset."""
     from img2svg.renderers.visual import VisualRenderer
+
     assert VisualRenderer.preset_name != TraceRenderer.preset_name

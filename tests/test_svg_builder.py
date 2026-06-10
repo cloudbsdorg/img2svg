@@ -1,12 +1,15 @@
+# img2svg - tests for the SVG builder.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the SVG builder."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from lxml import etree
 
-from img2svg.svg_builder import SVGDocument, SVGGroup, SVG_NS
+from img2svg.svg_builder import SVG_NS, SVGDocument
 
 
 def test_minimal_document_parses() -> None:

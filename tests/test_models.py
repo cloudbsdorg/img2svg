@@ -1,4 +1,8 @@
+# img2svg - tests for enums and Pydantic models.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for enums and Pydantic models."""
+
 from __future__ import annotations
 
 import json
@@ -47,11 +51,17 @@ def test_bounding_box_properties() -> None:
 
 
 def test_detection_confidence_bounds() -> None:
-    Detection(class_id=0, class_name="person", confidence=0.9, bbox=BoundingBox(x1=0, y1=0, x2=10, y2=10))
+    Detection(
+        class_id=0, class_name="person", confidence=0.9, bbox=BoundingBox(x1=0, y1=0, x2=10, y2=10)
+    )
     with pytest.raises(ValidationError):
-        Detection(class_id=0, class_name="x", confidence=1.5, bbox=BoundingBox(x1=0, y1=0, x2=1, y2=1))
+        Detection(
+            class_id=0, class_name="x", confidence=1.5, bbox=BoundingBox(x1=0, y1=0, x2=1, y2=1)
+        )
     with pytest.raises(ValidationError):
-        Detection(class_id=0, class_name="x", confidence=-0.1, bbox=BoundingBox(x1=0, y1=0, x2=1, y2=1))
+        Detection(
+            class_id=0, class_name="x", confidence=-0.1, bbox=BoundingBox(x1=0, y1=0, x2=1, y2=1)
+        )
 
 
 def test_geometric_analysis_defaults() -> None:
@@ -63,7 +73,9 @@ def test_geometric_analysis_defaults() -> None:
 
 
 def test_gpu_info_fields() -> None:
-    g = GPUInfo(index=0, vendor=GpuVendor.NVIDIA, name="RTX 4090", vram_total_mb=24576, vram_free_mb=20000)
+    g = GPUInfo(
+        index=0, vendor=GpuVendor.NVIDIA, name="RTX 4090", vram_total_mb=24576, vram_free_mb=20000
+    )
     assert g.vram_total_mb == 24576
     assert g.vram_free_mb == 20000
 

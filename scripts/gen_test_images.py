@@ -14,6 +14,7 @@ Output:
     tests/fixtures/screenshot.png  — solid blocks of color (UI mockup)
     tests/fixtures/corrupt.bin     — garbage bytes for error tests
 """
+
 from __future__ import annotations
 
 import random

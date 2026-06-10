@@ -1,3 +1,6 @@
+# img2svg - integration tests (real YOLO detector and vtracer against fixtures).
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Integration tests for img2svg.
 
 These tests exercise the real YOLO detector (downloading the small
@@ -14,6 +17,7 @@ or::
 The full default suite (``uv run pytest``) excludes them via the
 ``addopts = ["-m", "not slow"]`` in ``pyproject.toml``.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,9 +42,7 @@ pytestmark = pytest.mark.slow
 
 
 @pytest.mark.slow
-def test_real_yolo_detects_in_synthetic(
-    logo_path: Path, tmp_path: Path
-) -> None:
+def test_real_yolo_detects_in_synthetic(logo_path: Path, tmp_path: Path) -> None:
     """Run a real YOLO inference on the logo fixture using the small model.
 
     Uses ``yolo11n.pt`` (the smallest, ~5 MB) so the test stays cheap.

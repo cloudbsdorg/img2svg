@@ -1,8 +1,11 @@
+# img2svg - tests for the OpenCV geometric patterns module.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the OpenCV geometric patterns module."""
+
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from img2svg.models import BoundingBox
 from img2svg.patterns import analyze_global, analyze_roi

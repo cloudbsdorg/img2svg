@@ -1,3 +1,6 @@
+# img2svg - tests for the Typer CLI (`img2svg.cli`).
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the Typer CLI (`img2svg.cli`).
 
 Covers the 8 spec tests:
@@ -16,6 +19,7 @@ YOLO is mocked at the same boundary as the other test suites
 model-dependency. `pytest-mock` is not installed in the active venv,
 so we use the built-in `unittest.mock` with a small RAII helper.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -47,7 +51,7 @@ class _PatchStack:
     def __init__(self, patches: list[mock._patch]) -> None:
         self._patches = patches
 
-    def __enter__(self) -> "_PatchStack":
+    def __enter__(self) -> _PatchStack:
         for p in self._patches:
             p.start()
         return self
@@ -60,9 +64,7 @@ class _PatchStack:
 def _success_patches() -> list[mock._patch]:
     """Patches that make the pipeline run end-to-end with empty detections."""
     return [
-        mock.patch(
-            "img2svg.pipeline.get_detector", return_value=_mock_detector()
-        ),
+        mock.patch("img2svg.pipeline.get_detector", return_value=_mock_detector()),
         mock.patch(
             "img2svg.pipeline.classify",
             return_value=(ImageType.LOGO, "forced → LOGO"),
@@ -152,18 +154,14 @@ def test_cli_nonexistent_input_exits_two() -> None:
 # ----------------------------------------------------------------------
 
 
-def test_cli_convert_single_file_exits_zero(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_cli_convert_single_file_exits_zero(tmp_path: Path, fixtures_dir: Path) -> None:
     """`img2svg logo.png -o out.svg` runs a real conversion (YOLO mocked) and exits 0."""
     logo = fixtures_dir / "logo.png"
     out = tmp_path / "out.svg"
     assert logo.exists(), f"fixture missing: {logo}"
 
     with _PatchStack(_success_patches()):
-        result = runner.invoke(
-            app, [str(logo), "-o", str(out), "--mode", "labels"]
-        )
+        result = runner.invoke(app, [str(logo), "-o", str(out), "--mode", "labels"])
 
     assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
     assert out.exists(), f"SVG was not written: {out}"
@@ -175,9 +173,7 @@ def test_cli_convert_single_file_exits_zero(
 # ----------------------------------------------------------------------
 
 
-def test_cli_convert_batch_directory_exits_zero(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_cli_convert_batch_directory_exits_zero(tmp_path: Path, fixtures_dir: Path) -> None:
     """`img2svg fixtures/ -o batch_out/` runs a batch (YOLO mocked) and exits 0.
 
     Uses a small directory of 2 valid PNGs so the test stays fast and
@@ -194,9 +190,7 @@ def test_cli_convert_batch_directory_exits_zero(
     out_dir.mkdir()
 
     with _PatchStack(_success_patches()):
-        result = runner.invoke(
-            app, [str(in_dir), "-o", str(out_dir), "--mode", "labels"]
-        )
+        result = runner.invoke(app, [str(in_dir), "-o", str(out_dir), "--mode", "labels"])
 
     assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
     assert (out_dir / "a.svg").exists()
@@ -237,6 +231,7 @@ def test_cli_convert_no_output_for_single_file_exits_two(
 def test_cli_app_is_typer_instance() -> None:
     """The exported `app` is a Typer instance and is callable."""
     from typer import Typer
+
     assert isinstance(app, Typer)
     assert callable(app)
 

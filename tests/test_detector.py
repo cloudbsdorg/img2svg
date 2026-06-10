@@ -1,7 +1,11 @@
+# img2svg - tests for the YOLO detector wrapper.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the YOLO detector wrapper. Mocks the ultralytics.YOLO class."""
+
 from __future__ import annotations
 
-from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import numpy as np
@@ -101,8 +105,10 @@ def test_detect_handles_no_boxes(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_model_load_error_on_device_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     """If device.detect_device raises, ModelLoadError is raised."""
     from img2svg.errors import DeviceUnavailableError
+
     def _raise(x: str) -> str:
         raise DeviceUnavailableError("cuda", ["cpu"])
+
     monkeypatch.setattr("img2svg.detector.device.detect_device", _raise)
     monkeypatch.setattr("ultralytics.YOLO", lambda name: _FakeYOLO("yolo11n.pt"))
     with pytest.raises(ModelLoadError) as exc_info:
@@ -113,8 +119,10 @@ def test_model_load_error_on_device_unavailable(monkeypatch: pytest.MonkeyPatch)
 def test_model_load_error_on_yolo_init_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """If YOLO() raises (e.g., download failure), ModelLoadError is raised."""
     monkeypatch.setattr("img2svg.detector.device.detect_device", lambda x: "cpu")
+
     def _raise(name: str) -> None:
         raise RuntimeError("network down")
+
     monkeypatch.setattr("ultralytics.YOLO", _raise)
     with pytest.raises(ModelLoadError) as exc_info:
         detector.YOLODetector("yolo11n.pt", "cpu")

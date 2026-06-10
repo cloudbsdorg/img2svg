@@ -1,9 +1,13 @@
+# img2svg - JSON sidecar writer for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """JSON sidecar writer for img2svg.
 
 Writes a `.json` metadata file alongside every produced SVG. The sidecar
 captures input/output paths, hashes, mode used, model, device, image type,
 detections, geometric analysis, and timings for full reproducibility.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -23,9 +27,7 @@ def write_sidecar(sidecar: Sidecar, path: Path) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     serialized = sidecar.model_dump_json(indent=2, exclude_none=False)
-    fd, tmp_name = tempfile.mkstemp(
-        dir=str(target.parent), prefix=target.name + ".", suffix=".tmp"
-    )
+    fd, tmp_name = tempfile.mkstemp(dir=str(target.parent), prefix=target.name + ".", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(serialized)

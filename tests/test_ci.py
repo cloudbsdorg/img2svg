@@ -1,7 +1,10 @@
+# img2svg - structural tests for the Jenkinsfile and the local CI script.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Structural tests for the Jenkinsfile and the local CI script."""
+
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
@@ -35,9 +38,7 @@ def test_jenkinsfile_has_required_stages() -> None:
     for stage in REQUIRED_STAGES:
         single = f"stage('{stage}')"
         double = f'stage("{stage}")'
-        assert single in text or double in text, (
-            f"Jenkinsfile is missing required stage {single!r}"
-        )
+        assert single in text or double in text, f"Jenkinsfile is missing required stage {single!r}"
 
 
 def test_jenkinsfile_contains_required_commands() -> None:
@@ -63,16 +64,14 @@ def test_ci_script_has_valid_bash_syntax() -> None:
         check=False,
     )
     assert result.returncode == 0, (
-        f"bash -n {CI_SCRIPT} failed (rc={result.returncode}): "
-        f"{result.stderr.strip()}"
+        f"bash -n {CI_SCRIPT} failed (rc={result.returncode}): {result.stderr.strip()}"
     )
 
 
 def test_ci_script_uses_strict_mode() -> None:
     text = CI_SCRIPT.read_text(encoding="utf-8")
     assert "set -euo pipefail" in text, (
-        "ci.sh must use 'set -euo pipefail' for fail-fast / undefined-var / "
-        "pipe-failure safety"
+        "ci.sh must use 'set -euo pipefail' for fail-fast / undefined-var / pipe-failure safety"
     )
 
 

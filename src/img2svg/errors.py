@@ -1,3 +1,6 @@
+# img2svg - typed exception hierarchy for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Typed exception hierarchy for img2svg.
 
 All exceptions inherit from `Img2SvgError` so callers can catch every
@@ -5,6 +8,7 @@ img2svg-specific error with a single except clause. Each exception exposes
 both `user_message()` (safe for end-user display) and `dev_message()` (full
 diagnostic info for logs / devs).
 """
+
 from __future__ import annotations
 
 
@@ -24,11 +28,15 @@ class UnsupportedFormatError(Img2SvgError):
     def __init__(self, format_name: str, supported: tuple[str, ...] | None = None) -> None:
         self.format_name = format_name
         self.supported = supported or (
-            "PNG", "JPEG", "BMP", "WEBP", "TIFF", "GIF",
+            "PNG",
+            "JPEG",
+            "BMP",
+            "WEBP",
+            "TIFF",
+            "GIF",
         )
         super().__init__(
-            f"unsupported image format: {format_name!r} "
-            f"(supported: {', '.join(self.supported)})"
+            f"unsupported image format: {format_name!r} (supported: {', '.join(self.supported)})"
         )
 
     def user_message(self) -> str:

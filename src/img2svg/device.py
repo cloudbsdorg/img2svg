@@ -1,3 +1,6 @@
+# img2svg - compute device autodetect for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Compute device autodetect for img2svg.
 
 Priority chain for `auto`:
@@ -10,6 +13,7 @@ For explicit requests (`--device cpu`, `--device cuda`, `--device cuda:N`,
 `--device mps`, `--device rocm`), we fail hard with `DeviceUnavailableError`
 if the requested device is not available — no silent fallback.
 """
+
 from __future__ import annotations
 
 import torch

@@ -1,9 +1,13 @@
+# img2svg - XDG Base Directory compliant paths for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """XDG Base Directory compliant paths for img2svg.
 
 Provides configuration, data, cache, and system-config directories following
 the FreeDesktop XDG Base Directory Specification, with a CloudBSD-specific
 system-wide fallback for FreeBSD installations.
 """
+
 from __future__ import annotations
 
 import os

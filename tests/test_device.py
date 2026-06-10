@@ -1,4 +1,8 @@
+# img2svg - tests for device detection.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for device detection."""
+
 from __future__ import annotations
 
 from unittest import mock

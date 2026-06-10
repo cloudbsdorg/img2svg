@@ -1,3 +1,6 @@
+# img2svg - tests for the example gallery.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the example gallery (T30).
 
 These tests pin the shape of the user-facing documentation: each example
@@ -6,6 +9,7 @@ language, and every committed sample SVG must parse as valid XML.
 
 Six assertions, all structural — no model inference or YOLO calls.
 """
+
 from __future__ import annotations
 
 import re

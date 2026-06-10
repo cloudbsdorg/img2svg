@@ -1,3 +1,6 @@
+# img2svg - convert raster images to clean, optimized SVG.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """img2svg — convert raster images to clean, optimized SVG.
 
 Public entry points (T19):
@@ -10,6 +13,7 @@ Public entry points (T19):
 - :class:`ImageType` — heuristic image type classification (LOGO / PHOTO / ...).
 - :class:`DeviceStrategy` — strategy for picking the best GPU.
 """
+
 from __future__ import annotations
 
 from img2svg.api import convert, convert_batch
@@ -17,12 +21,12 @@ from img2svg.enums import DeviceStrategy, ImageType, Mode
 from img2svg.models import ConversionOptions, ConversionResult, Sidecar
 
 __all__ = [
-    "convert",
-    "convert_batch",
     "ConversionOptions",
     "ConversionResult",
-    "Sidecar",
-    "Mode",
-    "ImageType",
     "DeviceStrategy",
+    "ImageType",
+    "Mode",
+    "Sidecar",
+    "convert",
+    "convert_batch",
 ]

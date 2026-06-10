@@ -1,9 +1,13 @@
+# img2svg - SVG document builder using lxml for clean namespace handling.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """SVG document builder using lxml for clean namespace handling.
 
 Provides a small `SVGDocument` class that wraps an `<svg>` root with helpers
 for adding groups, rects, paths, and text. Auto-includes <title> and <desc>
 for accessibility (WCAG).
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,7 +31,7 @@ def _q(local: str) -> str:
 class SVGGroup:
     """A `<g>` element with helper methods."""
 
-    def __init__(self, doc: "SVGDocument", **attrs: Any) -> None:
+    def __init__(self, doc: SVGDocument, **attrs: Any) -> None:
         self._doc = doc
         self._el = etree.SubElement(doc.root, _q("g"), nsmap={"xlink": XLINK_NS})
         for k, v in attrs.items():
@@ -41,41 +45,64 @@ class SVGGroup:
 
     def add_rect(
         self,
-        x: float, y: float, w: float, h: float,
-        fill: str | None = "none", stroke: str | None = "black",
-        stroke_width: float | None = 1.0, **attrs: Any,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        fill: str | None = "none",
+        stroke: str | None = "black",
+        stroke_width: float | None = 1.0,
+        **attrs: Any,
     ) -> Any:
         el = etree.SubElement(self._el, _q("rect"))
-        el.set("x", str(x)); el.set("y", str(y))
-        el.set("width", str(w)); el.set("height", str(h))
-        if fill is not None: el.set("fill", fill)
-        if stroke is not None: el.set("stroke", stroke)
-        if stroke_width is not None: el.set("stroke-width", str(stroke_width))
+        el.set("x", str(x))
+        el.set("y", str(y))
+        el.set("width", str(w))
+        el.set("height", str(h))
+        if fill is not None:
+            el.set("fill", fill)
+        if stroke is not None:
+            el.set("stroke", stroke)
+        if stroke_width is not None:
+            el.set("stroke-width", str(stroke_width))
         for k, v in attrs.items():
             if v is not None:
                 el.set(k.replace("_", "-"), str(v))
         return el
 
     def add_path(
-        self, d: str, fill: str | None = "none", stroke: str | None = None,
-        stroke_width: float | None = None, **attrs: Any,
+        self,
+        d: str,
+        fill: str | None = "none",
+        stroke: str | None = None,
+        stroke_width: float | None = None,
+        **attrs: Any,
     ) -> Any:
         el = etree.SubElement(self._el, _q("path"))
         el.set("d", d)
-        if fill is not None: el.set("fill", fill)
-        if stroke is not None: el.set("stroke", stroke)
-        if stroke_width is not None: el.set("stroke-width", str(stroke_width))
+        if fill is not None:
+            el.set("fill", fill)
+        if stroke is not None:
+            el.set("stroke", stroke)
+        if stroke_width is not None:
+            el.set("stroke-width", str(stroke_width))
         for k, v in attrs.items():
             if v is not None:
                 el.set(k.replace("_", "-"), str(v))
         return el
 
     def add_text(
-        self, x: float, y: float, text: str, font_size: float = 12.0,
-        fill: str = "black", **attrs: Any,
+        self,
+        x: float,
+        y: float,
+        text: str,
+        font_size: float = 12.0,
+        fill: str = "black",
+        **attrs: Any,
     ) -> Any:
         el = etree.SubElement(self._el, _q("text"))
-        el.set("x", str(x)); el.set("y", str(y))
+        el.set("x", str(x))
+        el.set("y", str(y))
         el.set("font-size", str(font_size))
         el.set("fill", fill)
         el.text = text
@@ -85,13 +112,26 @@ class SVGGroup:
         return el
 
     def add_text_with_outline(
-        self, x: float, y: float, text: str, font_size: float = 12.0,
-        fill: str = "white", stroke: str = "black", stroke_width: float = 3.0,
+        self,
+        x: float,
+        y: float,
+        text: str,
+        font_size: float = 12.0,
+        fill: str = "white",
+        stroke: str = "black",
+        stroke_width: float = 3.0,
     ) -> Any:
         """Text with a contrasting outline (white fill, black stroke) for readability over images."""
-        el = self.add_text(x, y, text, font_size=font_size, fill=fill,
-                          stroke=stroke, stroke_width=stroke_width,
-                          paint_order="stroke")
+        el = self.add_text(
+            x,
+            y,
+            text,
+            font_size=font_size,
+            fill=fill,
+            stroke=stroke,
+            stroke_width=stroke_width,
+            paint_order="stroke",
+        )
         return el
 
     @property

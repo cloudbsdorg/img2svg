@@ -1,3 +1,6 @@
+# img2svg - tests for the enhanced `convert_batch()` in `img2svg.api`.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the enhanced `convert_batch()` in `img2svg.api`.
 
 Covers the T20 enhancement: directory walking, glob input, per-file
@@ -7,6 +10,7 @@ The YOLO detector and vtracer are mocked at the same boundaries as
 the existing pipeline / API tests so the suite stays fast and has no
 model-dependency.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,7 +22,6 @@ import pytest
 from img2svg.api import convert_batch
 from img2svg.enums import ImageType, Mode
 from img2svg.models import ConversionResult
-
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -43,7 +46,7 @@ class _PatchStack:
     def __init__(self, patches: list[mock._patch]) -> None:
         self._patches = patches
 
-    def __enter__(self) -> "_PatchStack":
+    def __enter__(self) -> _PatchStack:
         for p in self._patches:
             p.start()
         return self
@@ -56,9 +59,7 @@ class _PatchStack:
 def _success_patches() -> list[mock._patch]:
     """Patches that make the pipeline run end-to-end with empty detections."""
     return [
-        mock.patch(
-            "img2svg.pipeline.get_detector", return_value=_mock_detector()
-        ),
+        mock.patch("img2svg.pipeline.get_detector", return_value=_mock_detector()),
         mock.patch(
             "img2svg.pipeline.classify",
             return_value=(ImageType.LOGO, "forced → LOGO"),
@@ -88,9 +89,7 @@ def _write_corrupt_png(dst: Path) -> Path:
 # ----------------------------------------------------------------------
 
 
-def test_batch_list_of_three_valid_files(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_list_of_three_valid_files(tmp_path: Path, fixtures_dir: Path) -> None:
     """A list of 3 supported files produces 3 successful results."""
     inputs = [
         _copy_real_png(tmp_path / "a.png", fixtures_dir / "logo.png"),
@@ -118,9 +117,7 @@ def test_batch_list_of_three_valid_files(
 # ----------------------------------------------------------------------
 
 
-def test_batch_continues_on_corrupt_file(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_continues_on_corrupt_file(tmp_path: Path, fixtures_dir: Path) -> None:
     """A corrupt file produces 1 error result; the other 2 still succeed."""
     good_a = _copy_real_png(tmp_path / "good_a.png", fixtures_dir / "logo.png")
     good_b = _copy_real_png(tmp_path / "good_b.png", fixtures_dir / "diagram.png")
@@ -174,9 +171,7 @@ def test_batch_directory_input_processes_supported_files(
 # ----------------------------------------------------------------------
 
 
-def test_batch_recursive_directory_walks_subdirs(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_recursive_directory_walks_subdirs(tmp_path: Path, fixtures_dir: Path) -> None:
     """`recursive=True` descends into subdirectories."""
     root = tmp_path / "root"
     sub = root / "sub" / "deep"
@@ -201,9 +196,7 @@ def test_batch_recursive_directory_walks_subdirs(
     assert {r.svg_path.name for r in results} == {"top.svg", "nested.svg"}
 
 
-def test_batch_non_recursive_skips_subdirs(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_non_recursive_skips_subdirs(tmp_path: Path, fixtures_dir: Path) -> None:
     """`recursive=False` (default) does NOT descend into subdirectories."""
     root = tmp_path / "root"
     sub = root / "sub"
@@ -215,9 +208,7 @@ def test_batch_non_recursive_skips_subdirs(
     out_dir.mkdir()
 
     with _PatchStack(_success_patches()):
-        results = convert_batch(
-            str(root), output_dir=out_dir, mode=Mode.LABELS
-        )
+        results = convert_batch(str(root), output_dir=out_dir, mode=Mode.LABELS)
 
     # Only the top-level file is found.
     assert len(results) == 1
@@ -256,9 +247,7 @@ def test_batch_glob_pattern_matches_only_listed_extensions(
 # ----------------------------------------------------------------------
 
 
-def test_batch_single_file_string(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_single_file_string(tmp_path: Path, fixtures_dir: Path) -> None:
     """A single supported-extension string is treated as one file."""
     img = _copy_real_png(tmp_path / "only.png", fixtures_dir / "logo.png")
     out_dir = tmp_path / "out"
@@ -276,9 +265,7 @@ def test_batch_single_file_string(
 # ----------------------------------------------------------------------
 
 
-def test_batch_unsupported_format_files_are_filtered(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_unsupported_format_files_are_filtered(tmp_path: Path, fixtures_dir: Path) -> None:
     """Non-image extensions in a list input are dropped before processing."""
     _copy_real_png(tmp_path / "keep.png", fixtures_dir / "logo.png")
     (tmp_path / "skip.txt").write_text("hello")
@@ -303,22 +290,19 @@ def test_batch_unsupported_format_files_are_filtered(
 # ----------------------------------------------------------------------
 
 
-def test_batch_reraises_when_continue_on_error_false(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_reraises_when_continue_on_error_false(tmp_path: Path, fixtures_dir: Path) -> None:
     """A failure with `continue_on_error=False` propagates the exception."""
     bad = _write_corrupt_png(tmp_path / "bad.png")
     out_dir = tmp_path / "out"
     out_dir.mkdir()
 
-    with _PatchStack(_success_patches()):
-        with pytest.raises(Exception):
-            convert_batch(
-                [bad],
-                output_dir=out_dir,
-                mode=Mode.LABELS,
-                continue_on_error=False,
-            )
+    with _PatchStack(_success_patches()), pytest.raises(Exception):
+        convert_batch(
+            [bad],
+            output_dir=out_dir,
+            mode=Mode.LABELS,
+            continue_on_error=False,
+        )
 
 
 # ----------------------------------------------------------------------
@@ -377,9 +361,7 @@ def test_batch_no_progress_bar_when_show_progress_false(
     monkeypatch.setattr("img2svg.api.progress_bar", progress_mock)
 
     with _PatchStack(_success_patches()):
-        results = convert_batch(
-            [img], output_dir=out_dir, mode=Mode.LABELS
-        )
+        results = convert_batch([img], output_dir=out_dir, mode=Mode.LABELS)
 
     assert len(results) == 1
     progress_mock.assert_not_called()
@@ -399,9 +381,7 @@ def test_batch_output_dir_override_creates_and_uses_custom_dir(
     assert not custom_out.exists()
 
     with _PatchStack(_success_patches()):
-        results = convert_batch(
-            [img], output_dir=custom_out, mode=Mode.LABELS
-        )
+        results = convert_batch([img], output_dir=custom_out, mode=Mode.LABELS)
 
     assert len(results) == 1
     assert custom_out.exists()
@@ -410,9 +390,7 @@ def test_batch_output_dir_override_creates_and_uses_custom_dir(
     assert results[0].svg_path.name == "img.svg"
 
 
-def test_batch_default_output_dir_for_list_input(
-    tmp_path: Path, fixtures_dir: Path
-) -> None:
+def test_batch_default_output_dir_for_list_input(tmp_path: Path, fixtures_dir: Path) -> None:
     """When `output_dir` is None and `inputs` is a list, fall back to
     `inputs[0].parent`."""
     in_dir = tmp_path / "inputs"

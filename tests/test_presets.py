@@ -1,7 +1,9 @@
+# img2svg - tests for auto-mode selection and mode->preset mapping.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for auto-mode selection and mode→preset mapping."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from img2svg.enums import ImageType, Mode
 from img2svg.presets import (
@@ -64,5 +66,6 @@ def test_select_preset_for_auto_falls_back() -> None:
 
 def test_mode_to_preset_values_are_known() -> None:
     from img2svg.vectorizer import PRESETS
+
     for mode, preset in MODE_TO_PRESET.items():
         assert preset in PRESETS, f"mode {mode!r} maps to unknown preset {preset!r}"

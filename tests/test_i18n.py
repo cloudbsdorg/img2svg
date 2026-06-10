@@ -1,4 +1,8 @@
+# img2svg - tests for the i18n/gettext scaffold.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the i18n/gettext scaffold."""
+
 from __future__ import annotations
 
 import pytest

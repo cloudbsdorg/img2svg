@@ -1,4 +1,8 @@
+# img2svg - tests for the typed exception hierarchy.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the typed exception hierarchy."""
+
 from __future__ import annotations
 
 import pytest

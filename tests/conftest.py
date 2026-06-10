@@ -1,4 +1,8 @@
+# img2svg - pytest configuration and shared fixtures.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Pytest configuration and shared fixtures for img2svg tests."""
+
 from __future__ import annotations
 
 import subprocess

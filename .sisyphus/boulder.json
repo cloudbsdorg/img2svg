@@ -100,6 +100,60 @@
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
       "updated_at": "2026-06-10T07:04:08.615Z"
+    },
+    "todo:21": {
+      "task_key": "todo:21",
+      "task_label": "21",
+      "task_title": "**Typer CLI (subcommands, --list-gpus, --gpu-strategy, --mode, --device, --model)**",
+      "session_id": "ses_14fa63dd7ffeJWkRDICzXcSnI3",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-10T07:29:29.905Z"
+    },
+    "todo:22": {
+      "task_key": "todo:22",
+      "task_label": "22",
+      "task_title": "**GPU recommendation CLI command + Rich table**",
+      "session_id": "ses_14f8f527affejL442jgYrm0DwB",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-10T07:37:31.103Z"
+    },
+    "todo:24": {
+      "task_key": "todo:24",
+      "task_label": "24",
+      "task_title": "**README.md (overview, install, quickstart, Mermaid arch diagram)**",
+      "session_id": "ses_14f852bc2ffezZ81yJfAcjyrZj",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-06-10T07:45:25.565Z"
+    },
+    "todo:26": {
+      "task_key": "todo:26",
+      "task_label": "26",
+      "task_title": "**Jenkinsfile + local CI script (replacing GitHub Actions)**",
+      "session_id": "ses_14f7617b6ffeNrbo5tctn550df",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-10T08:04:22.904Z"
+    },
+    "todo:27": {
+      "task_key": "todo:27",
+      "task_label": "27",
+      "task_title": "**Integration tests (real YOLO on small model, real vtracer, batch, GPU)**",
+      "session_id": "ses_14f6c4fc5ffeMFXbBpz6C6WwO4",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-06-10T08:15:49.125Z"
+    },
+    "todo:31": {
+      "task_key": "todo:31",
+      "task_label": "31",
+      "task_title": "**Final cleanup (deps audit, .gitignore, AGPL notice, BSD headers)**",
+      "session_id": "ses_14f650473ffec77ZZBDI4iNxCC",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-10T08:33:10.078Z"
     }
   }
 }

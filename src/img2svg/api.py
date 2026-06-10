@@ -1,3 +1,6 @@
+# img2svg - high-level public API for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """High-level public API for img2svg.
 
 This module is the public entry point for the library. The two functions
@@ -16,6 +19,7 @@ By default only files with supported image extensions
 to fail fast on the first error, and ``show_progress=True`` to render a
 Rich progress bar over the batch.
 """
+
 from __future__ import annotations
 
 from contextlib import nullcontext
@@ -73,9 +77,7 @@ def _expand_glob(inputs: str) -> list[Path]:
     return sorted(base.glob(p.name))
 
 
-def _resolve_output_dir(
-    inputs: list[Path], output_dir: Path | None
-) -> Path:
+def _resolve_output_dir(inputs: list[Path], output_dir: Path | None) -> Path:
     # T19-era shim — kept so existing callers/tests keep working. New
     # code should use `_default_output_dir`, which also handles string
     # `inputs`.
@@ -134,9 +136,7 @@ def _normalize_inputs(
     return result
 
 
-def _default_output_dir(
-    inputs: list[str | Path] | str, paths: list[Path]
-) -> Path:
+def _default_output_dir(inputs: list[str | Path] | str, paths: list[Path]) -> Path:
     """Pick the output directory when one is not provided.
 
     Resolution order:
@@ -278,9 +278,7 @@ def convert_batch(
     results: list[ConversionResult] = []
     total = len(paths)
     progress_cm = (
-        progress_bar(total, description="Converting")
-        if show_progress
-        else nullcontext(None)
+        progress_bar(total, description="Converting") if show_progress else nullcontext(None)
     )
 
     with progress_cm as progress:

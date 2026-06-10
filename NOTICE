@@ -1,0 +1,18 @@
+img2svg
+Copyright (c) 2026, CloudBSD
+SPDX-License-Identifier: BSD-3-Clause
+
+This product includes software developed by the img2svg project
+(https://github.com/cloudbsdorg/img2svg).
+
+---
+
+This product includes software (ultralytics, https://github.com/ultralytics/ultralytics)
+that is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+You can obtain a copy of the AGPL-3.0 license at https://www.gnu.org/licenses/agpl-3.0.txt
+or by writing to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+Boston, MA 02110-1301 USA.
+
+ultralytics is used as a dependency only; no source code from ultralytics is
+included in this distribution. Users of img2svg who deploy the software as a
+network service may be subject to AGPL-3.0 terms for the ultralytics component.

@@ -1,3 +1,6 @@
+# img2svg - Rich-based logging setup for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Rich-based logging setup for img2svg.
 
 Provides:
@@ -6,11 +9,12 @@ Provides:
 - Progress context managers for indeterminate (model download) and
   determinate (batch) operations.
 """
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -21,7 +25,6 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
-
 
 _VERBOSITY_LEVELS: dict[str, int] = {
     "quiet": logging.WARNING,

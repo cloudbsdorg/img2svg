@@ -1,3 +1,6 @@
+# img2svg - tests for PyPI packaging metadata in pyproject.toml.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for PyPI packaging metadata in pyproject.toml.
 
 The `pyproject.toml` is the single source of truth for the metadata
@@ -8,6 +11,7 @@ edit that drops the console script, removes the BSD classifier, or
 forgets to ship the man page in the wheel should fail loudly here
 before it ships.
 """
+
 from __future__ import annotations
 
 import re
@@ -109,8 +113,7 @@ def test_pyproject_has_all_required_classifiers(pyproject: dict[str, Any]) -> No
 
     missing = [c for c in REQUIRED_CLASSIFIERS if c not in classifiers]
     assert not missing, (
-        f"pyproject.toml is missing required classifiers: {missing}; "
-        f"found: {classifiers}"
+        f"pyproject.toml is missing required classifiers: {missing}; found: {classifiers}"
     )
 
 
@@ -132,8 +135,7 @@ def test_pyproject_has_four_project_urls(pyproject: dict[str, Any]) -> None:
         f"found: {sorted(actual_keys)}"
     )
     assert len(urls) >= 4, (
-        f"[project.urls] must have at least 4 entries, found {len(urls)}: "
-        f"{sorted(urls)}"
+        f"[project.urls] must have at least 4 entries, found {len(urls)}: {sorted(urls)}"
     )
 
     for key, value in urls.items():
@@ -157,12 +159,10 @@ def test_pyproject_registers_img2svg_console_script(
     scripts = project["scripts"]
 
     assert "img2svg" in scripts, (
-        f"[project.scripts] must register the 'img2svg' console script; "
-        f"found: {sorted(scripts)}"
+        f"[project.scripts] must register the 'img2svg' console script; found: {sorted(scripts)}"
     )
     assert scripts["img2svg"] == "img2svg.cli:app", (
-        f"[project.scripts].img2svg must be 'img2svg.cli:app', "
-        f"got {scripts['img2svg']!r}"
+        f"[project.scripts].img2svg must be 'img2svg.cli:app', got {scripts['img2svg']!r}"
     )
 
     entry = scripts["img2svg"]

@@ -1,4 +1,8 @@
+# img2svg - structural tests for the docs/ directory and MkDocs configuration.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Structural tests for the docs/ directory and MkDocs configuration."""
+
 from __future__ import annotations
 
 import re
@@ -24,9 +28,7 @@ REQUIRED_DOCS: tuple[str, ...] = (
 )
 REQUIRED_CONFIG: str = "mkdocs.yml"
 
-INDEX_TARGETS: tuple[str, ...] = tuple(
-    name for name in REQUIRED_DOCS if name != "index.md"
-)
+INDEX_TARGETS: tuple[str, ...] = tuple(name for name in REQUIRED_DOCS if name != "index.md")
 
 
 @pytest.mark.parametrize("filename", REQUIRED_DOCS)
@@ -121,12 +123,10 @@ def test_architecture_has_two_mermaid_diagrams() -> None:
     pattern = r"```\s*mermaid\b(.*?)```"
     blocks = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
     assert len(blocks) >= 2, (
-        f"docs/architecture.md must contain at least 2 mermaid blocks. "
-        f"Found {len(blocks)}."
+        f"docs/architecture.md must contain at least 2 mermaid blocks. Found {len(blocks)}."
     )
     directions = " ".join(
-        "LR" if "flowchart LR" in b else "TB" if "flowchart TB" in b else "?"
-        for b in blocks
+        "LR" if "flowchart LR" in b else "TB" if "flowchart TB" in b else "?" for b in blocks
     )
     assert "LR" in directions, "expected a 'flowchart LR' (pipeline) diagram"
     assert "TB" in directions, "expected a 'flowchart TB' (renderer) diagram"
@@ -134,9 +134,7 @@ def test_architecture_has_two_mermaid_diagrams() -> None:
 
 def test_installation_mentions_pip_install() -> None:
     text = (DOCS_DIR / "installation.md").read_text(encoding="utf-8")
-    assert "pip install img2svg" in text, (
-        "docs/installation.md must contain 'pip install img2svg'"
-    )
+    assert "pip install img2svg" in text, "docs/installation.md must contain 'pip install img2svg'"
 
 
 def test_installation_mentions_freebsd_and_macos() -> None:
@@ -153,15 +151,14 @@ def test_usage_has_cli_examples() -> None:
     text = (DOCS_DIR / "usage.md").read_text(encoding="utf-8")
     invocations = re.findall(r"^\s*img2svg\s+\S+", text, re.MULTILINE)
     assert len(invocations) >= 3, (
-        f"docs/usage.md must contain at least 3 `img2svg` invocations. "
-        f"Found {len(invocations)}."
+        f"docs/usage.md must contain at least 3 `img2svg` invocations. Found {len(invocations)}."
     )
 
 
 def test_usage_documents_every_cli_flag() -> None:
     cli_path = PROJECT_ROOT / "src" / "img2svg" / "cli.py"
     cli_text = cli_path.read_text(encoding="utf-8")
-    flag_pattern = re.compile(r'--([a-z][a-z0-9-]*)\b')
+    flag_pattern = re.compile(r"--([a-z][a-z0-9-]*)\b")
     cli_flags = set(flag_pattern.findall(cli_text))
 
     text = (DOCS_DIR / "usage.md").read_text(encoding="utf-8")
@@ -198,9 +195,7 @@ def test_every_doc_has_at_least_two_h2_sections(filename: str) -> None:
         return
     text = (DOCS_DIR / filename).read_text(encoding="utf-8")
     h2_count = len(re.findall(r"^##\s+", text, re.MULTILINE))
-    assert h2_count >= 2, (
-        f"docs/{filename} must have at least 2 H2 sections, found {h2_count}"
-    )
+    assert h2_count >= 2, f"docs/{filename} must have at least 2 H2 sections, found {h2_count}"
 
 
 @pytest.mark.parametrize("filename", REQUIRED_DOCS)
@@ -242,12 +237,8 @@ def test_mkdocs_features_include_navigation_instant_and_tracking() -> None:
         data = yaml.safe_load(f)
     theme = data.get("theme", {})
     features = theme.get("features", [])
-    assert "navigation.instant" in features, (
-        "theme.features must include 'navigation.instant'"
-    )
-    assert "navigation.tracking" in features, (
-        "theme.features must include 'navigation.tracking'"
-    )
+    assert "navigation.instant" in features, "theme.features must include 'navigation.instant'"
+    assert "navigation.tracking" in features, "theme.features must include 'navigation.tracking'"
 
 
 def test_changelog_has_version_zero_one_zero() -> None:
@@ -260,9 +251,7 @@ def test_troubleshooting_documents_common_errors() -> None:
     assert "img2svg info" in text, (
         "docs/troubleshooting.md should reference `img2svg info` for diagnosis"
     )
-    assert "out of memory" in text.lower(), (
-        "docs/troubleshooting.md must mention out of memory"
-    )
+    assert "out of memory" in text.lower(), "docs/troubleshooting.md must mention out of memory"
     assert re.search(r"no gpu", text, re.IGNORECASE), (
         "docs/troubleshooting.md must mention the no-GPU case"
     )

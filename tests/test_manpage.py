@@ -1,3 +1,6 @@
+# img2svg - tests for the img2svg(1) man page.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the img2svg(1) man page.
 
 Validates that the man page source is present, well-formed, and contains
@@ -16,6 +19,7 @@ The man page ships with the wheel via `force-include` in pyproject.toml,
 so a separate test verifies that the wheel-build configuration actually
 points at it.
 """
+
 from __future__ import annotations
 
 import re
@@ -92,10 +96,7 @@ def test_manpage_has_required_sections(manpage_text: str) -> None:
             found.add(m.group(1) or m.group(2))
 
     missing = [s for s in REQUIRED_SECTIONS if s not in found]
-    assert not missing, (
-        f"man page is missing required sections: {missing}; "
-        f"found: {sorted(found)}"
-    )
+    assert not missing, f"man page is missing required sections: {missing}; found: {sorted(found)}"
 
 
 def test_manpage_has_optional_sections(manpage_text: str) -> None:
@@ -108,8 +109,7 @@ def test_manpage_has_optional_sections(manpage_text: str) -> None:
 
     missing = [s for s in OPTIONAL_SECTIONS if s not in found]
     assert not missing, (
-        f"man page is missing recommended sections: {missing}; "
-        f"found: {sorted(found)}"
+        f"man page is missing recommended sections: {missing}; found: {sorted(found)}"
     )
 
 
@@ -120,9 +120,7 @@ def test_manpage_has_optional_sections(manpage_text: str) -> None:
 
 def test_manpage_has_author_email(manpage_text: str) -> None:
     """The author email `mark@cloudbsd.org` is present."""
-    assert "mark@cloudbsd.org" in manpage_text, (
-        "man page must list author email: mark@cloudbsd.org"
-    )
+    assert "mark@cloudbsd.org" in manpage_text, "man page must list author email: mark@cloudbsd.org"
 
 
 # ----------------------------------------------------------------------

@@ -1,8 +1,12 @@
+# img2svg - vtracer wrapper for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """vtracer wrapper for img2svg.
 
 Provides a clean Python API around `vtracer.convert_image_to_svg_py()` with
 named presets for the four output modes.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

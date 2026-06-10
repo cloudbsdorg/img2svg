@@ -1,4 +1,8 @@
+# img2svg - GPU enumeration and recommendation for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """GPU enumeration and recommendation for img2svg."""
+
 from __future__ import annotations
 
 import os
@@ -154,9 +158,7 @@ def list_gpus() -> list[GPUInfo]:
     return _torch_fallback()
 
 
-def recommend_gpu(
-    gpus: list[GPUInfo], strategy: DeviceStrategy
-) -> GPUInfo | None:
+def recommend_gpu(gpus: list[GPUInfo], strategy: DeviceStrategy) -> GPUInfo | None:
     """Pick the best GPU for the given strategy, or None if no GPUs."""
     if not gpus:
         return None
@@ -220,10 +222,7 @@ def print_gpu_recommendation(strategy: str = "power") -> None:
         strategy_enum = DeviceStrategy(strategy)
     except ValueError:
         valid = ", ".join(s.value for s in DeviceStrategy)
-        console.print(
-            f"[red]invalid strategy {strategy!r}. "
-            f"Valid strategies: {valid}[/red]"
-        )
+        console.print(f"[red]invalid strategy {strategy!r}. Valid strategies: {valid}[/red]")
         return
 
     recommended = recommend_gpu(gpus, strategy_enum)
@@ -241,11 +240,7 @@ def print_gpu_recommendation(strategy: str = "power") -> None:
     rec_style = Style(bold=True, color="green")
     for gpu in sorted(gpus, key=lambda g: g.index):
         is_rec = rec_index == gpu.index
-        util_str = (
-            f"{gpu.utilization_pct:.0f}"
-            if gpu.utilization_pct is not None
-            else "-"
-        )
+        util_str = f"{gpu.utilization_pct:.0f}" if gpu.utilization_pct is not None else "-"
         table.add_row(
             str(gpu.index),
             gpu.vendor.value,

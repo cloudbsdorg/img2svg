@@ -1,9 +1,13 @@
+# img2svg - TraceRenderer: traces the image with vtracer's 'photo' preset.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """TraceRenderer: traces the image with vtracer's 'photo' preset.
 
 Identical to `VisualRenderer` except that vtracer is invoked with the
 'photo' preset, which has lower `filter_speckle` and `layer_difference`
 values for higher-fidelity photorealistic traces.
 """
+
 from __future__ import annotations
 
 from typing import ClassVar

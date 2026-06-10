@@ -1,8 +1,12 @@
+# img2svg - LabelsRenderer: pure semantic SVG output (white background + bbox + label text).
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """`LabelsRenderer` — pure semantic SVG output: white background + bbox + label text.
 
 Used by the `LABELS` mode. Produces an SVG with no rasterized image, just
 a solid white background and labeled bounding boxes drawn over it.
 """
+
 from __future__ import annotations
 
 from img2svg.logging import get_logger
@@ -36,13 +40,20 @@ class LabelsRenderer(Renderer):
         w, h = self.image.width, self.image.height
         _logger.debug(
             "LabelsRenderer: %d detection(s) for %dx%d image",
-            len(self.detections), w, h,
+            len(self.detections),
+            w,
+            h,
         )
 
         bg = self.svg.add_group(id="background")
         bg.add_rect(
-            x=0.0, y=0.0, w=float(w), h=float(h),
-            fill=_BACKGROUND_FILL, stroke="none", stroke_width=None,
+            x=0.0,
+            y=0.0,
+            w=float(w),
+            h=float(h),
+            fill=_BACKGROUND_FILL,
+            stroke="none",
+            stroke_width=None,
         )
 
         for idx, det in enumerate(self.detections):
@@ -53,13 +64,21 @@ class LabelsRenderer(Renderer):
             )
             bb = det.bbox
             group.add_rect(
-                x=bb.x1, y=bb.y1,
-                w=bb.width, h=bb.height,
-                fill="none", stroke=_BOX_STROKE, stroke_width=_BOX_STROKE_WIDTH,
+                x=bb.x1,
+                y=bb.y1,
+                w=bb.width,
+                h=bb.height,
+                fill="none",
+                stroke=_BOX_STROKE,
+                stroke_width=_BOX_STROKE_WIDTH,
             )
             text_y = max(0.0, bb.y1 - _TEXT_OFFSET_Y)
             group.add_text_with_outline(
-                x=bb.x1, y=text_y, text=label,
+                x=bb.x1,
+                y=text_y,
+                text=label,
                 font_size=_TEXT_FONT_SIZE,
-                fill=_TEXT_FILL, stroke=_TEXT_STROKE, stroke_width=_TEXT_STROKE_WIDTH,
+                fill=_TEXT_FILL,
+                stroke=_TEXT_STROKE,
+                stroke_width=_TEXT_STROKE_WIDTH,
             )

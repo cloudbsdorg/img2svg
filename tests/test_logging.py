@@ -1,9 +1,11 @@
+# img2svg - tests for the logging module.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the logging module."""
+
 from __future__ import annotations
 
 import logging
-
-import pytest
 
 from img2svg import logging as imlogging
 

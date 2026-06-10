@@ -1563,7 +1563,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 20. **Batch processing (multi-file, directory, glob, error continuation)**
+- [x] 20. **Batch processing (multi-file, directory, glob, error continuation)**
 
   **What to do**:
   - Enhance `src/img2svg/api.py` `convert_batch()`:
@@ -1616,7 +1616,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 21. **Typer CLI (subcommands, --list-gpus, --gpu-strategy, --mode, --device, --model)**
+- [x] 21. **Typer CLI (subcommands, --list-gpus, --gpu-strategy, --mode, --device, --model)**
 
   **What to do**:
   - Create `src/img2svg/cli.py`:
@@ -1704,7 +1704,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 22. **GPU recommendation CLI command + Rich table**
+- [x] 22. **GPU recommendation CLI command + Rich table**
 
   **What to do**:
   - Enhance `src/img2svg/gpu.py` with `print_gpu_recommendation(strategy)`:
@@ -1754,7 +1754,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 23. **Man page (man/img2svg.1)**
+- [x] 23. **Man page (man/img2svg.1)**
 
   **What to do**:
   - Create `man/img2svg.1` in standard roff/groff man page format
@@ -1822,7 +1822,7 @@ except UnsupportedFormatError as e:
 
 ### Wave 4 — Docs, CI, integration, packaging (8 tasks, parallel)
 
-- [ ] 24. **README.md (overview, install, quickstart, Mermaid arch diagram)**
+- [x] 24. **README.md (overview, install, quickstart, Mermaid arch diagram)**
 
   **What to do**:
   - Create `README.md` with:
@@ -1894,7 +1894,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 25. **docs/ — installation, usage, api, modes, gpu, configuration, troubleshooting, development, architecture, changelog**
+- [x] 25. **docs/ — installation, usage, api, modes, gpu, configuration, troubleshooting, development, architecture, changelog**
 
   **What to do**:
   - Create `docs/`:
@@ -1958,7 +1958,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 26. **Jenkinsfile + local CI script (replacing GitHub Actions)**
+- [x] 26. **Jenkinsfile + local CI script (replacing GitHub Actions)**
 
   **What to do**:
   - **No GitHub Actions** — user has no GitHub integrations. Use Jenkinsfile + local CI script.
@@ -2090,7 +2090,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 27. **Integration tests (real YOLO on small model, real vtracer, batch, GPU)**
+- [x] 27. **Integration tests (real YOLO on small model, real vtracer, batch, GPU)**
 
   **What to do**:
   - Create `tests/integration/` (or add to existing tests with `@pytest.mark.integration` and `@pytest.mark.slow`):
@@ -2142,7 +2142,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 28. **PyPI packaging metadata (readme rendering, classifiers, URLs)**
+- [x] 28. **PyPI packaging metadata (readme rendering, classifiers, URLs)**
 
   **What to do**:
   - Update `pyproject.toml`:
@@ -2215,7 +2215,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 29. **FreeBSD compatibility notes + smoke test**
+- [x] 29. **FreeBSD compatibility notes + smoke test**
 
   **What to do**:
   - Create `docs/platforms/freebsd.md`:
@@ -2272,7 +2272,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 30. **Example gallery (sample inputs → outputs) + before/after comparisons**
+- [x] 30. **Example gallery (sample inputs → outputs) + before/after comparisons**
 
   **What to do**:
   - Create `examples/`:

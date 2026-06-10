@@ -1,3 +1,6 @@
+# img2svg - tests for the `Pipeline` orchestrator.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the `Pipeline` orchestrator.
 
 The YOLO detector is mocked at `img2svg.pipeline.get_detector` to avoid
@@ -6,6 +9,7 @@ because the helper used by `VisualRenderer` / `TraceRenderer` /
 `AnnotatedRenderer` lives there. The `LabelsRenderer` path does not
 touch vtracer and is exercised without any extra patching.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,12 +27,11 @@ from img2svg.models import (
     Detection,
     Sidecar,
 )
-from img2svg.pipeline import Pipeline, RENDERER_REGISTRY
+from img2svg.pipeline import RENDERER_REGISTRY, Pipeline
 from img2svg.renderers.annotated import AnnotatedRenderer
 from img2svg.renderers.labels import LabelsRenderer
 from img2svg.renderers.trace import TraceRenderer
 from img2svg.renderers.visual import VisualRenderer
-
 
 # A tiny valid vtracer-style SVG used to stub the `VtracerVectorizer` so
 # renderers that touch vtracer do not actually run the binary.
@@ -83,9 +86,7 @@ def test_renderer_registry_has_all_concrete_modes() -> None:
 # ----------------------------------------------------------------------
 
 
-def test_pipeline_run_labels_mode_produces_svg_and_sidecar(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_run_labels_mode_produces_svg_and_sidecar(tmp_path: Path, logo_path: Path) -> None:
     """End-to-end with LABELS mode (no vtracer) and a stubbed detector.
 
     Verifies the full 12-step flow:
@@ -95,10 +96,9 @@ def test_pipeline_run_labels_mode_produces_svg_and_sidecar(
     """
     out_svg = tmp_path / "out.svg"
 
-    with mock.patch(
-        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
-    ), mock.patch(
-        "img2svg.pipeline.classify", return_value=(ImageType.LOGO, "forced → LOGO")
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])),
+        mock.patch("img2svg.pipeline.classify", return_value=(ImageType.LOGO, "forced → LOGO")),
     ):
         result = Pipeline(ConversionOptions(mode=Mode.LABELS)).run(logo_path, out_svg)
 
@@ -127,16 +127,12 @@ def test_pipeline_run_labels_mode_produces_svg_and_sidecar(
     assert len(raw["input_hash"]) == 64, "input_hash should be SHA-256 hex"
 
 
-def test_pipeline_run_with_detections_populates_sidecar(
-    tmp_path: Path, photo_path: Path
-) -> None:
+def test_pipeline_run_with_detections_populates_sidecar(tmp_path: Path, photo_path: Path) -> None:
     """With a mocked detector returning detections, the sidecar carries them."""
     dets = [_make_detection("person", 0.87), _make_detection("dog", 0.65)]
     out_svg = tmp_path / "out.svg"
 
-    with mock.patch(
-        "img2svg.pipeline.get_detector", return_value=_make_mock_detector(dets)
-    ):
+    with mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector(dets)):
         result = Pipeline(ConversionOptions(mode=Mode.ANNOTATED)).run(photo_path, out_svg)
 
     assert len(result.detections) == 2
@@ -147,31 +143,24 @@ def test_pipeline_run_with_detections_populates_sidecar(
     assert result.sidecar.output_size == out_svg.stat().st_size
 
 
-def test_pipeline_respects_user_mode_override(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_respects_user_mode_override(tmp_path: Path, logo_path: Path) -> None:
     """Explicit mode override is honored regardless of image_type."""
     out_svg = tmp_path / "out.svg"
 
-    with mock.patch(
-        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
-    ):
+    with mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])):
         result = Pipeline(ConversionOptions(mode=Mode.TRACE)).run(logo_path, out_svg)
 
     assert result.sidecar.mode_used == Mode.TRACE
     assert "explicit override" in result.sidecar.mode_reasoning
 
 
-def test_pipeline_auto_mode_resolves_to_concrete(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_auto_mode_resolves_to_concrete(tmp_path: Path, logo_path: Path) -> None:
     """Mode.AUTO is resolved to a concrete mode via the classifier + select_mode."""
     out_svg = tmp_path / "out.svg"
 
-    with mock.patch(
-        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
-    ), mock.patch(
-        "img2svg.pipeline.classify", return_value=(ImageType.LOGO, "forced → LOGO")
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])),
+        mock.patch("img2svg.pipeline.classify", return_value=(ImageType.LOGO, "forced → LOGO")),
     ):
         result = Pipeline(ConversionOptions(mode=Mode.AUTO)).run(logo_path, out_svg)
 
@@ -186,20 +175,15 @@ def test_pipeline_auto_mode_resolves_to_concrete(
 
 
 @pytest.mark.parametrize("mode", [Mode.VISUAL, Mode.ANNOTATED, Mode.TRACE])
-def test_pipeline_runs_vtracer_renderer_modes(
-    tmp_path: Path, logo_path: Path, mode: Mode
-) -> None:
+def test_pipeline_runs_vtracer_renderer_modes(tmp_path: Path, logo_path: Path, mode: Mode) -> None:
     """VISUAL, ANNOTATED, TRACE all hit vtracer. Stub the vectorizer."""
     out_svg = tmp_path / f"out_{mode.value}.svg"
 
-    with mock.patch(
-        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
-    ), mock.patch(
-        "img2svg.renderers.visual.VtracerVectorizer"
-    ) as MockVec:
-        MockVec.return_value.vectorize.side_effect = _fake_vectorize_side_effect(
-            _FAKE_VTRACER_SVG
-        )
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])),
+        mock.patch("img2svg.renderers.visual.VtracerVectorizer") as MockVec,
+    ):
+        MockVec.return_value.vectorize.side_effect = _fake_vectorize_side_effect(_FAKE_VTRACER_SVG)
         result = Pipeline(ConversionOptions(mode=mode)).run(logo_path, out_svg)
 
     assert out_svg.exists()
@@ -234,9 +218,7 @@ def test_pipeline_raises_on_unsupported_format(tmp_path: Path, corrupt_path: Pat
 def test_pipeline_records_timings(tmp_path: Path, logo_path: Path) -> None:
     """The sidecar.timings dict has all expected keys and total >= sum-of-parts."""
     out_svg = tmp_path / "out.svg"
-    with mock.patch(
-        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
-    ):
+    with mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])):
         result = Pipeline(ConversionOptions(mode=Mode.LABELS)).run(logo_path, out_svg)
 
     t = result.sidecar.timings

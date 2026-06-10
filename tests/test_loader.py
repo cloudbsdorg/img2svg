@@ -1,4 +1,8 @@
+# img2svg - tests for the image loader.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the image loader."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -149,6 +153,7 @@ def test_load_accepts_string_path(png_path: Path) -> None:
 
 def test_np_array_property(png_path: Path) -> None:
     import numpy as np
+
     loaded = load_image(png_path)
     arr = loaded.np_array
     assert isinstance(arr, np.ndarray)

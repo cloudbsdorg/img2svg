@@ -1,9 +1,13 @@
+# img2svg - renderer base class and shared types for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Renderer base class and shared types for img2svg.
 
 A `Renderer` mutates an `SVGDocument` in place by adding groups, rects, paths,
 or text. Each renderer corresponds to a `Mode` (LABELS, VISUAL, ANNOTATED, etc.)
 and is responsible for producing the SVG content for that mode.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

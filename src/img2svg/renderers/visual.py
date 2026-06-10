@@ -1,3 +1,6 @@
+# img2svg - VisualRenderer: traces the image with vtracer's 'default' preset.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """VisualRenderer: traces the image with vtracer's 'default' preset.
 
 Produces an SVG whose primary content is a single `<g id="vtracer-output">`
@@ -8,6 +11,7 @@ The actual SVG is written to a temporary file because vtracer requires a
 filesystem path. vtracer output is then parsed with lxml and the paths
 extracted; we never copy vtracer's `<svg>` wrapper or its attributes.
 """
+
 from __future__ import annotations
 
 import tempfile
@@ -51,7 +55,7 @@ def _move_to_after_base(root: etree._Element, target: etree._Element) -> None:
     root.insert(insert_at, target)
 
 
-def _embed_vtracer_paths(svg: "SVGDocument", vtracer_svg_path: Path) -> None:
+def _embed_vtracer_paths(svg: SVGDocument, vtracer_svg_path: Path) -> None:
     """Parse vtracer's output SVG and embed its `<path>` children into `svg`.
 
     All paths are placed inside a single `<g id="vtracer-output">` group,

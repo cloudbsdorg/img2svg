@@ -1,4 +1,8 @@
+# img2svg - image loading with format validation and normalization.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Image loading with format validation and normalization."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

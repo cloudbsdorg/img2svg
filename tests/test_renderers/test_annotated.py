@@ -1,4 +1,8 @@
+# img2svg - tests for `AnnotatedRenderer` (vtracer trace + detection overlays).
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for `AnnotatedRenderer` (vtracer trace + detection overlays)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -40,8 +44,10 @@ def _make_doc() -> SVGDocument:
 
 def _fake_vectorize(svg_body: str):
     """Return a `vectorize` side_effect that writes svg_body to the output path."""
+
     def _side_effect(inp: str, outp: str) -> None:
         Path(outp).write_text(svg_body, encoding="utf-8")
+
     return _side_effect
 
 
@@ -56,6 +62,7 @@ def _det(class_name: str, conf: float, x1: float, y1: float, x2: float, y2: floa
 
 def _parse(svg: SVGDocument):
     from lxml import etree
+
     return etree.fromstring(svg.to_string().encode("utf-8"))
 
 
@@ -141,13 +148,8 @@ def test_two_detections_both_groups_appear_after_vtracer_group() -> None:
     assert [g.get("id") for g in groups] == ["det_cat_0", "det_dog_1"]
 
     children = list(root)
-    vtracer_idx = next(
-        i for i, c in enumerate(children) if c.get("id") == "vtracer-output"
-    )
-    det_indices = [
-        i for i, c in enumerate(children)
-        if (c.get("id") or "").startswith("det_")
-    ]
+    vtracer_idx = next(i for i, c in enumerate(children) if c.get("id") == "vtracer-output")
+    det_indices = [i for i, c in enumerate(children) if (c.get("id") or "").startswith("det_")]
     assert len(det_indices) == 2
     for di in det_indices:
         assert di > vtracer_idx, (

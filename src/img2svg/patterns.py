@@ -1,9 +1,13 @@
+# img2svg - geometric (non-ML) image analysis using OpenCV.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Geometric (non-ML) image analysis using OpenCV.
 
 Provides:
 - analyze_global(image) for whole-image stats
 - analyze_roi(image, bbox) for per-detection analysis
 """
+
 from __future__ import annotations
 
 import cv2
@@ -41,9 +45,7 @@ def _kmeans_dominant_colors(
         except cv2.error:
             pass  # fall through with RGB
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, max_iter, 1.0)
-    _, labels, centers = cv2.kmeans(
-        pixels_f, k, None, criteria, 3, cv2.KMEANS_PP_CENTERS
-    )
+    _, labels, centers = cv2.kmeans(pixels_f, k, None, criteria, 3, cv2.KMEANS_PP_CENTERS)
     labels = labels.flatten()
     counts = np.bincount(labels, minlength=k)
     # Sort by count desc
@@ -106,7 +108,9 @@ def analyze_global(image: np.ndarray) -> GeometricAnalysis:
         contour_count, and has_alpha.
     """
     if image.size == 0:
-        return GeometricAnalysis(dominant_colors=[], has_alpha=image.shape[-1] == 4 if image.ndim == 3 else False)
+        return GeometricAnalysis(
+            dominant_colors=[], has_alpha=image.shape[-1] == 4 if image.ndim == 3 else False
+        )
     has_alpha = image.ndim == 3 and image.shape[-1] == 4
     colors = _kmeans_dominant_colors(image, k=5)
     edges = _canny_edge_density(image)

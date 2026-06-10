@@ -1,3 +1,6 @@
+# img2svg - AnnotatedRenderer: combines vtracer trace (background) with detection overlays (foreground).
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """AnnotatedRenderer: combines vtracer trace (background) with detection overlays (foreground).
 
 Used by the `ANNOTATED` mode (and is the default for `Mode.AUTO` for the
@@ -16,6 +19,7 @@ The detection groups are appended after the vtracer group, so SVG paint
 order places them above the trace. An empty detections list produces the
 trace-only background with no detection groups.
 """
+
 from __future__ import annotations
 
 from img2svg.logging import get_logger
@@ -62,7 +66,9 @@ class AnnotatedRenderer(Renderer):
         """Mutate `self.svg` in place: vtracer trace + per-detection overlays."""
         _logger.debug(
             "AnnotatedRenderer: %d detection(s) for %dx%d image",
-            len(self.detections), self.image.width, self.image.height,
+            len(self.detections),
+            self.image.width,
+            self.image.height,
         )
 
         _render_with_vtracer(self, self.preset_name)
@@ -75,13 +81,21 @@ class AnnotatedRenderer(Renderer):
             )
             bb = det.bbox
             group.add_rect(
-                x=bb.x1, y=bb.y1,
-                w=bb.width, h=bb.height,
-                fill="none", stroke=_BOX_STROKE, stroke_width=_BOX_STROKE_WIDTH,
+                x=bb.x1,
+                y=bb.y1,
+                w=bb.width,
+                h=bb.height,
+                fill="none",
+                stroke=_BOX_STROKE,
+                stroke_width=_BOX_STROKE_WIDTH,
             )
             text_y = max(0.0, bb.y1 - _TEXT_OFFSET_Y)
             group.add_text_with_outline(
-                x=bb.x1, y=text_y, text=label,
+                x=bb.x1,
+                y=text_y,
+                text=label,
                 font_size=_TEXT_FONT_SIZE,
-                fill=_TEXT_FILL, stroke=_TEXT_STROKE, stroke_width=_TEXT_STROKE_WIDTH,
+                fill=_TEXT_FILL,
+                stroke=_TEXT_STROKE,
+                stroke_width=_TEXT_STROKE_WIDTH,
             )

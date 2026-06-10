@@ -1,16 +1,16 @@
+# img2svg - YOLO object detection wrapper for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """YOLO object detection wrapper for img2svg.
 
 Wraps `ultralytics.YOLO` with a clean dataclass interface. Singleton factory
 to avoid re-loading the (heavy) YOLO model on every detection call.
 """
+
 from __future__ import annotations
 
-import functools
-import hashlib
-import os
 import threading
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -18,12 +18,11 @@ from img2svg import device, paths
 from img2svg.errors import ModelLoadError
 from img2svg.models import BoundingBox, Detection
 
-
 _MODEL_LOCK = threading.Lock()
-_MODEL_CACHE: dict[str, "YOLODetector"] = {}
+_MODEL_CACHE: dict[str, YOLODetector] = {}
 
 
-def get_detector(model_name: str = "yolo11x.pt", device_str: str = "auto") -> "YOLODetector":
+def get_detector(model_name: str = "yolo11x.pt", device_str: str = "auto") -> YOLODetector:
     """Get or create a cached YOLODetector instance."""
     key = f"{model_name}::{device_str}"
     if key not in _MODEL_CACHE:
@@ -59,6 +58,7 @@ class YOLODetector:
             raise ModelLoadError(model_name, original=e) from e
         try:
             from ultralytics import YOLO  # type: ignore[import-not-found]
+
             self._model = YOLO(model_name)
         except Exception as e:
             raise ModelLoadError(model_name, original=e) from e
@@ -98,9 +98,7 @@ class YOLODetector:
                     class_id=int(cls_id),
                     class_name=str(class_name),
                     confidence=float(confidence),
-                    bbox=BoundingBox(
-                        x1=float(x1), y1=float(y1), x2=float(x2), y2=float(y2)
-                    ),
+                    bbox=BoundingBox(x1=float(x1), y1=float(y1), x2=float(x2), y2=float(y2)),
                 )
             )
         return detections

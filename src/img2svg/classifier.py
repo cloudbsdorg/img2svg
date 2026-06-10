@@ -1,3 +1,6 @@
+# img2svg - heuristic image type classifier.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Heuristic image type classifier.
 
 Maps an image to one of: LOGO, PHOTO, DIAGRAM, SCREENSHOT, LINE_ART, UNKNOWN.
@@ -8,6 +11,7 @@ The heuristic is based on a pre-computed GeometricAnalysis:
   - medium edges, geometric blocks               → SCREENSHOT
   - else                                         → UNKNOWN
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -17,9 +21,7 @@ from img2svg.models import GeometricAnalysis
 from img2svg.patterns import analyze_global
 
 
-def classify(
-    image: np.ndarray, analysis: GeometricAnalysis | None = None
-) -> tuple[ImageType, str]:
+def classify(image: np.ndarray, analysis: GeometricAnalysis | None = None) -> tuple[ImageType, str]:
     """Classify an image and return (image_type, reasoning_string).
 
     Args:

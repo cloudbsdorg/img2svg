@@ -1,3 +1,6 @@
+# img2svg - tests for platform compatibility docs and the FreeBSD smoke-test script.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for platform compatibility docs and the FreeBSD smoke-test script.
 
 Covers the T29 deliverables:
@@ -12,14 +15,13 @@ Covers the T29 deliverables:
   ``os.uname().sysname`` reports, so cross-language smoke tests are
   consistent.
 """
+
 from __future__ import annotations
 
 import os
 import re
 import subprocess
 from pathlib import Path
-
-import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLATFORMS_DIR = PROJECT_ROOT / "docs" / "platforms"
@@ -70,8 +72,7 @@ def test_check_freebsd_script_has_valid_bash_syntax() -> None:
         text=True,
     )
     assert result.returncode == 0, (
-        f"bash -n failed: rc={result.returncode}\n"
-        f"stdout={result.stdout}\nstderr={result.stderr}"
+        f"bash -n failed: rc={result.returncode}\nstdout={result.stdout}\nstderr={result.stderr}"
     )
 
 
@@ -87,10 +88,7 @@ def test_check_freebsd_script_uses_uname_s() -> None:
     # a comment that *names* the forbidden pattern for documentation
     # purposes. Lines starting with ``#`` (after optional leading
     # whitespace) are comments; the rest is executable code.
-    code_lines = [
-        line for line in raw_text.splitlines()
-        if not line.lstrip().startswith("#")
-    ]
+    code_lines = [line for line in raw_text.splitlines() if not line.lstrip().startswith("#")]
     code_text = "\n".join(code_lines)
     assert "uname -s" in raw_text, (
         f"{CHECK_SCRIPT} must detect the OS with `uname -s`; "
@@ -98,8 +96,7 @@ def test_check_freebsd_script_uses_uname_s() -> None:
     )
     # Sanity: the forbidden alternative should not appear in code.
     assert "platform.system" not in code_text, (
-        f"{CHECK_SCRIPT} must not call `platform.system()`; "
-        "use `uname -s` instead."
+        f"{CHECK_SCRIPT} must not call `platform.system()`; use `uname -s` instead."
     )
 
 
@@ -118,6 +115,5 @@ def test_src_does_not_use_platform_system() -> None:
             offenders.append(py_file)
     assert not offenders, (
         "These files call platform.system(...), which is forbidden. "
-        "Use os.uname().sysname or sys.platform instead:\n"
-        + "\n".join(str(p) for p in offenders)
+        "Use os.uname().sysname or sys.platform instead:\n" + "\n".join(str(p) for p in offenders)
     )

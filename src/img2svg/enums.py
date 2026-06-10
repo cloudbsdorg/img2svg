@@ -1,8 +1,12 @@
+# img2svg - enumerations for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Enumerations for img2svg.
 
 Uses a cross-compatible StrEnum pattern (the stdlib `StrEnum` only landed in
 Python 3.11; this module supports the project's `requires-python = ">=3.10"`).
 """
+
 from __future__ import annotations
 
 import sys

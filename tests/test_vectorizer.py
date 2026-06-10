@@ -1,4 +1,8 @@
+# img2svg - tests for the vtracer vectorizer wrapper.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the vtracer vectorizer wrapper. Mocks vtracer."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,13 +20,22 @@ def test_presets_dict_has_five_entries() -> None:
 
 def test_each_preset_has_required_keys() -> None:
     required = {
-        "colormode", "hierarchical", "mode", "filter_speckle",
-        "color_precision", "layer_difference", "corner_threshold",
-        "length_threshold", "max_iterations", "splice_threshold",
+        "colormode",
+        "hierarchical",
+        "mode",
+        "filter_speckle",
+        "color_precision",
+        "layer_difference",
+        "corner_threshold",
+        "length_threshold",
+        "max_iterations",
+        "splice_threshold",
         "path_precision",
     }
     for name, params in PRESETS.items():
-        assert required.issubset(params.keys()), f"preset {name!r} missing keys: {required - params.keys()}"
+        assert required.issubset(params.keys()), (
+            f"preset {name!r} missing keys: {required - params.keys()}"
+        )
 
 
 def test_unknown_preset_raises() -> None:
@@ -44,7 +57,9 @@ def test_bw_preset_is_binary() -> None:
     assert p["colormode"] == "binary"
 
 
-def test_vectorize_calls_vtracer_with_params(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_vectorize_calls_vtracer_with_params(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     fake = mock.MagicMock()
     monkeypatch.setattr("img2svg.vectorizer.vtracer.convert_image_to_svg_py", fake)
     v = VtracerVectorizer("logo")
@@ -60,9 +75,12 @@ def test_vectorize_calls_vtracer_with_params(monkeypatch: pytest.MonkeyPatch, tm
     assert call.kwargs["color_precision"] == 8
 
 
-def test_vectorize_raises_vectorization_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_vectorize_raises_vectorization_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     def _raise(*a: object, **kw: object) -> None:
         raise RuntimeError("vtracer exploded")
+
     monkeypatch.setattr("img2svg.vectorizer.vtracer.convert_image_to_svg_py", _raise)
     v = VtracerVectorizer("default")
     with pytest.raises(VectorizationError) as exc_info:

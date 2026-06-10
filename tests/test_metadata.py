@@ -1,4 +1,8 @@
+# img2svg - tests for the metadata sidecar writer.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the metadata sidecar writer."""
+
 from __future__ import annotations
 
 import json

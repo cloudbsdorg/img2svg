@@ -1,8 +1,11 @@
+# img2svg - tests for the image type classifier.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the image type classifier."""
+
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from img2svg.classifier import classify
 from img2svg.enums import ImageType

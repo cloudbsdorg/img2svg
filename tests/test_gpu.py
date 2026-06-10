@@ -1,4 +1,8 @@
+# img2svg - tests for GPU enumeration and recommendation.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for GPU enumeration and recommendation."""
+
 from __future__ import annotations
 
 from img2svg.enums import DeviceStrategy, GpuVendor
@@ -6,9 +10,7 @@ from img2svg.gpu import recommend_gpu
 from img2svg.models import GPUInfo
 
 
-def _make_gpu(
-    idx: int, vendor: GpuVendor, name: str, total: int, free: int
-) -> GPUInfo:
+def _make_gpu(idx: int, vendor: GpuVendor, name: str, total: int, free: int) -> GPUInfo:
     return GPUInfo(
         index=idx,
         vendor=vendor,

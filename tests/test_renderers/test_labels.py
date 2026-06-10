@@ -1,4 +1,8 @@
+# img2svg - tests for `LabelsRenderer`.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for `LabelsRenderer`."""
+
 from __future__ import annotations
 
 from PIL import Image
@@ -32,6 +36,7 @@ def _det(class_name: str, conf: float, x1: float, y1: float, x2: float, y2: floa
 
 def _parse(svg: SVGDocument):
     from lxml import etree
+
     return etree.fromstring(svg.to_string().encode("utf-8"))
 
 

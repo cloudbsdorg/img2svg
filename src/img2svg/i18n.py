@@ -1,9 +1,13 @@
+# img2svg - gettext-based internationalization scaffold for img2svg.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """gettext-based internationalization scaffold for img2svg.
 
 In the default (C) locale this module is effectively a no-op: `_(s)` returns
 `s` unchanged. A future release can ship a `locale/<lang>/LC_MESSAGES/img2svg.mo`
 compiled catalog to enable real translation.
 """
+
 from __future__ import annotations
 
 import gettext

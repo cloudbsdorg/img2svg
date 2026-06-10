@@ -1,3 +1,6 @@
+# img2svg - tests for the img2svg README.
+# Copyright (c) 2026, CloudBSD
+# SPDX-License-Identifier: BSD-3-Clause
 """Tests for the img2svg README.
 
 The README is the project's landing page on PyPI, GitHub, and the
@@ -18,6 +21,7 @@ The README is rendered on GitHub and in mkdocs, so the tests do
 structural checks (substring, regex on headings) rather than full
 Markdown parsing.
 """
+
 from __future__ import annotations
 
 import re
@@ -91,8 +95,7 @@ def test_readme_has_installation_section(readme_text: str) -> None:
     """The README contains a `## Installation` section."""
     headings = _h2_headings(readme_text)
     assert "Installation" in headings, (
-        f"README must include a `## Installation` section; "
-        f"found headings: {sorted(headings)}"
+        f"README must include a `## Installation` section; found headings: {sorted(headings)}"
     )
 
 
@@ -105,8 +108,7 @@ def test_readme_has_usage_section(readme_text: str) -> None:
     headings = _h2_headings(readme_text)
     usage_sections = [h for h in headings if h.startswith("Usage")]
     assert usage_sections, (
-        f"README must include a `## Usage` section; "
-        f"found headings: {sorted(headings)}"
+        f"README must include a `## Usage` section; found headings: {sorted(headings)}"
     )
 
 
@@ -114,8 +116,7 @@ def test_readme_has_license_section(readme_text: str) -> None:
     """The README contains a `## License` section."""
     headings = _h2_headings(readme_text)
     assert "License" in headings, (
-        f"README must include a `## License` section; "
-        f"found headings: {sorted(headings)}"
+        f"README must include a `## License` section; found headings: {sorted(headings)}"
     )
 
 
@@ -123,8 +124,7 @@ def test_readme_has_author_section(readme_text: str) -> None:
     """The README contains a `## Author` section."""
     headings = _h2_headings(readme_text)
     assert "Author" in headings, (
-        f"README must include a `## Author` section; "
-        f"found headings: {sorted(headings)}"
+        f"README must include a `## Author` section; found headings: {sorted(headings)}"
     )
 
 
@@ -152,9 +152,7 @@ def test_readme_has_mermaid_diagram(readme_text: str) -> None:
 
 def test_readme_has_author_email(readme_text: str) -> None:
     """The author email `mark@cloudbsd.org` is present in the README."""
-    assert "mark@cloudbsd.org" in readme_text, (
-        "README must list author email: mark@cloudbsd.org"
-    )
+    assert "mark@cloudbsd.org" in readme_text, "README must list author email: mark@cloudbsd.org"
 
 
 # ----------------------------------------------------------------------
