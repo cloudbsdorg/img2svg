@@ -1,0 +1,56 @@
+{
+  "version": "0.1.0",
+  "input_path": "tests/fixtures/diagram.png",
+  "input_hash": "3a7536bae3e77c748e539f5d1d198ba4bb40934292997e4e3b2e8632ea5b72db",
+  "output_path": "examples/sample_outputs/diagram_labels.svg",
+  "output_size": 504,
+  "mode_used": "labels",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "auto",
+  "image_type": "photo",
+  "detections": [],
+  "geometric": {
+    "dominant_colors": [
+      [
+        251,
+        255,
+        255
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        61,
+        61,
+        61
+      ],
+      [
+        180,
+        180,
+        180
+      ],
+      [
+        94,
+        94,
+        94
+      ]
+    ],
+    "edge_density": 0.0485,
+    "contour_count": 1,
+    "has_alpha": false
+  },
+  "timings": {
+    "load": 0.0036453000002438785,
+    "analyze": 0.07794263899995713,
+    "classify": 0.00012432200037437724,
+    "select_mode": 3.836999894701876e-6,
+    "detect": 1.7714039339998635,
+    "render": 0.000043149999328306876,
+    "write": 0.0002578309995442396,
+    "total": 1.853504910999618
+  },
+  "timestamp": "2026-06-10T07:43:44.620369+00:00"
+}

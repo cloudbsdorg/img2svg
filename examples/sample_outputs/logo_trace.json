@@ -1,0 +1,56 @@
+{
+  "version": "0.1.0",
+  "input_path": "tests/fixtures/logo.png",
+  "input_hash": "4faf089bc9e2efce67198d72a958811b075557bd22749e4acb7d357efeb92c02",
+  "output_path": "examples/sample_outputs/logo_trace.svg",
+  "output_size": 2132,
+  "mode_used": "trace",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "auto",
+  "image_type": "photo",
+  "detections": [],
+  "geometric": {
+    "dominant_colors": [
+      [
+        255,
+        255,
+        255
+      ],
+      [
+        221,
+        51,
+        50
+      ],
+      [
+        51,
+        50,
+        201
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        255,
+        255,
+        255
+      ]
+    ],
+    "edge_density": 0.0379,
+    "contour_count": 1,
+    "has_alpha": false
+  },
+  "timings": {
+    "load": 0.0035505630003171973,
+    "analyze": 0.07825168599993049,
+    "classify": 0.00016056000004027737,
+    "select_mode": 4.759000148624182e-6,
+    "detect": 1.6535664610000822,
+    "render": 0.004508792000706308,
+    "write": 0.00020563500038406346,
+    "total": 1.740332822999335
+  },
+  "timestamp": "2026-06-10T07:43:40.917695+00:00"
+}

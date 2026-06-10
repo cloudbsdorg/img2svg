@@ -1,0 +1,56 @@
+{
+  "version": "0.1.0",
+  "input_path": "tests/fixtures/logo.png",
+  "input_hash": "4faf089bc9e2efce67198d72a958811b075557bd22749e4acb7d357efeb92c02",
+  "output_path": "examples/sample_outputs/logo_annotated.svg",
+  "output_size": 2132,
+  "mode_used": "annotated",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "auto",
+  "image_type": "photo",
+  "detections": [],
+  "geometric": {
+    "dominant_colors": [
+      [
+        255,
+        255,
+        255
+      ],
+      [
+        221,
+        51,
+        50
+      ],
+      [
+        51,
+        50,
+        201
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        255,
+        255,
+        255
+      ]
+    ],
+    "edge_density": 0.0379,
+    "contour_count": 1,
+    "has_alpha": false
+  },
+  "timings": {
+    "load": 0.0034507159998611314,
+    "analyze": 0.07314106899957551,
+    "classify": 0.0001847749999797088,
+    "select_mode": 5.610999323835131e-6,
+    "detect": 1.688119596999968,
+    "render": 0.004949826000483881,
+    "write": 0.00018038700000033714,
+    "total": 1.7701918399998249
+  },
+  "timestamp": "2026-06-10T07:43:37.393940+00:00"
+}

@@ -1,0 +1,38 @@
+site_name: img2svg
+site_description: Convert raster images to clean, optimized SVG using YOLO segmentation and vtracer.
+site_url: https://cloudbsdorg.github.io/img2svg/
+repo_url: https://github.com/cloudbsdorg/img2svg
+repo_name: cloudbsdorg/img2svg
+license: BSD-3-Clause
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    scheme: preference
+  features:
+    - navigation.instant
+    - navigation.tracking
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Python API: api.md
+  - Output modes: modes.md
+  - GPU setup: gpu.md
+  - Configuration: configuration.md
+  - Troubleshooting: troubleshooting.md
+  - Development: development.md
+  - Architecture: architecture.md
+  - Changelog: changelog.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - tables
