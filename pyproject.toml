@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "img2svg"
 version = "0.1.0"
-description = "Convert raster images to clean, optimized SVG using YOLO segmentation and vtracer"
+description = "Convert raster images to SVG with object and pattern detection"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "BSD-3-Clause" }
@@ -13,29 +13,26 @@ authors = [
     { name = "Mark LaPointe", email = "mark@cloudbsd.org" },
 ]
 keywords = [
-    "image",
     "svg",
-    "vectorization",
+    "image",
+    "vector",
     "yolo",
+    "opencv",
+    "object-detection",
     "vtracer",
-    "raster-to-vector",
-    "computer-vision",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "Intended Audience :: End Users/Desktop",
-    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: BSD :: FreeBSD",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Graphics :: Graphics Conversion",
-    "Topic :: Scientific/Engineering :: Image Processing",
-    "Topic :: Utilities",
-    "Typing :: Typed",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     "ultralytics>=8.3,<9",
@@ -71,19 +68,20 @@ img2svg = "img2svg.cli:app"
 Homepage = "https://github.com/cloudbsdorg/img2svg"
 Repository = "https://github.com/cloudbsdorg/img2svg.git"
 Issues = "https://github.com/cloudbsdorg/img2svg/issues"
+Documentation = "https://cloudbsdorg.github.io/img2svg/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/img2svg"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/img2svg/man" = "img2svg/man"
-"src/img2svg/locale" = "img2svg/locale"
 "man/img2svg.1" = "img2svg/man/img2svg.1"
+"src/img2svg/locale/img2svg.pot" = "img2svg/locale/img2svg.pot"
 
 [tool.hatch.build.targets.sdist]
 include = [
     "src/img2svg",
     "tests",
+    "man",
     "LICENSE",
     "README.md",
     "pyproject.toml",
