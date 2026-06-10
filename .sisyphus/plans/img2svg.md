@@ -305,7 +305,7 @@ T31 (cleanup)  →  Final
 
 ### Wave 1 — Foundation (7 tasks, parallel)
 
-- [ ] 1. **Project scaffolding + git init + LICENSE + pyproject.toml**
+- [x] 1. **Project scaffolding + git init + LICENSE + pyproject.toml**
 
   **What to do**:
   - Run `git init` in `/home/mlapointe/PyCharmMiscProject`
