@@ -356,6 +356,25 @@ if options.no_clobber and output_path.exists():
 
 ---
 
+## Appendix: Fix Verification (2026-06-10)
+
+The F3 caveat was fixed in commit `ad1a15d`. Verification:
+
+- **Test delta:** 319 → 321 fast tests passing (+2 new tests in `tests/test_pipeline.py`).
+- **Bug regression test:** `test_pipeline_no_clobber_raises_on_existing_output` — asserts `OutputPathCollisionError` is raised, file bytes + mtime unchanged, YOLO not called.
+- **Default-behavior test:** `test_pipeline_no_clobber_false_overwrites_existing_output` — asserts the default-overwrite path still works.
+- **Hands-on CLI confirmation:**
+  1. `img2svg ... --no-clobber` on pre-existing file → exit 2, "output path already exists" message, file preserved.
+  2. `img2svg ... --no-clobber` on new path → exit 0, file created.
+  3. Re-run on now-existing path → exit 2 (raises correctly).
+  4. Default (no flag) → exit 0, overwrites as before.
+- **Ruff/mypy:** No new errors introduced.
+- **Coverage:** 86% maintained.
+
+**Caveat is now closed.** CLI `--no-clobber` behaves as documented.
+
+---
+
 ## 5. GPU Detection
 
 **Command:**
