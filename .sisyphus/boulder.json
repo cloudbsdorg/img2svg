@@ -73,6 +73,33 @@
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
       "updated_at": "2026-06-10T06:29:21.717Z"
+    },
+    "todo:18": {
+      "task_key": "todo:18",
+      "task_label": "18",
+      "task_title": "**AnnotatedRenderer (visual + bounding boxes)**",
+      "session_id": "ses_14fc1f232ffep2ojozLmZohdtj",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-10T06:40:28.031Z"
+    },
+    "todo:19": {
+      "task_key": "todo:19",
+      "task_label": "19",
+      "task_title": "**Pipeline orchestrator (load → classify → detect → analyze → render → write)**",
+      "session_id": "ses_14fbc3b67ffe2iken1wLTInpsz",
+      "agent": "Sisyphus-Junior",
+      "category": "ultrabrain",
+      "updated_at": "2026-06-10T06:52:51.232Z"
+    },
+    "todo:20": {
+      "task_key": "todo:20",
+      "task_label": "20",
+      "task_title": "**Batch processing (multi-file, directory, glob, error continuation)**",
+      "session_id": "ses_14fb0c26affe8JiegkR7pO18y4",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-06-10T07:04:08.615Z"
     }
   }
 }

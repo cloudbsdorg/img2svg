@@ -1335,7 +1335,7 @@ except UnsupportedFormatError as e:
 
 ### Wave 3 — Renderers + pipeline + CLI (8 tasks, parallel)
 
-- [ ] 16. **Renderer base class + LabelsRenderer**
+- [x] 16. **Renderer base class + LabelsRenderer**
 
   **What to do**:
   - Create `src/img2svg/renderers/base.py`:
@@ -1390,7 +1390,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 17. **VisualRenderer + TraceRenderer (vtracer-based)**
+- [x] 17. **VisualRenderer + TraceRenderer (vtracer-based)**
 
   **What to do**:
   - Create `src/img2svg/renderers/visual.py`:
@@ -1439,7 +1439,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 18. **AnnotatedRenderer (visual + bounding boxes)**
+- [x] 18. **AnnotatedRenderer (visual + bounding boxes)**
 
   **What to do**:
   - Create `src/img2svg/renderers/annotated.py`:
@@ -1485,7 +1485,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 19. **Pipeline orchestrator (load → classify → detect → analyze → render → write)**
+- [x] 19. **Pipeline orchestrator (load → classify → detect → analyze → render → write)**
 
   **What to do**:
   - Create `src/img2svg/pipeline.py`:

@@ -11,3 +11,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 uv.lock
+# ML model files (downloaded to XDG cache by ultralytics)
+*.pt
+*.onnx
+*.weights
+# YOLO model that ultralytics may download to CWD if HOME/cache is unwritable
+yolo11*.pt
