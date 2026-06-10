@@ -403,7 +403,7 @@ T31 (cleanup)  →  Final
 
 ---
 
-- [ ] 2. **XDG path module + config file loading**
+- [x] 2. **XDG path module + config file loading**
 
   **What to do**:
   - Create `src/img2svg/paths.py` with functions:
@@ -482,7 +482,7 @@ T31 (cleanup)  →  Final
 
 ---
 
-- [ ] 3. **Typed exceptions + i18n/gettext scaffold**
+- [x] 3. **Typed exceptions + i18n/gettext scaffold**
 
   **What to do**:
   - Create `src/img2svg/errors.py` with exception hierarchy:
@@ -550,7 +550,7 @@ T31 (cleanup)  →  Final
 
 ---
 
-- [ ] 4. **Pydantic data models (enums + core types)**
+- [x] 4. **Pydantic data models (enums + core types)**
 
   **What to do**:
   - Create `src/img2svg/enums.py` with `StrEnum` types:
@@ -622,7 +622,7 @@ T31 (cleanup)  →  Final
 
 ---
 
-- [ ] 5. **Device detection + GPU enumeration/recommendation module**
+- [x] 5. **Device detection + GPU enumeration/recommendation module**
 
   **What to do**:
   - Create `src/img2svg/device.py`:
@@ -719,7 +719,7 @@ except Exception as e:
 
 ---
 
-- [ ] 6. **Image loader (Pillow, format validation, alpha handling)**
+- [x] 6. **Image loader (Pillow, format validation, alpha handling)**
 
   **What to do**:
   - Create `src/img2svg/loader.py`:
@@ -796,7 +796,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 7. **Synthetic test image generator + conftest.py fixtures**
+- [x] 7. **Synthetic test image generator + conftest.py fixtures**
 
   **What to do**:
   - Create `scripts/gen_test_images.py`:

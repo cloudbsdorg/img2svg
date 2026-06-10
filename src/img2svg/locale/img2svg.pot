@@ -1,0 +1,14 @@
+# img2svg gettext template.
+# Copyright (c) 2026, CloudBSD.
+# SPDX-License-Identifier: BSD-3-Clause.
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/img2svg/cli.py
+msgid "Hello from img2svg"
+msgstr ""
