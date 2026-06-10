@@ -13,3 +13,11 @@
 - **Platforms**: Linux (required), FreeBSD (best-effort), macOS (supported).
 - **OS detection**: must use `uname -s`, never `platform.system()` (per CloudBSD guideline).
 - **Package layout**: `src/img2svg/` with `man/` and `locale/` subdirs (already in hatchling `force-include`).
+
+## T2: XDG paths (2026-06-10)
+
+- T2 subagent completed in 59s (vs T1's 10m 5s abort). Faster because prompt was tightly scoped to 2 files.
+- 6 expected functions (`config_dir`, `data_dir`, `cache_dir`, `model_cache_path`, `system_config_dir`, `load_config`) — no scope creep.
+- Stdlib only (no new deps).
+- **uv is busy when many subagents run in parallel** — `uv run pytest` and `uv run python` time out. Workaround: use plain `python3` for syntax/import checks, defer real test runs to a sequential window.
+- Commit strategy: stage ONLY verified files (`git add src/img2svg/paths.py tests/test_paths.py` + notepad) — never `git add -A` when parallel subagents are still writing files.

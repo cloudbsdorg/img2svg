@@ -875,7 +875,7 @@ except UnsupportedFormatError as e:
 
 ### Wave 2 — Core detection/analysis (8 tasks, parallel)
 
-- [ ] 8. **YOLO detector wrapper (ultralytics, model cache, device dispatch)**
+- [x] 8. **YOLO detector wrapper (ultralytics, model cache, device dispatch)**
 
   **What to do**:
   - Create `src/img2svg/detector.py`:
@@ -945,7 +945,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 9. **OpenCV geometric patterns (K-means LAB, Canny, findContours, Hough)**
+- [x] 9. **OpenCV geometric patterns (K-means LAB, Canny, findContours, Hough)**
 
   **What to do**:
   - Create `src/img2svg/patterns.py`:
@@ -1004,7 +1004,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 10. **Image type classifier (heuristic on color/edge stats)**
+- [x] 10. **Image type classifier (heuristic on color/edge stats)**
 
   **What to do**:
   - Create `src/img2svg/classifier.py`:
@@ -1057,7 +1057,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 11. **vtracer vectorizer wrapper (preset configs)**
+- [x] 11. **vtracer vectorizer wrapper (preset configs)**
 
   **What to do**:
   - Create `src/img2svg/vectorizer.py`:
@@ -1114,7 +1114,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 12. **Image type → mode mapping (auto-mode selection)**
+- [x] 12. **Image type → mode mapping (auto-mode selection)**
 
   **What to do**:
   - Create `src/img2svg/presets.py`:
@@ -1171,7 +1171,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 13. **SVG builder (lxml, namespace handling, accessibility)**
+- [x] 13. **SVG builder (lxml, namespace handling, accessibility)**
 
   **What to do**:
   - Create `src/img2svg/svg_builder.py`:
@@ -1229,7 +1229,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 14. **JSON sidecar writer (Pydantic serialization)**
+- [x] 14. **JSON sidecar writer (Pydantic serialization)**
 
   **What to do**:
   - Create `src/img2svg/metadata.py`:
@@ -1278,7 +1278,7 @@ except UnsupportedFormatError as e:
 
 ---
 
-- [ ] 15. **Rich logging + progress bars**
+- [x] 15. **Rich logging + progress bars)**
 
   **What to do**:
   - Create `src/img2svg/logging.py`:

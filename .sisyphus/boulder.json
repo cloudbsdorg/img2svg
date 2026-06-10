@@ -8,7 +8,15 @@
     "ses_1502d9325ffeCAsJlbY45Clm93",
     "ses_1502cca54ffez85a78ODKo4qeD",
     "ses_1502c59f8ffeotwM0UkKK13fkR",
-    "ses_1502bbd90ffe5csaCfxawKRFhQ"
+    "ses_1502bbd90ffe5csaCfxawKRFhQ",
+    "ses_14fd7f49effemtIl9TfK7FyTkL",
+    "ses_14fd75149ffexLx0ZdqOfkrXt8",
+    "ses_14fd6e71cffeyEHN9MaqSZdb3W",
+    "ses_14fd693b2ffe2m2G7xs4wCbsaZ",
+    "ses_14fd6517bfferCHE54yQLi9wnn",
+    "ses_14fd57b6dffea94HFoliDyv2n1",
+    "ses_14fd478ebffe3wu3p3PcPjyyGp",
+    "ses_14fd47872ffeTE7eM532eJ23VB"
   ],
   "session_origins": {
     "ses_15060960fffedotFt4laGplFZy": "direct",
@@ -17,7 +25,15 @@
     "ses_1502d9325ffeCAsJlbY45Clm93": "appended",
     "ses_1502cca54ffez85a78ODKo4qeD": "appended",
     "ses_1502c59f8ffeotwM0UkKK13fkR": "appended",
-    "ses_1502bbd90ffe5csaCfxawKRFhQ": "appended"
+    "ses_1502bbd90ffe5csaCfxawKRFhQ": "appended",
+    "ses_14fd7f49effemtIl9TfK7FyTkL": "appended",
+    "ses_14fd75149ffexLx0ZdqOfkrXt8": "appended",
+    "ses_14fd6e71cffeyEHN9MaqSZdb3W": "appended",
+    "ses_14fd693b2ffe2m2G7xs4wCbsaZ": "appended",
+    "ses_14fd6517bfferCHE54yQLi9wnn": "appended",
+    "ses_14fd57b6dffea94HFoliDyv2n1": "appended",
+    "ses_14fd478ebffe3wu3p3PcPjyyGp": "appended",
+    "ses_14fd47872ffeTE7eM532eJ23VB": "appended"
   },
   "plan_name": "img2svg",
   "agent": "atlas",
@@ -39,6 +55,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-10T04:39:55.396Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "**YOLO detector wrapper (ultralytics, model cache, device dispatch)**",
+      "session_id": "ses_14fd7f49effemtIl9TfK7FyTkL",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-10T06:17:17.921Z"
     }
   }
 }
