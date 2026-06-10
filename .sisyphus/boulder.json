@@ -2,10 +2,22 @@
   "active_plan": "/home/mlapointe/PyCharmMiscProject/.sisyphus/plans/img2svg.md",
   "started_at": "2026-06-10T04:15:14.029Z",
   "session_ids": [
-    "ses_15060960fffedotFt4laGplFZy"
+    "ses_15060960fffedotFt4laGplFZy",
+    "ses_1502ea394ffezcKwkeSL0DkQpq",
+    "ses_1502e0ee9ffeJTB7ttatM9m0fz",
+    "ses_1502d9325ffeCAsJlbY45Clm93",
+    "ses_1502cca54ffez85a78ODKo4qeD",
+    "ses_1502c59f8ffeotwM0UkKK13fkR",
+    "ses_1502bbd90ffe5csaCfxawKRFhQ"
   ],
   "session_origins": {
-    "ses_15060960fffedotFt4laGplFZy": "direct"
+    "ses_15060960fffedotFt4laGplFZy": "direct",
+    "ses_1502ea394ffezcKwkeSL0DkQpq": "appended",
+    "ses_1502e0ee9ffeJTB7ttatM9m0fz": "appended",
+    "ses_1502d9325ffeCAsJlbY45Clm93": "appended",
+    "ses_1502cca54ffez85a78ODKo4qeD": "appended",
+    "ses_1502c59f8ffeotwM0UkKK13fkR": "appended",
+    "ses_1502bbd90ffe5csaCfxawKRFhQ": "appended"
   },
   "plan_name": "img2svg",
   "agent": "atlas",
@@ -18,6 +30,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-10T04:26:53.312Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "**XDG path module + config file loading**",
+      "session_id": "ses_1502ea394ffezcKwkeSL0DkQpq",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-10T04:39:55.396Z"
     }
   }
 }
