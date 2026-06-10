@@ -1,11 +1,16 @@
 """GPU enumeration and recommendation for img2svg."""
 from __future__ import annotations
 
+import os
+import platform
 import shutil
 import subprocess
 from typing import Any
 
 import torch
+from rich.console import Console
+from rich.style import Style
+from rich.table import Table
 
 from img2svg.enums import DeviceStrategy, GpuVendor
 from img2svg.models import GPUInfo
@@ -160,3 +165,96 @@ def recommend_gpu(
     if strategy == DeviceStrategy.AVAILABILITY:
         return max(gpus, key=lambda g: (g.vram_free_mb, -g.index))
     return gpus[0]
+
+
+def _detect_os() -> str:
+    """Return a human-readable OS name. Cross-platform."""
+    try:
+        return platform.uname().system
+    except AttributeError:
+        # Windows has no os.uname
+        return os.uname().sysname  # type: ignore[attr-defined]
+
+
+def _torch_version() -> str:
+    """Return the installed PyTorch version, or 'N/A' if not importable."""
+    try:
+        return str(torch.__version__)
+    except (ImportError, AttributeError):
+        return "N/A"
+
+
+def print_gpu_recommendation(strategy: str = "power") -> None:
+    """Print a Rich table of detected GPUs and the recommended one.
+
+    Args:
+        strategy: One of ``"auto"``, ``"power"``, or ``"availability"``.
+            Defaults to ``"power"`` (largest total VRAM).
+
+    Behavior:
+
+    - Calls :func:`list_gpus` to enumerate devices.
+    - Calls :func:`recommend_gpu` to pick the best device for ``strategy``.
+    - Prints OS info and the PyTorch version above the table.
+    - Prints a Rich table with columns: Index, Vendor, Name, VRAM Total (MB),
+      VRAM Free (MB), Util (%), Recommended.
+    - The recommended row is highlighted in bold green; the Recommended
+      column shows ``"Y"`` for the recommended GPU and ``" "`` for others.
+    - If the GPU list is empty, prints ``"No GPU detected on this system."``
+      in yellow instead of an empty table.
+    - If ``strategy`` is not a valid :class:`DeviceStrategy`, prints an error
+      message in red and returns without raising.
+
+    The table is written to the default Rich :class:`Console` (stdout).
+    """
+    console = Console()
+    console.print(f"[bold]OS:[/bold] {_detect_os()}")
+    console.print(f"[bold]PyTorch:[/bold] {_torch_version()}")
+
+    gpus = list_gpus()
+    if not gpus:
+        console.print("[yellow]No GPU detected on this system.[/yellow]")
+        return
+
+    try:
+        strategy_enum = DeviceStrategy(strategy)
+    except ValueError:
+        valid = ", ".join(s.value for s in DeviceStrategy)
+        console.print(
+            f"[red]invalid strategy {strategy!r}. "
+            f"Valid strategies: {valid}[/red]"
+        )
+        return
+
+    recommended = recommend_gpu(gpus, strategy_enum)
+    rec_index = recommended.index if recommended is not None else None
+
+    table = Table(title="Available GPUs", title_style="bold", show_lines=False)
+    table.add_column("Index", justify="right")
+    table.add_column("Vendor")
+    table.add_column("Name")
+    table.add_column("VRAM Total (MB)", justify="right")
+    table.add_column("VRAM Free (MB)", justify="right")
+    table.add_column("Util (%)", justify="right")
+    table.add_column("Recommended", justify="center")
+
+    rec_style = Style(bold=True, color="green")
+    for gpu in sorted(gpus, key=lambda g: g.index):
+        is_rec = rec_index == gpu.index
+        util_str = (
+            f"{gpu.utilization_pct:.0f}"
+            if gpu.utilization_pct is not None
+            else "-"
+        )
+        table.add_row(
+            str(gpu.index),
+            gpu.vendor.value,
+            gpu.name,
+            str(gpu.vram_total_mb),
+            str(gpu.vram_free_mb),
+            util_str,
+            "Y" if is_rec else " ",
+            style=rec_style if is_rec else None,
+        )
+
+    console.print(table)

@@ -1,0 +1,337 @@
+.\" Man page for img2svg in roff/groff format.
+.\" Compatible with groff (Linux), mandoc (FreeBSD), and the BSD mdoc(7)
+.\" toolchain's roff compatibility mode.
+.TH IMG2SVG 1 "2026-06-10" "0.1.0" "User Commands"
+
+.SH NAME
+img2svg \- convert raster images to SVG with object and pattern detection
+
+.SH SYNOPSIS
+.B img2svg
+[\fIOPTIONS\fR] \fIINPUT\fR [\-o \fIOUTPUT\fR]
+.PP
+.B img2svg list-gpus
+[\fIOPTIONS\fR]
+.PP
+.B img2svg info
+
+.SH DESCRIPTION
+.B img2svg
+converts raster images (PNG, JPEG, BMP, WebP, TIFF, GIF) into clean,
+optimized SVG files.
+It uses YOLO (via
+.B ultralytics
+) to detect and segment distinct objects, then
+.B vtracer
+to vectorize the remaining background.
+Each conversion produces an
+.I .svg
+file and a matching
+.I .json
+sidecar containing detection metadata, classification, timing, and
+a SHA-256 of the output.
+.PP
+The default invocation (\fBimg2svg \fIINPUT\fR) treats \fIINPUT\fR as
+a single file path, a glob pattern, or a directory of images.
+When \fIINPUT\fR is a directory, every supported image inside is
+converted in batch.
+When \fIINPUT\fR contains glob metacharacters
+.RB ( * ? [ ),
+the shell-expanded matches are processed as a batch.
+.PP
+The output mode controls how the detected regions and the background
+are rendered; see
+.B "OUTPUT MODES"
+below.
+
+.SH OPTIONS
+.TP
+\fB\-o\fR, \fB\-\-output\fR \fIPATH\fR
+Output file (single-file mode) or output directory (batch mode).
+Required for single-file conversion.
+.TP
+\fB\-\-mode\fR \fIMODE\fR
+Output rendering mode.
+One of:
+.BR auto ,
+.BR labels ,
+.BR visual ,
+.BR annotated ,
+.BR trace .
+Defaults to
+.BR auto .
+See
+.B "OUTPUT MODES"
+for details.
+.TP
+\fB\-\-model\fR \fINAME\fR
+YOLO model file or Ultralytics hub name.
+Defaults to
+.BR yolo11x.pt .
+The model is downloaded on first use and cached under
+.BR $XDG_CACHE_HOME/img2svg/models/ .
+.TP
+\fB\-\-device\fR \fIDEVICE\fR
+Compute device selector.
+One of:
+.BR auto ,
+.BR cpu ,
+.BR cuda ,
+.BR cuda: N
+.RB (specific CUDA device),
+.BR mps
+(Apple Silicon),
+.BR rocm
+(AMD).
+Defaults to
+.BR auto .
+.TP
+\fB\-\-gpu\-strategy\fR \fISTRATEGY\fR
+GPU recommendation strategy used when \fB\-\-device\fR is
+.BR auto .
+One of:
+.BR auto ,
+.BR power
+(pick the GPU with the most free VRAM),
+.BR availability
+(pick the first free device).
+.TP
+\fB\-\-conf\fR \fIFLOAT\fR
+YOLO confidence threshold, in
+.BR [0.0, 1.0] .
+Detections below this score are discarded.
+Defaults to
+.BR 0.25 .
+.TP
+\fB\-\-no\-clobber\fR
+Do not overwrite an existing output file.
+If the target \fI.svg\fR already exists, the input is skipped and
+the batch continues with the next file.
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Suppress non-essential output (progress bars, status lines).
+Errors are still printed to stderr.
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Enable debug-level logging to stderr.
+.TP
+\fB\-\-version\fR
+Print the
+.B img2svg
+version and exit 0.
+.TP
+\fBlist\-gpus\fR \fB\-\-strategy\fR \fISTRATEGY\fR
+Subcommand: list detected GPUs and the recommended one for the
+given strategy. Exits 0 even when no GPU is found.
+.TP
+\fBinfo\fR
+Subcommand: print version, Python version, OS, and detected compute
+devices. Useful for bug reports.
+
+.SH EXAMPLES
+Convert a single PNG to SVG (auto mode):
+.PP
+.EX
+img2svg photo.png \-o photo.svg
+.EE
+.PP
+Convert every supported image in a directory (batch mode):
+.PP
+.EX
+img2svg photos/ \-o svgs/
+.EE
+.PP
+Process a glob pattern:
+.PP
+.EX
+img2svg "*.jpg" \-o svgs/
+.EE
+.PP
+Force a specific output mode (bounding boxes + labels, useful for
+diagrams and screenshots):
+.PP
+.EX
+img2svg diagram.png \-o diagram.svg \-\-mode labels
+.EE
+.PP
+Pin a specific CUDA device:
+.PP
+.EX
+img2svg photo.png \-o out.svg \-\-device cuda:0
+.EE
+.PP
+List detected GPUs with the default recommendation strategy:
+.PP
+.EX
+img2svg list\-gpus
+.EE
+.PP
+Print runtime environment for a bug report:
+.PP
+.EX
+img2svg info
+.EE
+
+.SH "OUTPUT MODES"
+.TP
+.B auto
+Inspect the input with a heuristic classifier (alpha, edge density,
+color count) and pick a mode automatically.
+Logos and line art become
+.BR labels ;
+photographs become
+.BR visual ;
+diagrams and screenshots become
+.BR annotated .
+.TP
+.B labels
+Render only the YOLO detections: bounding boxes with class labels
+and confidence. Useful for QA and dataset inspection. No background
+is vectorized.
+.TP
+.B visual
+Run
+.B vtracer
+across the full image with the default color preset, preserving
+gradients, shadows, and color regions. Detections are not drawn.
+.TP
+.B annotated
+Combine
+.B visual
+and
+.BR labels :
+vtracer output is the background, with detection boxes and labels
+overlaid on top.
+.TP
+.B trace
+Run
+.B vtracer
+with the binary (binary=1) / line-art preset: thinner outlines, no
+color clusters, optimized for black-and-white line art and icons.
+
+.SH "GPU SUPPORT"
+By default (\fB\-\-device auto\fR)
+.B img2svg
+autodetects the best available compute device at startup.
+On Linux, NVIDIA GPUs are enumerated via
+.BR nvidia\-smi
+and AMD GPUs via
+.BR rocm\-smi .
+On macOS, the Apple MPS backend is selected when available.
+On any host with no usable accelerator, \fBimg2svg\fR falls back to
+\fBcpu\fR transparently.
+.PP
+Multi-vendor setups (NVIDIA + AMD on the same host) are supported.
+The \fB\-\-gpu\-strategy\fR flag controls which device is picked:
+.B power
+selects the GPU with the most free VRAM,
+.B availability
+selects the first device with free VRAM, and
+.B auto
+lets
+.B img2svg
+choose.
+.PP
+To force a specific device regardless of autodetection, pass it
+explicitly:
+.PP
+.RS 4
+.EX
+img2svg photo.png \-o out.svg \-\-device cpu
+img2svg photo.png \-o out.svg \-\-device cuda:0
+img2svg photo.png \-o out.svg \-\-device mps
+img2svg photo.png \-o out.svg \-\-device rocm
+.EE
+.RE
+
+.SH "EXIT STATUS"
+.TP
+.B 0
+Success.
+For batch jobs, every input converted without error.
+.TP
+.B 1
+Partial failure.
+Batch mode completed, but at least one input failed
+.I after
+a successful pre-flight check.
+General runtime failure for a single-file conversion.
+.TP
+.B 2
+Invalid invocation.
+Bad argument value (unknown mode, unknown strategy), unsupported
+input format, missing input file, or output path collision.
+.TP
+.B 3
+Dependency or model load failure.
+The YOLO model could not be downloaded, torch failed to load, or
+a required native library is missing.
+
+.SH FILES
+.TP
+.I ~/.config/img2svg/
+User-level configuration directory.
+Honored
+.B $XDG_CONFIG_HOME
+when set.
+.TP
+.I ~/.local/share/img2svg/
+User-level data directory (output sidecars, presets).
+Honored
+.B $XDG_DATA_HOME
+when set.
+.TP
+.I ~/.cache/img2svg/models/
+Cached YOLO model weights.
+Honored
+.B $XDG_CACHE_HOME
+when set.
+The active YOLO file is named after the \fB\-\-model\fR value
+(e.g.\&
+.BR yolo11x.pt ).
+
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Overrides
+.I ~/.config
+for configuration lookups.
+.TP
+.B XDG_DATA_HOME
+Overrides
+.I ~/.local/share
+for data files.
+.TP
+.B XDG_CACHE_HOME
+Overrides
+.I ~/.cache
+for cached model weights.
+.TP
+.B CUDA_VISIBLE_DEVICES
+Restricts the set of NVIDIA GPUs visible to
+.B img2svg
+(standard CUDA mechanism; respected by
+\fB\-\-device\fR cuda
+and the auto-detect path).
+
+.SH "SEE ALSO"
+.BR vtracer (1)
+.PP
+.BR ultralytics (1)
+.PP
+Project home page:
+.UR https://github.com/cloudbsdorg/img2svg
+.UE .
+
+.SH AUTHOR
+Mark LaPointe
+.MT mark@cloudbsd.org
+.ME .
+
+.SH BUGS
+Report bugs and feature requests at:
+.PP
+.RS 4
+.UR https://github.com/cloudbsdorg/img2svg/issues
+.UE
+.RE
