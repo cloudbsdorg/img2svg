@@ -42,6 +42,18 @@ pipeline {
             }
         }
 
+        stage('Test Slow') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh '''uv run pytest -m slow \
+                    --junitxml=build/junit-slow.xml \
+                    --json-report \
+                    --json-report-file=build/report-slow.json'''
+            }
+        }
+
         stage('Build Docs') {
             steps {
                 sh 'uv run mkdocs build --strict'

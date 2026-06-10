@@ -143,6 +143,8 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "-m",
+    "not slow",
     "--cov=img2svg",
     "--cov-report=term-missing:skip-covered",
     "--cov-report=xml",
@@ -150,3 +152,7 @@ addopts = [
 ]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring real dependencies",
+]
