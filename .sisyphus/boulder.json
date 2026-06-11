@@ -1,66 +1,23 @@
 {
-  "active_plan": "/home/mlapointe/PyCharmMiscProject/.sisyphus/plans/multi-vendor-gpu.md",
-  "started_at": "2026-06-11T01:27:14.376Z",
+  "active_plan": "/home/mlapointe/PyCharmMiscProject/.sisyphus/plans/photo-quality-push.md",
+  "started_at": "2026-06-11T08:45:40.790Z",
   "session_ids": [
-    "ses_15060960fffedotFt4laGplFZy",
-    "ses_14b7959c8ffe9k61KcS7676OUu",
-    "ses_14b790817ffeKxpOAMp5ctgN0Q",
-    "ses_14b788ef7ffeYpQ2IMwO6zdU5O",
-    "ses_14b696137ffe5M2796RbuhJSgq",
-    "ses_14b5765e1ffejfWtbbA2wDepxD",
-    "ses_14b5703afffe4eoBgXUtTzWxJ3",
-    "ses_14b569be1ffe5hqwUUa8k3aOIE",
-    "ses_14b561132ffeOttLmfuQYz4lyZ"
+    "ses_15060960fffedotFt4laGplFZy"
   ],
   "session_origins": {
-    "ses_15060960fffedotFt4laGplFZy": "direct",
-    "ses_14b7959c8ffe9k61KcS7676OUu": "appended",
-    "ses_14b790817ffeKxpOAMp5ctgN0Q": "appended",
-    "ses_14b788ef7ffeYpQ2IMwO6zdU5O": "appended",
-    "ses_14b696137ffe5M2796RbuhJSgq": "appended",
-    "ses_14b5765e1ffejfWtbbA2wDepxD": "appended",
-    "ses_14b5703afffe4eoBgXUtTzWxJ3": "appended",
-    "ses_14b569be1ffe5hqwUUa8k3aOIE": "appended",
-    "ses_14b561132ffeOttLmfuQYz4lyZ": "appended"
+    "ses_15060960fffedotFt4laGplFZy": "direct"
   },
-  "plan_name": "multi-vendor-gpu",
+  "plan_name": "photo-quality-push",
   "agent": "atlas",
   "task_sessions": {
     "todo:1": {
       "task_key": "todo:1",
       "task_label": "1",
-      "task_title": "**DeviceBackend Protocol + BackendType enum**",
-      "session_id": "ses_14bb46c80ffeHS7VgrTrDXU3Ex",
+      "task_title": "Create `preprocessing.py` module with composable OpenCV filters",
+      "session_id": "ses_14a20b9dbffevWmaW3Jd9O0ecC",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-06-11T01:34:33.036Z"
-    },
-    "todo:3": {
-      "task_key": "todo:3",
-      "task_label": "3",
-      "task_title": "**CPUBackend implementation**",
-      "session_id": "ses_14b906153ffeeBxxAv9uyPeU64",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-06-11T02:28:14.828Z"
-    },
-    "todo:13": {
-      "task_key": "todo:13",
-      "task_label": "13",
-      "task_title": "**Smart install script + pyproject extras**",
-      "session_id": "ses_14b696137ffe5M2796RbuhJSgq",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-06-11T03:05:36.662Z"
-    },
-    "final-wave:f1": {
-      "task_key": "final-wave:f1",
-      "task_label": "F1",
-      "task_title": "**Plan Compliance Audit** — `oracle`",
-      "session_id": "ses_14b49f87cffe65bSG1gPt9pqec",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-06-11T03:30:51.467Z"
+      "updated_at": "2026-06-11T09:04:27.851Z"
     }
   }
 }

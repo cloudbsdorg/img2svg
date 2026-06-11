@@ -282,7 +282,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
 > EVERY task MUST have: Recommended Agent Profile + Parallelization info + QA Scenarios.
 > **A task WITHOUT QA Scenarios is INCOMPLETE. No exceptions.**
 
-- [ ] 1. Create `preprocessing.py` module with composable OpenCV filters
+- [x] 1. Create `preprocessing.py` module with composable OpenCV filters
 
   **What to do**:
   - Create `src/img2svg/preprocessing.py` (~200-300 lines)
@@ -433,7 +433,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/preprocessing.py`
   - Pre-commit: `uv run pytest tests/test_preprocessing.py -q && uv run ruff check src/img2svg/preprocessing.py`
 
-- [ ] 2. Extend `vectorizer.py` with 3 new vtracer presets
+- [x] 2. Extend `vectorizer.py` with 3 new vtracer presets
 
   **What to do**:
   - Add 3 new entries to `src/img2svg/vectorizer.py:PRESETS` dict (after `photo` at line 90):
@@ -546,7 +546,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/vectorizer.py`
   - Pre-commit: `uv run pytest tests/test_presets.py -q && uv run ruff check src/img2svg/vectorizer.py`
 
-- [ ] 3. Extend `enums.py` Mode with 5 new values
+- [x] 3. Extend `enums.py` Mode with 5 new values
 
   **What to do**:
   - Add 5 new Mode enum values to `src/img2svg/enums.py` Mode class (after `TRACE` at line 30):
@@ -619,7 +619,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/enums.py`
   - Pre-commit: `uv run pytest -q -k "test_mode or test_enum" && uv run ruff check src/img2svg/enums.py`
 
-- [ ] 4. Extend `models.py` Sidecar with preprocessing + regions + model_variant fields
+- [x] 4. Extend `models.py` Sidecar with preprocessing + regions + model_variant fields
 
   **What to do**:
   - Add new Pydantic model `RegionInfo` in `src/img2svg/models.py` (after `Detection` at line 46):
@@ -727,7 +727,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/models.py`, `src/img2svg/__init__.py`
   - Pre-commit: `uv run pytest tests/test_models.py -q && uv run ruff check src/img2svg/models.py src/img2svg/__init__.py`
 
-- [ ] 5. Add CLI flags part 1 (--preprocess, --denoise, --sharpen, --max-colors, --quality, --no-preprocess) + ConversionOptions fields
+- [x] 5. Add CLI flags part 1 (--preprocess, --denoise, --sharpen, --max-colors, --quality, --no-preprocess) + ConversionOptions fields
 
   **What to do**:
   - In `src/img2svg/cli.py`, add 6 new Typer options to `_convert_cmd()` (after `--no-clobber` at line 320-322):
@@ -1975,6 +1975,771 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Message: `feat(pipeline): add preprocessing step (mode-driven default + explicit override)`
   - Files: `src/img2svg/pipeline.py`, `src/img2svg/preprocessing.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py src/img2svg/preprocessing.py`
+
+- [ ] 18. Wire segmentation into `pipeline.py` (SEGMENTED mode only; inject result into renderer)
+
+  **What to do**:
+  - In `src/img2svg/pipeline.py:Pipeline.run()`, expand the existing segmentation block (from T15) to also inject the result into the renderer:
+    ```python
+    if mode_used == Mode.SEGMENTED and not options.no_seg:
+        segmentor = get_segmentor(model_name=options.seg_model, backend=options.backend)
+        t0 = time.perf_counter()
+        seg_result = segmentor.predict(loaded.np_array, conf=options.conf, iou=options.iou)
+        timings["segment"] = time.perf_counter() - t0
+        # ... (existing sidecar.regions + model_variant population from T15)
+        # NEW: inject into renderer
+        if isinstance(renderer, SegmentedRenderer):
+            renderer.set_segmentation(seg_result)
+    ```
+  - If `--no-seg` is set OR segmentation returns empty, fall back to `VisualRenderer` behavior:
+    - `if not seg_result.masks or options.no_seg: renderer_cls = VisualRenderer`
+  - Add timing: `timings["vectorize"]` (sum of all per-region vtracer calls for SEGMENTED mode; 0 for other modes)
+
+  **Must NOT do**:
+  - Don't call segmentation for non-SEGMENTED modes
+  - Don't fall back silently — log a warning when falling back (use `setup_logging`'s logger)
+  - Don't run segmentation if model download fails (existing detector error handling should cover this)
+
+  **Recommended Agent Profile**:
+  - **Category**: `unspecified-high`
+    - Reason: Pipeline integration with fallback logic + renderer injection
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 5 (with T19, T20)
+  - **Blocks**: T24 (end-to-end needs full pipeline)
+  - **Blocked By**: T15 (regions field already in T15), T16 (SegmentedRenderer)
+
+  **References**:
+  - **Pattern References**:
+    - `src/img2svg/pipeline.py:175-178` — existing renderer instantiation. Mirror for fallback logic.
+  - **API/Type References**:
+    - `src/img2svg/renderers/segmented.py:SegmentedRenderer` (from T16) — for the `set_segmentation()` call
+  - **WHY Each Reference Matters**:
+    - Existing renderer instantiation is where fallback would happen.
+    - SegmentedRenderer needs the result before render() is called.
+
+  **Acceptance Criteria**:
+  - [ ] `segmentor.predict()` called for SEGMENTED mode only
+  - [ ] `set_segmentation()` called on SegmentedRenderer before render
+  - [ ] Fallback to VisualRenderer when `--no-seg` or empty segmentation
+  - [ ] Warning logged on fallback
+  - [ ] `timings["vectorize"]` recorded for SEGMENTED mode
+  - [ ] `uv run pytest tests/test_pipeline.py -q` → all pass
+  - [ ] `uv run ruff check src/img2svg/pipeline.py` → 0 issues
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: SEGMENTED mode injects segmentation result into renderer
+    Tool: Bash (uv run python with mock)
+    Preconditions: None
+    Steps:
+      1. Mock `img2svg.pipeline.get_segmentor` to return mock with `predict` returning synthetic SegmentationResult (2 regions)
+      2. Mock `img2svg.renderers.segmented.SegmentedRenderer.set_segmentation` to record call
+      3. Run pipeline with `mode=Mode.SEGMENTED, seg_model="yolo11s-seg.pt"`
+      4. Assert `set_segmentation` was called once with non-None result
+      5. Assert `timings["vectorize"]` was set
+    Expected Result: Renderer receives segmentation result, timing recorded
+    Failure Indicators: set_segmentation not called, missing timing
+    Evidence: .sisyphus/evidence/task-18-seg-inject.json
+
+  Scenario: --no-seg falls back to VisualRenderer with warning
+    Tool: Bash (uv run python with mock)
+    Preconditions: None
+    Steps:
+      1. Mock `img2svg.pipeline.get_segmentor` to return mock
+      2. Run pipeline with `mode=Mode.SEGMENTED, no_seg=True`
+      3. Assert `get_segmentor` was NOT called
+      4. Assert output is a valid SVG (renderer fell back to VisualRenderer)
+    Expected Result: Fallback works, no segmentation call
+    Failure Indicators: get_segmentor called, runtime error
+    Evidence: .sisyphus/evidence/task-18-no-seg-fallback.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-18-seg-inject.json`
+  - [ ] `task-18-no-seg-fallback.txt`
+
+  **Commit**: YES (Wave 5)
+  - Message: `feat(pipeline): inject segmentation result into SegmentedRenderer with fallback`
+  - Files: `src/img2svg/pipeline.py`
+  - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py`
+
+- [ ] 19. Add timing instrumentation entries for new pipeline steps
+
+  **What to do**:
+  - In `src/img2svg/pipeline.py`, add timing entries for all new steps:
+    - `timings["preprocess"]` (added in T17)
+    - `timings["segment"]` (added in T15)
+    - `timings["vectorize"]` (added in T18)
+  - Update existing test `tests/test_pipeline.py:test_pipeline_records_timings` to assert these new keys exist (with 0 or >0 values as appropriate)
+  - Add per-region timing for SEGMENTED mode: `timings["vectorize_regions"] = [t1, t2, ...]`
+
+  **Must NOT do**:
+  - Don't add timing for steps that didn't run (e.g., `segment` shouldn't appear in non-SEGMENTED timings)
+  - Don't break the existing `test_pipeline_records_timings` test
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: Trivial additions to existing timing dict
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 5 (with T18, T20)
+  - **Blocks**: T24 (end-to-end needs accurate timings)
+  - **Blocked By**: T17 (preprocess timing), T15 (segment timing), T18 (vectorize timing)
+
+  **References**:
+  - **Pattern References**:
+    - `src/img2svg/pipeline.py:130-187` — existing timing pattern. Mirror.
+  - **Test References**:
+    - `tests/test_pipeline.py:268-279` — `test_pipeline_records_timings`. Update to include new keys.
+
+  **Acceptance Criteria**:
+  - [ ] All 3 new timing entries added
+  - [ ] `test_pipeline_records_timings` updated and passes
+  - [ ] `uv run pytest tests/test_pipeline.py -q` → all pass
+  - [ ] `uv run ruff check src/img2svg/pipeline.py` → 0 issues
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: All timing keys present in sidecar
+    Tool: Bash (uv run python with mock)
+    Preconditions: None
+    Steps:
+      1. Run pipeline with `mode=Mode.LABELS` (simple case)
+      2. Assert `"load" in result.sidecar.timings`
+      3. Assert `"analyze" in result.sidecar.timings`
+      4. Assert `"classify" in result.sidecar.timings`
+      5. Assert `"select_mode" in result.sidecar.timings`
+      6. Assert `"detect" in result.sidecar.timings`
+      7. Assert `"render" in result.sidecar.timings`
+      8. Assert `"write" in result.sidecar.timings`
+      9. Assert `"total" in result.sidecar.timings`
+      10. Assert `"preprocess" in result.sidecar.timings` (always present, 0 if not run)
+      11. Assert `"segment" in result.sidecar.timings` (always present, 0 if not run)
+      12. Assert `"vectorize" in result.sidecar.timings` (always present, 0 if not run)
+    Expected Result: All 11 timing keys present
+    Failure Indicators: Missing key, wrong value
+    Evidence: .sisyphus/evidence/task-19-timings.json
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-19-timings.json`
+
+  **Commit**: YES (Wave 5)
+  - Message: `feat(pipeline): add timing entries for preprocess/segment/vectorize steps`
+  - Files: `src/img2svg/pipeline.py`, `tests/test_pipeline.py`
+  - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py`
+
+- [ ] 20. Add MAX_SVG_SIZE guard with user-overridable CLI flag (default 50MB)
+
+  **What to do**:
+  - Add `MAX_SVG_SIZE_MB = 50` constant in `src/img2svg/pipeline.py`
+  - Add new field to `ConversionOptions`: `max_svg_size_mb: int = Field(default=50, ge=1, le=1024)` (1MB to 1GB)
+  - Add new CLI flag `--max-svg-size`: `int` (in MB), default 50, with min/max validation
+  - In `pipeline.run()`, after `svg.write(output_path)`:
+    - `size_mb = output_path.stat().st_size / (1024 * 1024)`
+    - If `size_mb > options.max_svg_size_mb`:
+      - Log warning: `f"SVG size {size_mb:.1f}MB exceeds limit {options.max_svg_size_mb}MB, skipping write"`
+      - Delete the just-written file
+      - Raise `OutputPathCollisionError`-like error or return `ConversionResult` with `errors=[f"SVG too large: {size_mb:.1f}MB > {options.max_svg_size_mb}MB"]`
+  - Use `OutputPathCollisionError` (existing) for consistency, OR add new `SVGSizeLimitError` to `errors.py`
+  - Update test_pipeline.py: add test for size limit enforcement
+
+  **Must NOT do**:
+  - Don't silently truncate the SVG
+  - Don't silently fail without telling the user
+  - Don't add a per-region size limit (whole-output only)
+  - Don't make the default 0 (always enforce some limit)
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: Trivial size check + CLI flag
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 5 (with T18, T19)
+  - **Blocks**: T24 (end-to-end needs working pipeline)
+  - **Blocked By**: None
+
+  **References**:
+  - **Pattern References**:
+    - `src/img2svg/pipeline.py:181-183` — existing SVG write step. Add check after.
+  - **API/Type References**:
+    - `src/img2svg/errors.py:OutputPathCollisionError` (line 102-113) — error pattern. Reuse or add new.
+  - **WHY Each Reference Matters**:
+    - Existing write step is where the check goes.
+    - Error pattern for size-related failures.
+
+  **Acceptance Criteria**:
+  - [ ] `MAX_SVG_SIZE_MB = 50` constant in pipeline.py
+  - [ ] `max_svg_size_mb: int = 50` field in ConversionOptions
+  - [ ] `--max-svg-size` CLI flag
+  - [ ] Size check after `svg.write()`
+  - [ ] If exceeded: log warning + delete file + raise error
+  - [ ] `test_pipeline_enforces_max_svg_size` test added and passing
+  - [ ] `uv run pytest tests/test_pipeline.py tests/test_cli.py -q` → all pass
+  - [ ] `uv run ruff check src/img2svg/pipeline.py src/img2svg/cli.py src/img2svg/models.py` → 0 issues
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: SVG exceeding limit raises error
+    Tool: Bash (uv run python with mock)
+    Preconditions: None
+    Steps:
+      1. Mock vtracer to write a 100MB fake SVG
+      2. Run pipeline with `max_svg_size_mb=50` and a small image
+      3. Assert error raised (or `result.errors` non-empty)
+      4. Assert no file at output_path
+    Expected Result: Error raised, no file written
+    Failure Indicators: File written despite size, silent success
+    Evidence: .sisyphus/evidence/task-20-size-limit.txt
+
+  Scenario: SVG within limit succeeds
+    Tool: Bash (uv run python with mock)
+    Preconditions: None
+    Steps:
+      1. Mock vtracer to write a 1MB fake SVG
+      2. Run pipeline with `max_svg_size_mb=50`
+      3. Assert no error
+      4. Assert file exists at output_path
+    Expected Result: Success, file written
+    Failure Indicators: Spurious error
+    Evidence: .sisyphus/evidence/task-20-size-ok.txt
+
+  Scenario: User override allows larger SVGs
+    Tool: Bash (uv run python with mock)
+    Preconditions: None
+    Steps:
+      1. Mock vtracer to write a 60MB fake SVG
+      2. Run pipeline with `max_svg_size_mb=100` (override default 50)
+      3. Assert no error
+      4. Assert file exists
+    Expected Result: Override works
+    Failure Indicators: Override ignored
+    Evidence: .sisyphus/evidence/task-20-override.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-20-size-limit.txt`
+  - [ ] `task-20-size-ok.txt`
+  - [ ] `task-20-override.txt`
+
+  **Commit**: YES (Wave 5)
+  - Message: `feat(pipeline): add MAX_SVG_SIZE guard with --max-svg-size CLI flag (default 50MB)`
+  - Files: `src/img2svg/pipeline.py`, `src/img2svg/cli.py`, `src/img2svg/models.py`, `tests/test_pipeline.py`
+  - Pre-commit: `uv run pytest tests/test_pipeline.py tests/test_cli.py -q && uv run ruff check src/img2svg/pipeline.py src/img2svg/cli.py src/img2svg/models.py`
+
+- [ ] 21. Create new test files: `test_preprocessing.py`, `test_segmentation.py`, `test_renderers.py`
+
+  **What to do**:
+  - Create `tests/test_preprocessing.py` (~150 lines):
+    - Test each of 7 filter functions: `denoise_bilateral`, `denoise_nlmeans`, `denoise_median`, `sharpen_unsharp`, `posterize`, `detect_edges_canny`, `apply_clahe_yuv`
+    - Test `PreprocessingPipeline.apply()` with various step combinations
+    - Test `PREPROCESSING_PRESETS` keys and structure
+    - Test alpha channel preservation
+    - Test dtype preservation
+    - Test empty pipeline (no-op)
+    - Use synthetic images (np.zeros, np.random.randint, gradients)
+    - Use `tests/fixtures/photo.jpg` as real-image smoke test
+  - Create `tests/test_segmentation.py` (~200 lines):
+    - Test `extract_polygons`, `compute_mask_area`, `get_tight_bbox` (T12 helpers)
+    - Test `trace_region` (T13) with mocked vtracer
+    - Test `YOLOSegmentor` (T11) with mocked `ultralytics.YOLO`
+    - Test `get_segmentor()` cache behavior
+    - Use `@pytest.mark.slow` for tests that download the actual model
+  - Create `tests/test_renderers.py` (~200 lines):
+    - Test each of 5 new renderers: PosterRenderer, DetailedRenderer, EdgeRenderer, WatercolorRenderer, SegmentedRenderer
+    - Test `RENDERER_REGISTRY` has all 9 concrete modes (T10)
+    - Test `IMAGE_TYPE_TO_MODE` no longer maps to LABELS/ANNOTATED (T10)
+    - Test `MODE_TO_PRESET` has all 9 non-AUTO modes (T10)
+    - Test that `_render_with_vtracer` is called with correct preset
+    - Mock `VtracerVectorizer` (existing pattern)
+  - All tests use `tmp_path` fixture, `logo_path`, `photo_path`, `transparent_path` from `conftest.py`
+  - For SEGMENTED tests, use **existing `tests/testimg/Designer (1).jpeg`** (real photo with detectable objects) instead of synthetic
+
+  **Must NOT do**:
+  - Don't use slow markers on fast tests
+  - Don't use real YOLO inference in unit tests (always mock)
+  - Don't add `@pytest.mark.integration` (use `@pytest.mark.slow` instead for tests that download the model)
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: Test file scaffolding with established patterns
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 6 (with T22, T23, T24, T25, T26)
+  - **Blocks**: F1-F4 (final verification)
+  - **Blocked By**: T1 (preprocessing module), T11-T13 (segmentation), T6-T10 (renderers + wiring)
+
+  **References**:
+  - **Pattern References**:
+    - `tests/test_pipeline.py:1-50` — existing test pattern with mocks for `get_detector` and `VtracerVectorizer`. Mirror.
+  - **API/Type References**:
+    - `tests/conftest.py:34-65` — existing fixtures (`logo_path`, `photo_path`, `transparent_path`). Use these.
+  - **Test References**:
+    - `tests/test_pipeline.py:_FAKE_VTRACER_SVG` (line 40-44) — example of fake vtracer SVG output. Reuse.
+  - **WHY Each Reference Matters**:
+    - Existing patterns are the canonical way to mock heavy dependencies.
+    - `tests/testimg/Designer (1).jpeg` is a real photo with detectable objects (people/products).
+
+  **Acceptance Criteria**:
+  - [ ] 3 new test files created: `test_preprocessing.py`, `test_segmentation.py`, `test_renderers.py`
+  - [ ] All tests pass: `uv run pytest tests/test_preprocessing.py tests/test_segmentation.py tests/test_renderers.py -q`
+  - [ ] Slow tests use `@pytest.mark.slow`
+  - [ ] All new tests use mocks for vtracer + YOLO (no real downloads in CI)
+  - [ ] `tests/testimg/Designer (1).jpeg` referenced in SEGMENTED tests
+  - [ ] `uv run ruff check tests/` → 0 issues
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: New test files exist and have tests
+    Tool: Bash
+    Preconditions: All new code from T1-T13 complete
+    Steps:
+      1. `ls tests/test_preprocessing.py tests/test_segmentation.py tests/test_renderers.py`
+      2. All 3 files exist
+      3. `grep -c "^def test_" tests/test_preprocessing.py` ≥ 10
+      4. `grep -c "^def test_" tests/test_segmentation.py` ≥ 8
+      5. `grep -c "^def test_" tests/test_renderers.py` ≥ 8
+    Expected Result: All 3 files exist with ≥26 total tests
+    Failure Indicators: Missing file, too few tests
+    Evidence: .sisyphus/evidence/task-21-test-files.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-21-test-files.txt`
+
+  **Commit**: YES (Wave 6)
+  - Message: `test: add test_preprocessing, test_segmentation, test_renderers`
+  - Files: `tests/test_preprocessing.py`, `tests/test_segmentation.py`, `tests/test_renderers.py`
+  - Pre-commit: `uv run pytest tests/test_preprocessing.py tests/test_segmentation.py tests/test_renderers.py -q && uv run ruff check tests/`
+
+- [ ] 22. Update existing tests for new modes + auto-mode behavior + new fields
+
+  **What to do**:
+  - Update `tests/test_presets.py`:
+    - `test_select_mode_auto_uses_image_type_table`: change `Mode.ANNOTATED` → `Mode.DETAILED` for PHOTO
+    - `test_image_type_to_mode_covers_all_types`: ensure new ImageType coverage (no change needed; entries exist)
+    - `test_select_mode_auto_for_each_type`: update to assert no ImageType resolves to LABELS or ANNOTATED
+  - Update `tests/test_pipeline.py`:
+    - `test_renderer_registry_has_all_concrete_modes`: add 5 new mode assertions (POSTER, DETAILED, EDGE, WATERCOLOR, SEGMENTED)
+    - `test_pipeline_records_timings`: add 3 new keys (preprocess, segment, vectorize)
+  - Update `tests/test_models.py`:
+    - Add tests for `RegionInfo` Pydantic model
+    - Add tests for new `Sidecar` fields (preprocessing, regions, model_variant)
+    - Test JSON round-trip
+  - Update `tests/test_metadata.py`:
+    - Add tests for new Sidecar fields round-trip
+  - Update `tests/test_cli.py`:
+    - Add tests for new flags: `--preprocess`, `--denoise`, `--sharpen`, `--max-colors`, `--quality`, `--no-preprocess`, `--seg-model`, `--no-seg`
+    - Test validators reject bad values
+    - Test help text shows all 10 modes
+  - Update `tests/test_manpage.py`:
+    - Add new flags to `EXPECTED_FLAGS` list
+  - Update `tests/test_examples.py`:
+    - Increase `MIN_SVGS` from 8 to 13 (5 new modes × 1 photo + 8 existing = 13)
+    - Add 5 new sample SVGs to `docs/examples/`
+  - Update `src/img2svg/__init__.py`:
+    - Export `RegionInfo` from package
+
+  **Must NOT do**:
+  - Don't change existing test behavior except for the auto-mode mapping
+  - Don't add tests that require real YOLO inference (mock everything)
+  - Don't add @pytest.mark.integration to existing tests
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: Test updates following established patterns
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 6 (with T21, T23, T24, T25, T26)
+  - **Blocks**: F1-F4
+  - **Blocked By**: T1-T20 (need to know what to test)
+
+  **References**:
+  - **Test References**:
+    - `tests/test_presets.py:39-53` — existing auto-mode tests
+    - `tests/test_pipeline.py:81-87` — existing registry test
+    - `tests/test_pipeline.py:268-279` — existing timings test
+    - `tests/test_manpage.py:187-198` — `EXPECTED_FLAGS` list
+  - **WHY Each Reference Matters**:
+    - These are the tests that need updating.
+
+  **Acceptance Criteria**:
+  - [ ] All updated test files pass
+  - [ ] `uv run pytest -m "not slow" -q` → 480+ passed
+  - [ ] `RegionInfo` exported from `img2svg/__init__.py`
+  - [ ] `MIN_SVGS = 13` in test_examples.py
+  - [ ] New flags in test_manpage.py EXPECTED_FLAGS
+  - [ ] `uv run ruff check tests/ src/img2svg/__init__.py` → 0 issues
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: test_presets.py auto-mode test reflects new mapping
+    Tool: Bash
+    Preconditions: None
+    Steps:
+      1. `uv run pytest tests/test_presets.py -q`
+      2. All tests pass
+      3. `uv run pytest tests/test_presets.py::test_select_mode_auto_uses_image_type_table -v`
+      4. Assert test asserts `Mode.DETAILED` for PHOTO
+    Expected Result: Test passes with new assertion
+    Failure Indicators: Old assertion still there, test fails
+    Evidence: .sisyphus/evidence/task-22-presets-updated.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-22-presets-updated.txt`
+  - [ ] Full pytest output: `.sisyphus/evidence/task-22-pytest-output.txt`
+
+  **Commit**: YES (Wave 6)
+  - Message: `test: update existing tests for new modes + auto-mode behavior + new fields`
+  - Files: `tests/test_presets.py`, `tests/test_pipeline.py`, `tests/test_models.py`, `tests/test_metadata.py`, `tests/test_cli.py`, `tests/test_manpage.py`, `tests/test_examples.py`, `src/img2svg/__init__.py`
+  - Pre-commit: `uv run pytest -m "not slow" -q && uv run ruff check tests/ src/img2svg/__init__.py`
+
+- [ ] 23. Use existing `tests/testimg/` directory for real-photo tests (no new fixtures)
+
+  **What to do**:
+  - **No new fixtures needed** — use the existing `tests/testimg/` directory which contains 50+ real photos
+  - Add a `conftest.py` fixture `real_photo_path` that returns one of the test images (default: `tests/testimg/Designer (1).jpeg`):
+    ```python
+    @pytest.fixture
+    def real_photo_path() -> Path:
+        """A real photo from tests/testimg/ for SEGMENTED mode testing."""
+        return _FIXTURES_DIR.parent / "testimg" / "Designer (1).jpeg"
+    ```
+  - Reference `tests/testimg/Designer (1).jpeg` in `tests/test_segmentation.py` for SEGMENTED mode tests
+  - Reference `tests/testimg/2024-Q4.jpg` in tests that need a different photo variety
+  - Reference `tests/testimg/3840x2160-dark-freebsd.png` in tests that need 4K (for performance/large-output testing)
+  - Note in a comment: "tests/testimg/ contains 50+ real photos provided by the user for real-world photo testing"
+
+  **Must NOT do**:
+  - Don't generate new fixture images
+  - Don't add new test images (use existing)
+  - Don't change existing `conftest.py` fixtures (add new ones)
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: Add a new fixture + update existing tests to reference testimg
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 6
+  - **Blocks**: T24 (end-to-end needs real photo)
+  - **Blocked By**: None (testimg/ already exists)
+
+  **References**:
+  - **Pattern References**:
+    - `tests/conftest.py:34-65` — existing fixture style. Match.
+  - **Test References**:
+    - `tests/testimg/` — 50+ real photos (Designer (1).jpeg through Designer (50).jpeg, 2024-Q4.jpg, 3840x2160-dark-freebsd.png, banner-*.png)
+
+  **Acceptance Criteria**:
+  - [ ] `real_photo_path` fixture added to conftest.py
+  - [ ] `tests/test_segmentation.py` uses real_photo_path
+  - [ ] `uv run pytest tests/test_segmentation.py -q` → all pass
+  - [ ] No new fixture images generated
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: real_photo_path fixture returns a valid image
+    Tool: Bash
+    Preconditions: testimg/ exists
+    Steps:
+      1. `uv run python -c "from tests.conftest import real_photo_path; print(real_photo_path())"`
+      2. Assert path exists
+      3. Assert file size > 50KB
+    Expected Result: Returns valid path to Designer (1).jpeg
+    Failure Indicators: File not found, empty
+    Evidence: .sisyphus/evidence/task-23-real-photo.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-23-real-photo.txt`
+
+  **Commit**: YES (Wave 6)
+  - Message: `test: add real_photo_path fixture for SEGMENTED mode testing`
+  - Files: `tests/conftest.py`, `tests/test_segmentation.py`
+  - Pre-commit: `uv run pytest tests/test_segmentation.py -q`
+
+- [ ] 24. End-to-end verification on user's `rtlogo-1.png` + testimg samples
+
+  **What to do**:
+  - Run end-to-end conversion of `/home/mlapointe/Documents/rtlogo-1.png` for each of the 10 modes:
+    ```bash
+    for mode in auto labels visual annotated trace poster detailed edge watercolor; do
+      uv run img2svg convert /home/mlapointe/Documents/rtlogo-1.png --output /tmp/qa-photo-${mode}.svg --mode $mode
+      test -f /tmp/qa-photo-${mode}.svg && echo "$mode: OK ($(wc -c < /tmp/qa-photo-${mode}.svg) bytes)"
+    done
+    # SEGMENTED needs --seg-model
+    uv run img2svg convert /home/mlapointe/Documents/rtlogo-1.png --output /tmp/qa-photo-segmented.svg --mode segmented --seg-model yolo11s-seg.pt
+    ```
+  - For each output, verify:
+    - File exists
+    - Is valid XML (parse with `lxml.etree.parse()`)
+    - Contains expected elements:
+      - For VISUAL/TRACE/POSTER/DETAILED/EDGE/WATERCOLOR: `<g id="vtracer-output">`
+      - For LABELS: `<rect>` (bounding box) + `<text>` (label)
+      - For ANNOTATED: `<g id="vtracer-output">` + `<g id="det_...">`
+      - For SEGMENTED: `<g id="background">` + at least 1 `<g id="obj_...">` (or just `<g id="vtracer-output">` if no objects)
+  - Also run on `tests/testimg/Designer (1).jpeg` (real photo with detectable objects) for SEGMENTED mode
+  - Capture sidecar JSON for each and verify the `mode_used` field
+
+  **Must NOT do**:
+  - Don't run on testimg/Designer (1).jpeg for ALL modes (one mode per photo is enough for sanity)
+  - Don't fail if rtlogo has no detectable objects for SEGMENTED (it's a logo; SEGMENTED should fall back to VisualRenderer)
+
+  **Recommended Agent Profile**:
+  - **Category**: `unspecified-high`
+    - Reason: Multi-mode end-to-end verification with detailed assertions
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: NO (depends on all previous tasks)
+  - **Parallel Group**: Wave 6 (final task before docs)
+  - **Blocks**: T25 (docs reference end-to-end outputs)
+  - **Blocked By**: T1-T23
+
+  **References**:
+  - **Test References**:
+    - User's file: `/home/mlapointe/Documents/rtlogo-1.png` (existing real test file)
+    - Real photo: `tests/testimg/Designer (1).jpeg`
+  - **Acceptance Criteria from the plan's Definition of Done**:
+    - `uv run img2svg convert /home/mlapointe/Documents/rtlogo-1.png --output /tmp/qa-photo.svg --mode detailed` → succeeds
+    - `uv run img2svg convert ... --mode segmented --seg-model yolo11s-seg.pt` → multi-layer SVG
+    - `uv run img2svg --mode auto ...` → does NOT auto-pick LABELS or ANNOTATED
+
+  **Acceptance Criteria**:
+  - [ ] All 10 modes run successfully on rtlogo-1.png
+  - [ ] All 10 outputs are valid XML
+  - [ ] Each output has expected SVG elements per mode
+  - [ ] SEGMENTED mode on testimg/Designer (1).jpeg produces multi-layer output
+  - [ ] Auto mode does NOT pick LABELS or ANNOTATED
+  - [ ] All outputs committed as evidence to `.sisyphus/evidence/task-24-*.svg`
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: All 10 modes produce valid SVG output on user's rtlogo
+    Tool: Bash (uv run img2svg)
+    Preconditions: All implementation tasks complete
+    Steps:
+      1. For each of 10 modes, run conversion
+      2. Verify file exists, >100 bytes, valid XML
+      3. Parse with lxml, verify root tag is `{http://www.w3.org/2000/svg}svg`
+      4. Assert mode-specific elements present
+    Expected Result: All 10 modes succeed
+    Failure Indicators: Any mode fails, invalid XML
+    Evidence: .sisyphus/evidence/task-24-e2e-{mode}.svg
+
+  Scenario: SEGMENTED mode on real photo produces multi-layer SVG
+    Tool: Bash (uv run img2svg)
+    Preconditions: yolo11s-seg.pt downloaded
+    Steps:
+      1. `uv run img2svg convert tests/testimg/Designer\ \(1\).jpeg --output /tmp/qa-seg-photo.svg --mode segmented --seg-model yolo11s-seg.pt`
+      2. Parse output SVG
+      3. Assert `<g id="background">` exists
+      4. Assert at least 1 `<g id="obj_...">` exists (assuming detection succeeds)
+    Expected Result: Multi-layer output with background + at least 1 object
+    Failure Indicators: No obj_ groups, no background group
+    Evidence: .sisyphus/evidence/task-24-seg-photo.svg
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-24-e2e-{mode}.svg` for all 10 modes
+  - [ ] `task-24-seg-photo.svg`
+  - [ ] All corresponding `.json` sidecars
+
+  **Commit**: YES (Wave 6)
+  - Message: `chore: end-to-end verify on rtlogo-1.png + testimg/Designer (1).jpeg`
+  - Files: `.sisyphus/evidence/task-24-*.svg`, `.sisyphus/evidence/task-24-*.json`
+  - Pre-commit: `uv run pytest -m "not slow" -q && uv run img2svg --version`
+
+- [ ] 25. Documentation updates (NEW `docs/photo-modes.md` + update README, man page, mkdocs)
+
+  **What to do**:
+  - Create `docs/photo-modes.md` (~400 lines):
+    - Overview: "Pushing img2svg for real-world photos"
+    - Section per new mode (POSTER, DETAILED, EDGE, WATERCOLOR, SEGMENTED):
+      - What it does
+      - When to use it
+      - Example command
+      - Example output (with screenshot if possible)
+      - Performance characteristics
+    - Pre-processing section (--preprocess flag, --denoise, --sharpen, --max-colors, --quality)
+    - YOLO segmentation section (--seg-model, --no-seg, yolo11s-seg vs yolo11m-seg)
+    - Limitations and trade-offs
+    - Examples (curated set of photos + their SVG output)
+  - Update `README.md`:
+    - "Output Modes" table: add 5 new modes (rows for POSTER, DETAILED, EDGE, WATERCOLOR, SEGMENTED)
+    - "Features" bullet: change "Five output modes" → "Ten output modes"
+    - "Quickstart" examples: add one for `detailed` and one for `segmented`
+  - Update `man/img2svg.1`:
+    - Add new flags to `.SH OPTIONS` section
+    - Update mode list
+    - Update `.SH EXAMPLES` with new mode examples
+  - Update `mkdocs.yml`:
+    - Add `photo-modes.md` to `nav` under "Guides"
+  - Update `docs/usage.md`:
+    - Update mode table to include 10 modes
+    - Add section on new flags
+  - Update `docs/api.md`:
+    - Update `ConversionOptions` table with 7 new fields
+    - Document `RegionInfo` and `SegmentationResult`
+  - Update `docs/architecture.md`:
+    - Update pipeline mermaid diagram to show pre-processing + segmentation
+  - Update `docs/installation.md`:
+    - Mention yolo11s-seg availability
+    - Add note about AMD 512MB iGPU caveat (auto-fallback to yolo11n-seg)
+  - Update `docs/index.md`:
+    - Update "Highlights" to mention new modes
+    - Update docs map to link to `photo-modes.md`
+  - Update `docs/changelog.md`:
+    - Add Unreleased section listing 5 new modes + 8 new flags
+  - Update `docs/modes.md`:
+    - Add 5 new mode sections (or merge into photo-modes.md)
+    - Or keep separate and add a "See also: Photo Modes" link
+
+  **Must NOT do**:
+  - Don't delete any existing documentation
+  - Don't break existing doc tests (`test_docs.py` checks for required doc files)
+  - Don't add fluff — only the new modes and flags
+
+  **Recommended Agent Profile**:
+  - **Category**: `writing`
+    - Reason: Documentation writing
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 6
+  - **Blocks**: F1-F4
+  - **Blocked By**: T24 (docs reference end-to-end outputs)
+
+  **References**:
+  - **Pattern References**:
+    - `docs/modes.md` — existing mode documentation. Mirror structure for new modes.
+    - `README.md` — existing table style. Mirror.
+    - `man/img2svg.1` — existing man page structure. Mirror.
+    - `mkdocs.yml` — existing nav structure. Add `photo-modes.md`.
+  - **WHY Each Reference Matters**:
+    - These are the existing docs that need updating.
+
+  **Acceptance Criteria**:
+  - [ ] `docs/photo-modes.md` created (~400 lines, 5 mode sections, preprocessing section, segmentation section, examples)
+  - [ ] `README.md` updated (Output Modes table has 10 rows, Features bullet updated, Quickstart examples added)
+  - [ ] `man/img2svg.1` updated (new flags added, mode list updated, examples added)
+  - [ ] `mkdocs.yml` updated (`photo-modes.md` in nav)
+  - [ ] `docs/usage.md`, `docs/api.md`, `docs/architecture.md`, `docs/installation.md`, `docs/index.md`, `docs/changelog.md`, `docs/modes.md` updated
+  - [ ] `uv run pytest tests/test_docs.py tests/test_manpage.py -q` → all pass
+  - [ ] `uv run mkdocs build --strict` → no warnings
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: All docs updated and tests pass
+    Tool: Bash
+    Preconditions: All code complete
+    Steps:
+      1. `uv run pytest tests/test_docs.py tests/test_manpage.py -q` → all pass
+      2. `uv run mkdocs build --strict` → no warnings
+      3. `ls docs/photo-modes.md` → exists
+      4. `grep -c "^##" docs/photo-modes.md` ≥ 5 (5+ sections)
+    Expected Result: All docs tests pass, mkdocs builds, photo-modes.md exists
+    Failure Indicators: Doc test failure, mkdocs warning, missing file
+    Evidence: .sisyphus/evidence/task-25-docs.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-25-docs.txt`
+
+  **Commit**: YES (Wave 6)
+  - Message: `docs: add photo-modes.md + update README/man/mkdocs/usage/api/architecture`
+  - Files: `docs/photo-modes.md`, `README.md`, `man/img2svg.1`, `mkdocs.yml`, `docs/usage.md`, `docs/api.md`, `docs/architecture.md`, `docs/installation.md`, `docs/index.md`, `docs/changelog.md`, `docs/modes.md`
+  - Pre-commit: `uv run pytest tests/test_docs.py tests/test_manpage.py -q && uv run mkdocs build --strict`
+
+- [ ] 26. Add lessons to Honcho workspace (capture key decisions from this plan)
+
+  **What to do**:
+  - Use the `honcho_add_conclusions` tool to add lessons learned to the Honcho workspace
+  - Capture these as conclusions (peer=planner, target=user):
+    - "User constraint: ANNOTATED and LABELS modes are EXPLICIT only — never auto-selected. The IMAGE_TYPE_TO_MODE mapping was updated so PHOTO→DETAILED (aggressive default), LOGO/DIAGRAM/SCREENSHOT/LINE_ART/UNKNOWN→VISUAL."
+    - "User preference: AGGRESSIVE defaults. All photo modes (auto/trace/visual/annotated) get default preprocessing unless --no-preprocess. SEGMENTED auto-selects yolo11x-seg for PHOTO images."
+    - "User preference: Multi-layer editable SVG for SEGMENTED mode. Each detected object becomes its own <g id='obj_class_idx'> group with semantic class name."
+    - "Decision: Skip CLAHE in WATERCOLOR mode (deferred to v2). User wanted 'aggressive' but research warns about noise amplification."
+    - "Decision: VRAM fallback for YOLO seg — auto-fallback to yolo11n-seg on OOM, then to bbox detection. Important for AMD 890M (512MB iGPU)."
+    - "Decision: palette_size vs --max-colors — removed unused palette_size, use new max_colors field for color capping."
+    - "Architecture: 5 new modes (POSTER, DETAILED, EDGE, WATERCOLOR, SEGMENTED). 3 new vtracer presets (photo_hifi, bw_edge, watercolor). 5 new renderers. 1 new YOLOSegmentor class. 1 new preprocessing module."
+    - "Tests use existing tests/testimg/ directory (50+ real photos provided by user). No new fixtures generated."
+    - "Future: defer to v2 — depth estimation, style transfer, tile-based parallel tracing, quality metrics, region-based palette extraction."
+  - Capture these as a new peer card fact (peer=planner): "img2svg plan for photo quality push is 25+ tasks in 6 waves. Critical path: T1 (preprocessing) → T3 (enums) → T10 (registry wiring) → T18 (pipeline integration) → T24 (end-to-end) → F1-F4 (verification)."
+
+  **Must NOT do**:
+  - Don't add lessons as session messages (use `add_conclusions` or `set_peer_card`)
+  - Don't include sensitive info (API keys, file paths beyond what's needed)
+  - Don't add redundant conclusions (be concise)
+
+  **Recommended Agent Profile**:
+  - **Category**: `quick`
+    - Reason: Direct API call, no logic
+  - **Skills**: `[]`
+
+  **Parallelization**:
+  - **Can Run In Parallel**: YES
+  - **Parallel Group**: Wave 6 (last task)
+  - **Blocks**: Plan closure
+  - **Blocked By**: All other tasks (so lessons are accurate)
+
+  **References**:
+  - **Tool References**:
+    - `honcho_add_conclusions` (peers=planner + user) — to add conclusions
+    - `honcho_set_peer_card` (peer=planner) — to update planner's peer card with current task
+  - **WHY Each Reference Matters**:
+    - Honcho is the user's memory across sessions. Lessons here will inform future planning.
+
+  **Acceptance Criteria**:
+  - [ ] 9+ conclusions added to Honcho (one per lesson learned)
+  - [ ] Peer card updated with current task
+  - [ ] `honcho_list_conclusions(peer_id="planner")` returns the new conclusions
+  - [ ] `honcho_get_peer_card(peer_id="planner")` includes the current task
+
+  **QA Scenarios (MANDATORY)**:
+
+  ```
+  Scenario: Lessons added to Honcho
+    Tool: Bash
+    Preconditions: Honcho workspace accessible
+    Steps:
+      1. `honcho_list_conclusions(peer_id="planner")` returns the 9 lessons
+      2. `honcho_get_peer_card(peer_id="planner")` includes "img2svg plan for photo quality push"
+    Expected Result: All 9 lessons + peer card update
+    Failure Indicators: Missing lessons, peer card unchanged
+    Evidence: .sisyphus/evidence/task-26-honcho.txt
+  ```
+
+  **Evidence to Capture**:
+  - [ ] `task-26-honcho.txt`
+
+  **Commit**: YES (Wave 6)
+  - Message: `chore(honcho): add lessons learned from photo-quality-push plan`
+  - Files: N/A (Honcho is external)
+  - Pre-commit: N/A
 
 ---
 
