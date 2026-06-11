@@ -84,6 +84,33 @@ warn()   { printf "%sWARN:%s %s\n" "$C_YELLOW" "$C_RESET" "$*" >&2; }
 
 OS="$(uname -s)"
 
+# Pick a package install command. Preference order:
+#   1. uv     — handles PEP 668 (`uv pip install --system` mirrors
+#               `pip install --system`; on PEP 668 systems the user
+#               should use `uv tool install` for a clean install, but
+#               `uv pip install --system` is the same surface as pip
+#               and works fine on non-PEP-668 systems like CI runners,
+#               macOS, and older distros).
+#   2. pipx   — installs into an isolated venv; the binary goes on PATH.
+#   3. pip    — last resort; on Debian/Ubuntu (PEP 668) this needs
+#               `--break-system-packages` and the user has to opt in.
+# Each branch sets:
+#   INSTALL_CMD            — the `cmd` portion (no package name)
+#   INSTALL_BREAK_PEP668   — 1 if plain `pip install` would hit PEP 668
+#                            and therefore needs --break-system-packages
+pick_install_cmd() {
+    if command -v uv >/dev/null 2>&1; then
+        INSTALL_CMD="uv pip install --system"
+        INSTALL_BREAK_PEP668=0
+    elif command -v pipx >/dev/null 2>&1; then
+        INSTALL_CMD="pipx install"
+        INSTALL_BREAK_PEP668=0
+    else
+        INSTALL_CMD="pip install"
+        INSTALL_BREAK_PEP668=1
+    fi
+}
+
 # Display class codes: 0300 VGA, 0302 3D, 0380 Display controller.
 # Required to skip audio/USB siblings that share the vendor ID.
 _DISPLAY_CLASS_RE='\[\s*(0300|0302|0380)\s*\]'
@@ -185,14 +212,49 @@ if [ "${backend}" = "nvidia" ] && [ -n "${amd_lines}" ]; then
     warn "plan to use a smaller model on a discrete AMD GPU."
 fi
 
-cmd="pip install ${recommend}"
+pick_install_cmd
 
+# Build the full install command. We prefer uv, then pipx, then pip.
+# On Debian/Ubuntu (PEP 668) we fall back to `pip install --break-system-packages`
+# with a clear warning, because that's the only way the system pip can
+# install into the system Python.
+if [ "${INSTALL_BREAK_PEP668}" -eq 1 ]; then
+    warn "Neither uv nor pipx is on PATH; falling back to 'pip install'."
+    warn "On Debian/Ubuntu (PEP 668), this will fail. Override with"
+    warn "--break-system-packages, or install uv (https://docs.astral.sh/uv/)"
+    warn "and re-run for a clean install."
+    INSTALL_CMD="${INSTALL_CMD} --break-system-packages"
+fi
+
+# Wrap the cmd with the ROCm wheel index URL for the [amd] extra.
+# ROCm PyTorch wheels are not on PyPI; they live on a separate index.
+# uv honors UV_INDEX_URL, pip honors PIP_INDEX_URL; pipx doesn't have
+# a clean equivalent so we print a note for that branch.
 if [ "${backend}" = "amd" ]; then
+    INDEX_URL="https://download.pytorch.org/whl/rocm6.2"
+    case "${INSTALL_CMD%% *}" in
+        uv)
+            cmd="UV_INDEX_URL=${INDEX_URL} ${INSTALL_CMD} ${recommend}"
+            ;;
+        pip)
+            cmd="PIP_INDEX_URL=${INDEX_URL} ${INSTALL_CMD} ${recommend}"
+            ;;
+        pipx)
+            warn "pipx does not honor PIP_INDEX_URL cleanly."
+            warn "If you need img2svg[amd] under pipx, set PIP_INDEX_URL"
+            warn "in your shell before running pipx, or use uv instead."
+            cmd="${INSTALL_CMD} ${recommend}"
+            ;;
+        *)
+            cmd="${INSTALL_CMD} ${recommend}"
+            ;;
+    esac
     say ""
     say "${C_BOLD}Note:${C_RESET} AMD ROCm PyTorch wheels live on a separate index."
-    say "  For the [amd] extra, set PIP_INDEX_URL before installing:"
-    say "    PIP_INDEX_URL=https://download.pytorch.org/whl/rocm6.2 \\"
-    say "        ${cmd}"
+    say "  Set the index URL before installing:"
+    say "    ${cmd}"
+else
+    cmd="${INSTALL_CMD} ${recommend}"
 fi
 
 if [ "${APPLY}" -eq 0 ]; then
@@ -208,7 +270,14 @@ header "Installing"
 say "  ${cmd}"
 if ! ${cmd}; then
     echo "ERROR: install command failed: ${cmd}" >&2
-    echo "Hint: the [amd] extra requires a ROCm PyTorch wheel index." >&2
+    if [ "${backend}" = "amd" ]; then
+        echo "Hint: the [amd] extra requires a ROCm PyTorch wheel index." >&2
+        echo "      Set PIP_INDEX_URL=https://download.pytorch.org/whl/rocm6.2" >&2
+    else
+        echo "Hint: this is often a 'externally-managed-environment' (PEP 668) error." >&2
+        echo "      Install uv (https://docs.astral.sh/uv/) and re-run, or use" >&2
+        echo "      'pip install --break-system-packages' to override." >&2
+    fi
     exit 1
 fi
 

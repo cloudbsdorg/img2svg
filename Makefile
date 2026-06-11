@@ -105,15 +105,39 @@ info: ## Show system + project info
 # Self-contained: NO prerequisites. The user types `make install` and gets
 # a working install. No "first run `make sync`" prerequisite, no prompts.
 #
-# Strategy:
-#   1. Try `scripts/install_backend.sh --apply` (the smart path that
-#      detects the GPU, prints warnings, and runs the right pip command).
-#   2. If the script is missing, fall back to a direct install via uv
-#      (or pip) using a simple platform case statement.
+# Strategy (project-context aware):
+#   1. If `pyproject.toml` is present in cwd AND `uv` is on PATH AND a
+#      `.venv` exists: install into the project's venv using
+#      `uv pip install -e .[extra]`. This is the source-repo case and
+#      the most common one for developers. The extra is detected from
+#      `install_backend.sh --dry-run` output via a small sed pass that
+#      extracts the bracketed extra name (works for both old and new
+#      cmd formats: `pip install img2svg[nvidia]`,
+#      `uv pip install --system img2svg[nvidia]`, etc.).
+#   2. Otherwise, fall back to `scripts/install_backend.sh --apply` (or,
+#      if the script is missing, the inline platform-aware fallback).
+#      `install_backend.sh` itself prefers `uv` over `pip` and handles
+#      PEP 668 (Debian/Ubuntu) by warning and falling back to
+#      `pip install --break-system-packages`.
 
 install: ## Install img2svg (auto-detect platform + GPU backend)
 	@printf "Installing img2svg on %s/%s...\n" "$(UNAME_S)" "$(UNAME_M)"
-	@if [ -x scripts/install_backend.sh ]; then \
+	@if [ -f pyproject.toml ] && [ -n "$(UV)" ] && [ -d .venv ]; then \
+	    printf "Source repo + .venv detected; installing into the project's venv.\n"; \
+	    EXTRA=$$(bash scripts/install_backend.sh --dry-run 2>/dev/null \
+	        | sed -nE 's/.*img2svg\[([^]]+)\].*/\1/p' | head -1); \
+	    if [ -z "$$EXTRA" ]; then EXTRA=cpu; fi; \
+	    printf "Detected extra: [cpu|nvidia|amd|apple] -> %s\n" "$$EXTRA"; \
+	    INDEX_URL=""; \
+	    if [ "$$EXTRA" = "amd" ]; then \
+	        INDEX_URL="https://download.pytorch.org/whl/rocm6.2"; \
+	    fi; \
+	    if [ -n "$$INDEX_URL" ]; then \
+	        UV_INDEX_URL="$$INDEX_URL" $(UV) pip install --python .venv/bin/python -e ".[$$EXTRA]"; \
+	    else \
+	        $(UV) pip install --python .venv/bin/python -e ".[$$EXTRA]"; \
+	    fi; \
+	elif [ -x scripts/install_backend.sh ]; then \
 	    bash scripts/install_backend.sh --apply; \
 	else \
 	    printf "scripts/install_backend.sh not found; falling back to direct install.\n" >&2; \
@@ -152,7 +176,20 @@ install: ## Install img2svg (auto-detect platform + GPU backend)
 
 install-dry-run: ## Show what 'make install' would do without doing it
 	@printf "Dry run: showing what 'make install' would do on %s/%s.\n" "$(UNAME_S)" "$(UNAME_M)"
-	@if [ -x scripts/install_backend.sh ]; then \
+	@if [ -f pyproject.toml ] && [ -n "$(UV)" ] && [ -d .venv ]; then \
+	    printf "Source repo + .venv detected; would install into the project's venv.\n"; \
+	    EXTRA=$$(bash scripts/install_backend.sh --dry-run 2>/dev/null \
+	        | sed -nE 's/.*img2svg\[([^]]+)\].*/\1/p' | head -1); \
+	    if [ -z "$$EXTRA" ]; then EXTRA=cpu; fi; \
+	    printf "Detected extra: %s\n" "$$EXTRA"; \
+	    printf "Would run:\n"; \
+	    if [ "$$EXTRA" = "amd" ]; then \
+	        printf "    UV_INDEX_URL=https://download.pytorch.org/whl/rocm6.2 \\\n"; \
+	        printf "        %s pip install --python .venv/bin/python -e '.[%s]'\n" "$(UV)" "$$EXTRA"; \
+	    else \
+	        printf "    %s pip install --python .venv/bin/python -e '.[%s]'\n" "$(UV)" "$$EXTRA"; \
+	    fi; \
+	elif [ -x scripts/install_backend.sh ]; then \
 	    bash scripts/install_backend.sh; \
 	else \
 	    printf "scripts/install_backend.sh not found; cannot produce install plan.\n" >&2; \

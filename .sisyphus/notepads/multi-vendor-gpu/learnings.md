@@ -1897,3 +1897,118 @@ F-waves that were already in the tree at task-start).
   separate targets with duplicated recipes. The sub-make pattern keeps
   the file ~60 lines shorter and concentrates the AMD-index-URL
   logic in one place.
+
+## PEP 668 install fix (2026-06-10)
+
+### What shipped
+
+- `scripts/install_backend.sh`: +37 lines (a `pick_install_cmd()` shell
+  function + a new cmd-building block + a context-aware error message).
+- `Makefile` `install` and `install-dry-run` targets: +37 lines
+  (project-context detection: if `pyproject.toml` is present in cwd
+  AND `uv` is on PATH AND `.venv` exists, install into the venv via
+  `uv pip install --python .venv/bin/python -e ".[extra]"`; otherwise
+  fall through to `install_backend.sh --apply`).
+
+### Why the new shape
+
+- On Debian/Ubuntu with PEP 668, `pip install img2svg[...]` into the
+  system Python is rejected with "externally-managed-environment".
+  The fix has to be done at two layers: the script must prefer `uv`
+  (which still respects PEP 668 but at least gives a coherent error
+  and works in non-PEP-668 envs like CI runners, macOS, older
+  distros), and the Makefile must detect the project-context case
+  (developer in the source repo with `.venv` already present) so
+  the install goes into the venv where PEP 668 doesn't apply.
+- `uv pip install --system` is NOT a PEP-668 bypass — it mirrors
+  `pip install --system` and still fails on Debian 12+/Ubuntu 23.10+
+  in the same way. The real PEP-668 bypass is the venv (handled by
+  the Makefile's project-context branch). The script's `uv` branch
+  is for non-PEP-668 systems where it's just a better resolver.
+
+### Tool preference order
+
+- `uv` → `pipx` → `pip --break-system-packages`. The
+  `pick_install_cmd()` function sets two globals:
+  `INSTALL_CMD` (the prefix, e.g. `uv pip install --system`) and
+  `INSTALL_BREAK_PEP668` (1 if we need to append
+  `--break-system-packages` because we fell back to `pip`).
+- The PIP_INDEX_URL wrapping for the AMD case is split by
+  `${INSTALL_CMD%% *}` (the leading command word): `uv` →
+  `UV_INDEX_URL=...`, `pip` → `PIP_INDEX_URL=...`, `pipx` → print a
+  warning that pipx doesn't honor either.
+
+### Project-context detection in the Makefile
+
+- Three conditions gate the venv branch: `[ -f pyproject.toml ]`
+  (source repo), `[ -n "$(UV)" ]` (uv is available), and
+  `[ -d .venv ]` (venv already exists). The third condition is
+  deliberate — we don't auto-create a venv; we use the one the
+  developer already set up. This avoids a `uv venv` + sync side
+  effect from `make install` that the user didn't ask for.
+- The extra is extracted from `install_backend.sh --dry-run` output
+  via `sed -nE 's/.*img2svg\[([^]]+)\].*/\1/p' | head -1`. The regex
+  is robust to the various cmd formats: `pip install img2svg[nvidia]`,
+  `uv pip install --system img2svg[nvidia]`,
+  `pip install --break-system-packages img2svg[amd]`, and
+  `UV_INDEX_URL=... uv pip install --system img2svg[amd]` all
+  extract the right extra. The `head -1` defends against
+  multi-line cmd output that might (in future) contain multiple
+  matches.
+
+### Misleading error message fix
+
+- Old: `Hint: the [amd] extra requires a ROCm PyTorch wheel index.`
+  was printed unconditionally on install failure. The user on
+  Ubuntu 26.04 with `pip install img2svg[nvidia]` would see this
+  hint and think the AMD index is the problem when it's actually
+  PEP 668.
+- New: the hint branches on `${backend}`. AMD failures get the
+  ROCm-index hint; everything else (including the nvidia case
+  that's the common one on hybrid systems) gets the PEP 668
+  hint. The two hints are mutually exclusive and each is
+  actionable.
+
+### Verification (this CUDA host, uv 0.11.19, pip 25.1.1)
+
+| Command | Output |
+|---------|--------|
+| `make -n install` | parses cleanly; recipe uses `uv pip install --python .venv/bin/python -e ".[$EXTRA]"` |
+| `make install-dry-run` | `Detected extra: nvidia` + `uv pip install --python .venv/bin/python -e '.[nvidia]'` |
+| `bash scripts/install_backend.sh --dry-run` | `uv pip install --system img2svg[nvidia]` (uses uv, not pip) |
+| `make self-test` | PASSED (GNU Make 4.4.1, parses cleanly) |
+| `uv run pytest -m "not slow" -q` | 472 passed, 1 pre-existing i18n failure (no regressions) |
+
+### BSD-3-Clause headers preserved
+
+- `scripts/install_backend.sh` line 3:
+  `# Copyright (c) 2026, REVYTECH, Inc.`
+- `Makefile` line 3:
+  `# Copyright (c) 2026, REVYTECH, Inc.`
+- Both verified before commit; no header lines were modified.
+
+### Patterns worth reusing in later tasks
+
+- **For tool-preference shell functions**: set TWO globals
+  (`INSTALL_CMD` + a flag like `INSTALL_BREAK_PEP668`) rather than
+  one. The flag makes the subsequent conditional unambiguous and
+  eliminates the need to re-`command -v` later.
+- **For Makefile project-context detection**: the 3-condition check
+  `[ -f pyproject.toml ] && [ -n "$(UV)" ] && [ -d .venv ]` is the
+  right shape. Don't auto-create the venv (side effects surprise
+  users); use the one that's already there.
+- **For `sed` extraction of bracketed extras**:
+  `sed -nE 's/.*img2svg\[([^]]+)\].*/\1/p'` is robust to
+  arbitrary prefixes (env vars, flags, paths) because the `.*` at
+  the start is greedy. Combined with `head -1` to defend against
+  multi-line future output.
+- **For conditional error messages**: branch on the actual
+  failure context (here: `${backend}`), not on a guess. The
+  user should never see a hint that doesn't apply to their
+  command. This is a UX bug class worth catching in code review.
+- **For `uv pip install --system` vs PEP 668**: they are NOT
+  equivalent. `uv pip install --system` does the same thing
+  `pip install --system` does, and the latter fails on
+  PEP 668 systems. The PEP 668 bypass is the venv itself.
+  Documenting this in a comment is necessary because the
+  semantics are counterintuitive.
