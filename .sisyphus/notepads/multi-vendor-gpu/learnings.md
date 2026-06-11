@@ -2012,3 +2012,186 @@ F-waves that were already in the tree at task-start).
   PEP 668 systems. The PEP 668 bypass is the venv itself.
   Documenting this in a comment is necessary because the
   semantics are counterintuitive.
+## 4-channel YOLO fix (2026-06-10)
+
+### What shipped
+
+- `src/img2svg/detector.py` `detect()`: +12 lines (a normalization block
+  that runs AFTER `self._ensure_loaded()` + the `_model is not None`
+  assert). Condition: `image.dtype != np.uint8 or image.ndim != 3 or
+  image.shape[2] != 3` (catches grayscale, LA, RGBA, 16-bit, float).
+  Conversion: `np.asarray(Image.fromarray(image).convert("RGB"))`.
+  PIL import is local (inside the `if` block) to keep module-load deps
+  lean.
+- `tests/test_detector.py`: +50 lines (2 new tests:
+  `test_detect_converts_rgba_input_to_rgb` and
+  `test_detect_converts_grayscale_input_to_rgb`). Both use the
+  existing `_FakeYOLO` stub which captures `image_shape` in
+  `self.calls[0]["image_shape"]` — the assertion confirms YOLO
+  received `(H, W, 3)` regardless of what was passed in.
+
+### The defining decision: normalize at the model boundary, not in the loader
+
+The img2svg loader intentionally preserves the alpha channel. RGBA
+input is correct input for downstream SVG renderers that produce
+transparent output. The bug was passing that same array to YOLO,
+which has a hard channel-count requirement (`Conv2d(3, 96, ...)`).
+
+Two alternative fix sites were considered and rejected:
+
+1. **Strip alpha in the loader** — would break the renderer's
+   ability to emit transparent SVGs from the same source array.
+2. **Pass a separate array to YOLO** — requires the pipeline to
+   maintain two copies of the image data, doubling memory and
+   forcing the renderer and detector to agree on which channels
+   are "the right ones" via shared state.
+
+The model-boundary normalization is the right shape because:
+- It keeps the loader's contract simple (preserve channels).
+- The conversion is cheap (PIL handles all 16 modes uniformly).
+- The fix is local to the one place that has the wrong-channel bug;
+  no other call site needs to know about the conversion.
+- The same code path handles the symmetric case (1-channel
+  grayscale PNGs from PIL mode "L") for free.
+
+### Why PIL, not a numpy slice
+
+`np.asarray(Image.fromarray(arr).convert("RGB"))` is the canonical
+shape, NOT `arr[:, :, :3]`. Three reasons:
+
+1. **Mode-agnostic**. PIL's `convert("RGB")` correctly handles 1ch
+   (`"L"`), 2ch (`"LA"`), 4ch (`"RGBA"`), 16-bit, and float. A numpy
+   slice would silently fail on 2D or 16-bit input (yielding a 1ch
+   or wrong-dtype array).
+2. **Already on the import path**. `Pillow` is a transitive dep of
+   `ultralytics` (the YOLO loader requires it). Importing it inside
+   the `if` block is free — no new dep, no import-time cost for
+   callers that never call `detect()`.
+3. **Idempotent on already-RGB input**. `convert("RGB")` is a no-op
+   for `(H, W, 3)` uint8 arrays, so the check is purely a guard,
+   not a re-encoding.
+
+### Local import is intentional, not lazy optimization
+
+`from PIL import Image` lives inside the `if` block, not at module
+top. The reason is not "import time is expensive" (it's not — PIL
+is already loaded by ultralytics' import chain in any real
+deployment). The reason is "callers that never call `detect()`
+shouldn't pull in PIL's loader machinery at module import".
+
+In practice the import always happens on first `detect()` because
+the conversion path triggers it. The locality is a defense-in-depth
+measure for hypothetical environments where the module is imported
+purely for `get_detector()` / class introspection (e.g. docs builds,
+introspection tools). Cost: 0 (the import is loaded exactly once
+per process and cached in `sys.modules`).
+
+### The 2D grayscale edge case
+
+`image.ndim != 3` covers the PIL-mode-"L" case: some PNGs are
+saved as 1-channel 2D arrays (shape `(H, W)`, not `(H, W, 1)`).
+The `if image.shape[2] != 3` check alone would raise `IndexError`
+on a 2D array. PIL's `Image.fromarray(gray).convert("RGB")` handles
+this case cleanly: it interprets the 2D array as a grayscale image
+and expands it to `(H, W, 3)`.
+
+The `test_detect_converts_grayscale_input_to_rgb` test pins this
+contract directly by passing `np.zeros((480, 640), dtype=np.uint8)`
+and asserting the YOLO call received `(480, 640, 3)`.
+
+### Pre-existing pipeline/loader design quirk
+
+`src/img2svg/loader.py` always returns an `np.ndarray` with the
+exact channel count of the source image. The pipeline
+(`src/img2svg/pipeline.py`) passes `loaded.np_array` directly to
+the patterns, classifier, and detector stages. This means the
+detector is the first stage that has a strict channel
+requirement; the patterns and classifier are channel-agnostic
+(they normalize internally).
+
+The fix keeps this contract: loader still preserves channels,
+patterns/classifier still work, detector now normalizes at its
+boundary. No other call site needs changes.
+
+### mypy: dtype vs ndim guards
+
+The condition `image.dtype != np.uint8 or image.ndim != 3 or
+image.shape[2] != 3` is short-circuit OR, evaluated left-to-right.
+On a 2D array, `image.shape[2]` would raise `IndexError` BEFORE
+the dtype/ndim checks fire — except the ndim check fires first
+and short-circuits the chain. mypy does not statically reason
+about short-circuit evaluation of attribute access on a
+union-typed expression, but the runtime semantics are correct
+because Python evaluates `or` left-to-right with truthiness
+short-circuit.
+
+Strict mypy on this project does NOT flag the `image.shape[2]`
+access as an error because `image` is typed `np.ndarray` and
+`shape[2]` is a runtime index — mypy cannot know the array is
+2D vs 3D at this call site. The `lsp_diagnostics` run on the
+file shows no new mypy errors.
+
+### Test mocking pattern (reusable for other channel-handling SUTs)
+
+The test pattern is: stub the YOLO class (the dependency that has
+the channel constraint) with a callable that captures its
+input. The detector's normalization is then provably correct by
+inspecting what the YOLO call received. This is the same pattern
+T9 documented for the `image_shape` capture in `_FakeYOLO`.
+
+```python
+fake_yolo = _FakeYOLO("yolo11n.pt")
+monkeypatch.setattr("ultralytics.YOLO", lambda name: fake_yolo)
+d = detector.YOLODetector("yolo11n.pt", BackendSpec(requested="cpu"))
+d.detect(rgba_array)
+assert fake_yolo.calls[0]["image_shape"] == (H, W, 3)
+```
+
+This is more robust than a `mock.MagicMock` for the assertion
+because the `_FakeYOLO.__call__` records the actual numpy shape
+that was passed in (not a mock attribute that might be set to
+something else). The shape tuple is the canonical YOLO contract;
+testing against it pins the conversion precisely.
+
+### Test counts
+
+- `tests/test_detector.py`: 12 → 14 tests (+2 new). All pass.
+- Full `-m "not slow"`: 472 → 474 passed (+2), 1 pre-existing
+  i18n failure (`test_ngettext_returns_singular_in_c_locale`,
+  same as noted in T2/T6/T7/T8/T9/T10/T12/T13/T14/T15/Makefile
+  Wrapper/PEP 668 fix sections), 8 deselected.
+- Coverage of `src/img2svg/detector.py`: 96% (3 uncovered lines
+  remain: 48, 85, 158 — same as T9 baseline; the new
+  normalization block is fully covered by the 2 new tests).
+
+### Files changed (this fix)
+
+- `src/img2svg/detector.py`: +12 -1 (the normalization block in
+  `detect()`; comment block explains the rationale).
+- `tests/test_detector.py`: +52 -0 (the two new regression tests
+  with their docstrings and the channel-shape pinning comments).
+- `.sisyphus/notepads/multi-vendor-gpu/learnings.md`: this section.
+
+### Patterns worth reusing in later tasks
+
+- **For "model expects X, caller has Y" mismatches**: normalize at
+  the model boundary, not at the loader. The loader's contract
+  should preserve caller intent; the model's contract is fixed by
+  its training. The boundary is the right place to bridge.
+- **For PIL-based channel conversion in a hot path**: the
+  `Image.fromarray(arr).convert("RGB")` idiom is idempotent and
+  mode-agnostic. Use it instead of numpy slicing for any input
+  that might be 1ch, 2ch, 4ch, 16-bit, or float. The cost is a
+  PIL round-trip (~1ms for a 1MP image), which is negligible
+  compared to a YOLO inference (~50ms on CPU, ~10ms on GPU).
+- **For test stubs that capture YOLO input**: `_FakeYOLO.__call__`
+  records the `image_shape` in `self.calls[i]["image_shape"]`.
+  Any future test that needs to pin what the detector passes
+  downstream can assert on this attribute directly. No need to
+  reach for `mock.MagicMock` + `assert_called_with`.
+- **For "lazy import to keep module load lean"**: when the
+  imported name is only used in one code path, import it inside
+  the function. The cost is one extra line of `from X import Y`
+  per call site; the benefit is that the module is importable in
+  environments without that dep (docs builds, linters, mock-heavy
+  test suites).

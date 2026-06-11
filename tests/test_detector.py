@@ -275,3 +275,57 @@ def test_constructor_succeeds_when_backend_unavailable(
     d = detector.YOLODetector("yolo11n.pt", BackendSpec(requested="cuda"))
     assert d._model is None
     assert d._resolved_backend is None
+
+
+def test_detect_converts_rgba_input_to_rgb(monkeypatch: pytest.MonkeyPatch) -> None:
+    """YOLO rejects 4-channel input; the detector must convert RGBA to RGB at the boundary.
+
+    The loader intentionally preserves the alpha channel for downstream
+    renderers (transparent SVGs), but YOLO's first conv layer expects
+    3-channel RGB uint8. The detector normalizes via PIL's
+    ``Image.fromarray(img).convert("RGB")`` before calling YOLO.
+
+    Regression test: previously, passing an RGBA PNG (e.g., a logo with
+    transparency) to the pipeline raised::
+
+        RuntimeError: Given groups=1, weight of size [96, 3, 3, 3],
+        expected input[1, 4, 640, 640] to have 3 channels, but got 4
+        channels instead
+    """
+    monkeypatch.setattr(
+        detector.REGISTRY, "resolve", lambda spec: _FakeBackend(to_ultralytics="cpu")
+    )
+    fake_yolo = _FakeYOLO("yolo11n.pt")
+    monkeypatch.setattr("ultralytics.YOLO", lambda name: fake_yolo)
+    d = detector.YOLODetector("yolo11n.pt", BackendSpec(requested="cpu"))
+
+    # 4-channel RGBA input (e.g., a transparent PNG)
+    rgba = np.zeros((480, 640, 4), dtype=np.uint8)
+    rgba[:, :, 0:3] = 128
+    rgba[:, :, 3] = 255
+    d.detect(rgba)
+
+    # Verify YOLO received a 3-channel uint8 array (the conversion happened)
+    assert fake_yolo.calls[0]["image_shape"] == (480, 640, 3)
+
+
+def test_detect_converts_grayscale_input_to_rgb(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grayscale (H, W) input is also converted to 3-channel RGB.
+
+    Some PNGs are saved as 1-channel grayscale (PIL mode "L"). YOLO
+    needs 3 channels, so the detector must expand the channel axis
+    before inference.
+    """
+    monkeypatch.setattr(
+        detector.REGISTRY, "resolve", lambda spec: _FakeBackend(to_ultralytics="cpu")
+    )
+    fake_yolo = _FakeYOLO("yolo11n.pt")
+    monkeypatch.setattr("ultralytics.YOLO", lambda name: fake_yolo)
+    d = detector.YOLODetector("yolo11n.pt", BackendSpec(requested="cpu"))
+
+    # 2D grayscale input (no channel axis)
+    gray = np.zeros((480, 640), dtype=np.uint8)
+    d.detect(gray)
+
+    # Verify YOLO received a 3-channel uint8 array
+    assert fake_yolo.calls[0]["image_shape"] == (480, 640, 3)

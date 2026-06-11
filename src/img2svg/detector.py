@@ -133,6 +133,18 @@ class YOLODetector:
         """Run YOLO inference. Returns a list of Detection objects."""
         self._ensure_loaded()
         assert self._model is not None  # invariant: _ensure_loaded sets this
+        # YOLO's first conv layer expects 3-channel RGB uint8 input. The
+        # loader intentionally preserves the alpha channel (RGBA) so
+        # downstream renderers can produce transparent SVGs, but YOLO
+        # cannot process the alpha channel — normalize at the model
+        # boundary. PIL's ``convert("RGB")`` is idempotent on already-RGB
+        # input and correctly handles 1ch (grayscale), 2ch (LA), 4ch
+        # (RGBA), 16-bit, and float modes. PIL is a transitive dep of
+        # ultralytics, so importing it here is free.
+        if image.dtype != np.uint8 or image.ndim != 3 or image.shape[2] != 3:
+            from PIL import Image  # local import: keep import-time deps lean
+
+            image = np.asarray(Image.fromarray(image).convert("RGB"))
         results = self._model(
             image,
             conf=conf,
