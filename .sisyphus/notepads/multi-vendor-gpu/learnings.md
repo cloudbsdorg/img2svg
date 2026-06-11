@@ -1827,3 +1827,73 @@ F-waves that were already in the tree at task-start).
   invisible at the Python level (it's just backslashes in a
   string); only the terminal-rendered help text shows the
   difference.
+
+## Makefile Wrapper (2026-06-10)
+
+### BSD-3-Clause header + 380 lines, parses cleanly on GNU Make 4.4.1
+- `make -n help` and `make -n install` both succeed (parse-only check).
+- File is intentionally in the GNU/BSD common subset: only `=` (recursive),
+  no `:=` or `?=`, no `ifeq`/`ifneq`/`ifdef`, no `$(@D)`/`$(@F)`,
+  no `echo -e`, no `[[ ... ]]`, no `which`. Shell is `/bin/sh`-clean.
+- All variables come from `$(shell ...)` at parse time; `UNAME_S = $(shell uname -s)`
+  is the source of truth (matches the project rule "never `platform.system()`").
+- All targets are `.PHONY`; `_install_extra` is a private helper invoked
+  by `install-cpu`/`install-nvidia`/`install-amd`/`install-apple` via
+  `$(MAKE) _install_extra EXTRA=<name>`.
+- `make install` has zero prerequisites; the recipe calls
+  `scripts/install_backend.sh --apply` (apply, not the script's default
+  dry-run) so the user gets an actual install. `install-dry-run` calls
+  the script with no args, so it stays in the script's default dry-run mode.
+
+### Two non-obvious gotchas that bit during verification
+1. **Backticks inside `printf "..."` strings in recipes are evaluated by
+   Make as recursive `make` invocations.** Writing `printf "Use \`make
+   install\` to ..."` made Make actually run `make install` and substitute
+   its output. The cure: switch to single-quoted prose (`'make install'`)
+   or drop the quoting entirely. The Makefile now has zero backticks in
+   any recipe line — only in comments and in genuine command-substitution
+   spots (info target's `_PYTHON_VER=`..."..."` --version 2>&1``).
+2. **`\"` inside a `$(...)` substitution is consumed by the outer
+   double-quote context BEFORE the substitution is parsed.** This breaks
+   patterns like `"$([ -n \"$X\" ] && echo found || echo \"(not
+   found)\")"` under dash. The fix: don't try to embed `\"` in a
+   `$(...)` at all. Either use backticks as the outer substitution
+   (backticks give the inner shell a fresh parsing context) or hoist
+   the computation into a shell variable in a separate recipe line and
+   `printf` that variable.
+
+### Help-target extraction pattern (the standard idiom)
+```
+@grep -hE '^[a-zA-Z_-][a-zA-Z0-9_-]*:.*?## .*$$' $(MAKEFILE_LIST) \
+    | awk -F':.*## ' '{printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' \
+    | sort
+```
+- `$(MAKEFILE_LIST)` is POSIX-standard; works in GNU and BSD make.
+- The `?` in `.*?` is harmless in ERE (means "0 or 1 of the previous
+  atom") but the regex is also fine as plain `.*` since target lines
+  only have one `##`.
+- `awk`'s greedy `.*` in the field separator is exactly what we want
+  because target names never contain `:`.
+- `$1` and `$2` in awk become `$$1` and `$$2` in the Makefile (Make
+  doubles the `$` so it survives into the shell).
+
+### AMD ROCm needs `PIP_INDEX_URL` (uv → `UV_INDEX_URL`)
+- The `[amd]` extra requires `https://download.pytorch.org/whl/rocm6.2`
+  because ROCm wheels are not on PyPI. The Makefile sets the index URL
+  only when `EXTRA=amd` is selected; `uv` is preferred over `pip` (the
+  project is uv-managed), with `pip` as a fallback. `uv` honors
+  `UV_INDEX_URL` the same way `pip` honors `PIP_INDEX_URL`.
+- The `install_backend.sh` script just *prints* the note and then runs
+  `pip install img2svg[amd]` with no index URL, which fails. That's
+  why the Makefile's `install-amd` / `_install_extra` paths set the
+  index URL themselves.
+
+### Sub-make pattern for parameterized helpers
+- `install-cpu: ; @$(MAKE) _install_extra EXTRA=cpu` and friends. The
+  command-line `EXTRA=foo` overrides any default, and the sub-make's
+  recipe sees `$(EXTRA)` as the right value. Works identically on
+  GNU and BSD make.
+- Alternative considered: define `install-cpu`/`install-nvidia`/etc. as
+  separate targets with duplicated recipes. The sub-make pattern keeps
+  the file ~60 lines shorter and concentrates the AMD-index-URL
+  logic in one place.
