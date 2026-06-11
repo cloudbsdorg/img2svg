@@ -454,3 +454,172 @@ T6 work deliberately did not break the established pattern.
   return an error on transient hardware faults. The XPU
   backend will likely need the same pattern for
   `torch.xpu.mem_get_info`.
+
+## T8: BackendRegistry — findings (2026-06-10)
+
+### Implementation
+
+- File: `src/img2svg/backends/registry.py` (206 lines, BSD-3-Clause header).
+- `class BackendRegistry` with five methods: `__init__`, `available`,
+  `detect`, `resolve`, `for_device_string`. Module-level
+  `REGISTRY = BackendRegistry()` singleton and `__all__ = ["REGISTRY",
+  "BackendRegistry"]`.
+- Priority order `_ALL = [CUDA_BACKEND, ROCM_BACKEND, MPS_BACKEND,
+  CPU_BACKEND]` matches the plan's research ("CUDA most common first,
+  CPU always-available fallback last").
+- `__init__` builds a defensive copy of `_ALL` plus a `_by_type` dict
+  for O(1) lookup in `resolve`. The map is built eagerly so
+  `resolve` does not scan on every call.
+- `available()` filters `_all` by `is_available()` on every call (no
+  caching) so hot-plug scenarios (a USB GPU attached after startup)
+  are reflected immediately.
+- `detect()` returns the first entry of `available()`, falling back
+  to `CPU_BACKEND` as a defence-in-depth guard.
+- `resolve()` uses `try/except ValueError` around `BackendType(...)`
+  to convert the unknown-name case to a `DeviceUnavailableError`.
+  This is the only correct way to handle spec strings constructed
+  via `model_construct` (which is how `for_device_string` defers
+  validation for unknown legacy strings).
+- `for_device_string()` uses three code paths:
+  1. Empty / `"auto"` → `BackendSpec(requested="auto")`.
+  2. Known plain backends → `BackendSpec.model_validate({"requested": s})`
+     so the Literal validation runs.
+  3. `"cuda:N"` / `"rocm:N"` → `BackendSpec.model_validate({"requested": s})`
+     so the `_parse_indexed_requested` model validator parses the
+     index.
+  4. Unknown → `BackendSpec.model_construct(requested=s)` to bypass
+     Pydantic's Literal validation. The error then surfaces at
+     `resolve()` with the helpful "available: [...]" suffix.
+- Input is normalised via `(s or "").strip().lower()` so `"  CUDA "`
+  and `"cuda"` produce the same spec.
+
+### TYPE_CHECKING vs runtime import
+
+- The plan said "use `if TYPE_CHECKING:` for `BackendSpec` import to
+  avoid circular imports." On inspection, `models.py` does not import
+  from `img2svg.backends`, so there is no real circular import.
+- The first iteration of the registry used `TYPE_CHECKING` for
+  `BackendSpec`, but the runtime code in `for_device_string` calls
+  `BackendSpec.model_validate(...)` and `BackendSpec.model_construct(...)`
+  at runtime — which means `BackendSpec` is needed in the local
+  namespace, not just the type-hint namespace. This produced a
+  `NameError: name 'BackendSpec' is not defined` at first run.
+- Fix: changed to a regular `from img2svg.models import BackendSpec`
+  at module level. The `TYPE_CHECKING` guard was defensive guidance
+  for a circular-import risk that does not exist in practice.
+- Lesson: when the spec says "use TYPE_CHECKING", always verify the
+  runtime code path. If the imported name is used in a function body
+  (not just a type annotation), a regular import is required.
+
+### Deferred validation pattern
+
+- The `for_device_string("bogus")` test requires deferred validation:
+  `BackendSpec(requested="bogus")` raises `ValidationError` at
+  construction time, but the spec wants the error to surface at
+  `resolve()` with the full list of available backends.
+- Solution: `BackendSpec.model_construct(requested=s)` skips Pydantic
+  validation entirely. The resulting spec is "invalid" by Pydantic
+  standards but works fine for the registry's purposes — `resolve()`
+  uses `try/except ValueError` around `BackendType(spec.requested)`
+  to convert the unknown-name case to `DeviceUnavailableError`.
+- This pattern is also how the test for `resolve("bogus")` works —
+  the test uses `BackendSpec.model_construct(requested="bogus")` to
+  reach the `resolve()` code path.
+
+### Mock-based testing pattern
+
+- The standard `@patch("module.torch")` decorator does not work for
+  testing the registry's mock-friendly parts, but the registry is
+  duck-typed: it only calls `b.type()` and `b.is_available()` on each
+  backend. So tests can use `unittest.mock.MagicMock(spec=DeviceBackend)`
+  to create fakes that satisfy the protocol.
+- For per-test mock isolation: construct a fresh `BackendRegistry()`
+  inside the test and use `patch.object(reg, "_all", [fake1, fake2, ...])`
+  + `patch.object(reg, "_by_type", {BackendType.X: fake_x, ...})` to
+  swap out the data. This avoids touching the module-level singleton
+  and keeps tests independent.
+- This pattern is more portable than patching module-level singletons
+  (`patch("img2svg.backends.registry.MPS_BACKEND", fake)`) because
+  it does not depend on the registry's import structure.
+
+### Re-exports
+
+- `src/img2svg/backends/__init__.py` updated: added
+  `from img2svg.backends.registry import REGISTRY, BackendRegistry`,
+  and added both names to `__all__` in the established isort-style
+  order (constants before classes, both sorted alphabetically).
+- Module docstring updated to reflect the new public surface
+  (registry + REGISTRY are now part of the API; the previous
+  "added in later tasks" sentence was outdated).
+
+### Mypy + ruff status
+
+- Zero mypy errors introduced. `from __future__ import annotations`
+  + `from img2svg.models import BackendSpec` (regular import) keeps
+  both type checking and runtime happy.
+- `ruff check` + `ruff format --check`: clean. Auto-fix had to
+  reorder the test imports (the multi-line `from img2svg.backends
+  import (...)` block had a slight ordering nit that ruff flagged
+  as I001).
+
+### Full-suite regression check
+
+- `uv run pytest -m "not slow" -q` → **457 passed, 1 failed, 8
+  deselected**. The single failure is the pre-existing
+  `test_ngettext_returns_singular_in_c_locale` in `test_i18n.py`
+  (same as noted in T2/T6/T7; unrelated to T8).
+- Test count: T7 left the suite at 440 tests (T6: +17, T7: +14).
+  T8 adds 17 tests in `test_registry.py` → 457 total. No
+  regressions in any existing test.
+
+### Files changed (this task)
+
+- `src/img2svg/backends/registry.py`: created (206 lines, BSD-3-Clause
+  header, full docstrings, lazy module-level import of `BackendSpec`).
+- `src/img2svg/backends/__init__.py`: +1 import line, +2 __all__
+  entries, module docstring updated.
+- `tests/test_backends/test_registry.py`: created (17 tests, all
+  pass). The 10 tests mandated by the plan plus 7 bonus:
+  - Mandated: `available()` filters by priority (test 1),
+    `detect()` returns CUDA (test 2), `resolve(cpu)` (test 3),
+    `resolve(auto)` (test 4), `resolve(bogus)` raises (test 5),
+    `resolve(mps)` raises on Linux (test 6), `for_device_string("cuda:0")`
+    (test 7), `for_device_string("auto")` (test 8),
+    `for_device_string("bogus")` deferred (test 9),
+    `for_device_string("")` empty (test 10).
+  - Bonus: `for_device_string("rocm:2")` extra coverage,
+    `for_device_string` known backends (cpu/cuda/rocm/mps in one
+    parametrised test), `for_device_string` case-insensitive +
+    whitespace-stripped normalisation, `detect()` CPU fallback
+    when no GPU available (mocked), `resolve(unavailable_cuda)`
+    (mocked), `resolve(mocked_mps_available)` to verify mock
+    integration, `REGISTRY` singleton sanity check
+    (priority-order preserved).
+- No changes to other files.
+
+### Patterns worth reusing in later tasks
+
+- **Deferred validation via `model_construct`**: when a spec/error
+  should surface downstream rather than at construction time, use
+  `BaseModel.model_construct(...)` to skip Pydantic validation. The
+  receiving code path must handle the "invalid" case explicitly
+  (here: `try/except ValueError` around the enum lookup).
+- **Module-level `REGISTRY` singleton + `__init__` defensive copy**:
+  the singleton is shared across the codebase, but each instance
+  has its own `_all` and `_by_type` so tests can `patch.object` on
+  an instance without affecting the global singleton. This is the
+  cleanest pattern for "shared config + test-friendly override".
+- **For `for_device_string` of legacy device strings**: the right
+  shape is "fast path for known forms (Literal-valid), fallback
+  path for unknown forms (`model_construct`)". The Literal-valid
+  path keeps the type system happy; the `model_construct` path
+  defers the error to the resolver for a clearer error message.
+- **For tests on the registry**: construct a fresh `BackendRegistry()`
+  per test and `patch.object(reg, "_all", [...])`. The class is
+  cheap (4-element list + 4-entry dict) and the patching is local
+  to the test, so tests do not leak mock state to each other.
+- **For mock-based test of GPU backends**: use
+  `MagicMock(spec=DeviceBackend)` and configure only the methods
+  the registry actually calls (`type()`, `is_available()`). The
+  other protocol methods are never reached in registry tests, so
+  do not bother setting them up.

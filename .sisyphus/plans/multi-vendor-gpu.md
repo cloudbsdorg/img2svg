@@ -572,7 +572,9 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/backends/mps.py`, `tests/test_backends/test_mps.py`
   - Pre-commit: `uv run pytest tests/test_backends/test_mps.py -q`
 
-- [ ] 8. **BackendRegistry with auto-detection**
+- [x] 8. **BackendRegistry with auto-detection** ✅ (commit pending in Wave 2)
+
+  **Status**: Done. `src/img2svg/backends/registry.py` (206 lines, BSD-3-Clause). 4 methods: `available()`, `detect()`, `resolve(spec)`, `for_device_string(s)`. Module-level `REGISTRY` singleton. Priority order: CUDA > ROCM > MPS > CPU. 17 tests in `tests/test_backends/test_registry.py` (all pass). Hands-on on this system: `available() = ['cuda', 'cpu']`, `detect() = cuda`, `resolve(cpu) = cpu`, `resolve(mps) raises DeviceUnavailableError("requested device 'mps' not available; available: cuda, cpu")`. Deferred validation via `model_construct()` gives clear errors.
 
   **Note**: T4 subagent did NOT create the registry stub (deferred to T8). T8 will create the registry from scratch AND wire all 4 backends.
 
