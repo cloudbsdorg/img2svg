@@ -415,7 +415,9 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/device.py`, `src/img2svg/backends/registry.py`, `src/img2svg/backends/__init__.py`
   - Pre-commit: `uv run pytest tests/test_device.py -q`
 
-- [ ] 5. **CUDABackend (NVIDIA)**
+- [x] 5. **CUDABackend (NVIDIA)** ✅ (commit pending in Wave 2)
+
+  **Status**: Done. `src/img2svg/backends/cuda.py` (201 lines, 93% coverage). All 9 Protocol methods with lazy torch imports and defensive try/except. `CUDA_BACKEND` singleton. 23 tests in `tests/test_backends/test_cuda.py` (all pass). Hands-on on this system: `CUDA_BACKEND.is_available() == True`, `device_name(0) == "NVIDIA GeForce RTX 5070 Laptop GPU"`, `total_memory_mb(0) == 7707`.
 
   **What to do**:
   - Create `src/img2svg/backends/cuda.py` with `class CUDABackend:`.
@@ -467,7 +469,9 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/backends/cuda.py`, `tests/test_backends/test_cuda.py`
   - Pre-commit: `uv run pytest tests/test_backends/test_cuda.py -q`
 
-- [ ] 6. **ROCMBackend (AMD via ROCm)**
+- [x] 6. **ROCMBackend (AMD via ROCm)** ✅ (commit pending in Wave 2)
+
+  **Status**: Done. `src/img2svg/backends/rocm.py` (224 lines, 87% coverage). The critical detection: `is_available() == torch.cuda.is_available() AND torch.version.hip is not None` — correctly returns `False` on this CUDA build (`torch 2.12.0+cu130`, `torch.version.hip == None`). `to_ultralytics_string(0) == "cuda:0"` (ROCm hides behind CUDA API). `device_name()` prefixed with `"[ROCm] "` to disambiguate in list-gpus. 17 tests in `tests/test_backends/test_rocm.py` (all pass).
 
   **What to do**:
   - Create `src/img2svg/backends/rocm.py` with `class ROCMBackend:`.
@@ -514,7 +518,9 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/backends/rocm.py`, `tests/test_backends/test_rocm.py`
   - Pre-commit: `uv run pytest tests/test_backends/test_rocm.py -q`
 
-- [ ] 7. **MPSBackend (Apple Silicon)**
+- [x] 7. **MPSBackend (Apple Silicon)** ✅ (commit pending in Wave 2)
+
+  **Status**: Done. `src/img2svg/backends/mps.py` (260 lines, 84% coverage). Defensive `is_available()` using `getattr(torch.backends, "mps", None)` — never raises on non-Mac systems. Stdlib `os.sysconf` for memory queries (Apple Silicon uses unified memory). 14 tests in `tests/test_backends/test_mps.py` (all pass). Hands-on on Linux: `MPS_BACKEND.is_available() == False` (correct).
 
   **What to do**:
   - Create `src/img2svg/backends/mps.py` with `class MPSBackend:`.

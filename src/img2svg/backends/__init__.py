@@ -18,11 +18,20 @@ are added in later tasks.
 from __future__ import annotations
 
 from img2svg.backends.cpu import CPU_BACKEND, CPUBackend
+from img2svg.backends.cuda import CUDA_BACKEND, CUDABackend
+from img2svg.backends.mps import MPS_BACKEND, MPSBackend
 from img2svg.backends.protocol import BackendType, DeviceBackend
+from img2svg.backends.rocm import ROCM_BACKEND, ROCMBackend
 
 __all__ = [
+    "CPU_BACKEND",
+    "CUDA_BACKEND",
+    "MPS_BACKEND",
+    "ROCM_BACKEND",
     "BackendType",
     "CPUBackend",
-    "CPU_BACKEND",
+    "CUDABackend",
     "DeviceBackend",
+    "MPSBackend",
+    "ROCMBackend",
 ]
