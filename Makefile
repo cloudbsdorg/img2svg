@@ -31,11 +31,12 @@
 # === Variables =============================================================
 # All variables use `=` (recursive) so the file parses on both GNU and BSD.
 
-UNAME_S = $(shell uname -s)
-UNAME_M = $(shell uname -m)
-PYTHON  = $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")
-UV      = $(shell command -v uv 2>/dev/null || echo "")
-PIP     = $(shell command -v pip 2>/dev/null || command -v pip3 2>/dev/null || echo "")
+UNAME_S      = $(shell uname -s)
+UNAME_M      = $(shell uname -m)
+PYTHON       = $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")
+UV           = $(shell command -v uv 2>/dev/null || echo "")
+PIP          = $(shell command -v pip 2>/dev/null || command -v pip3 2>/dev/null || echo "")
+IMG2SVG_BIN  = $(shell command -v img2svg 2>/dev/null || echo "")
 
 # === Default goal ==========================================================
 # `make` with no target prints the help menu.
@@ -46,7 +47,7 @@ PIP     = $(shell command -v pip 2>/dev/null || command -v pip3 2>/dev/null || e
 # Declared up front so the order of the recipe section below does not
 # matter for make's prerequisite resolution.
 
-.PHONY: help info install install-dry-run \
+.PHONY: help info install install-dry-run install-system \
         install-cpu install-nvidia install-amd install-apple \
         uninstall purge verify manpage check-freebsd \
         self-test test lint format build docs clean \
@@ -65,6 +66,7 @@ help: ## Show this help menu
 	@printf "%-10s %s\n"     "uv:"      "$(UV)"
 	@printf "%-10s %s\n"     "pip:"     "$(PIP)"
 	@printf "\n"
+	@printf "Install variants: install (user-level, uv tool) | install-system (system-wide, sudo)\n"
 	@printf "Install extras: cpu, nvidia, amd, apple\n"
 	@printf "FreeBSD note:  [nvidia]/[amd]/[apple] all fall back to [cpu].\n"
 	@printf "\n"
@@ -196,6 +198,28 @@ install-dry-run: ## Show what 'make install' would do without doing it
 	    exit 1; \
 	fi
 
+# === install-system =========================================================
+# Symlink the per-user uv tool install into /usr/local/bin so img2svg is
+# available to ALL users, including sudo contexts, cron, daemons, and fresh
+# SSH sessions. Requires img2svg to be installed first via `make install`
+# (which uses `uv tool install` and lands at $HOME/.local/bin/img2svg).
+# If the symlink target already exists it is overwritten (ln -sf).
+
+install-system: ## Symlink img2svg into /usr/local/bin for all users (requires sudo)
+	@if [ -z "$(IMG2SVG_BIN)" ]; then \
+	    printf "ERROR: img2svg is not installed (no img2svg on PATH).\n" >&2; \
+	    printf "Run 'make install' first to install via uv tool.\n" >&2; \
+	    exit 1; \
+	fi
+	@printf "Symlinking %s -> /usr/local/bin/img2svg\n" "$(IMG2SVG_BIN)"
+	@if [ -e /usr/local/bin/img2svg ]; then \
+	    printf "WARN: /usr/local/bin/img2svg already exists; overwriting.\n" >&2; \
+	fi
+	@sudo install -m 0755 -d /usr/local/bin
+	@sudo ln -sf "$(IMG2SVG_BIN)" /usr/local/bin/img2svg
+	@printf "Done. /usr/local/bin/img2svg -> %s\n" "$(IMG2SVG_BIN)"
+	@printf "Verify with: /usr/local/bin/img2svg --version\n"
+
 # === install-extras (explicit backend) =====================================
 # Bypass the smart detection; install the named extra directly. Useful
 # when the user knows what GPU they have (or when running headless on
@@ -274,6 +298,10 @@ uninstall: ## Remove the img2svg install (config + cache are kept)
 	fi; \
 	if [ -n "$(PYTHON)" ]; then \
 	    $(PYTHON) -m pip uninstall -y img2svg 2>/dev/null || true; \
+	fi; \
+	if [ -e /usr/local/bin/img2svg ]; then \
+	    printf "Removing system-wide symlink /usr/local/bin/img2svg\n"; \
+	    sudo rm -f /usr/local/bin/img2svg 2>/dev/null || true; \
 	fi; \
 	printf "img2svg uninstalled.\n"; \
 	printf "Config and cache were kept. Use 'make purge' to remove them.\n"
