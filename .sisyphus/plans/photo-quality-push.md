@@ -1267,7 +1267,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/pipeline.py`, `src/img2svg/presets.py`, `tests/test_presets.py`
   - Pre-commit: `uv run pytest tests/test_presets.py tests/test_pipeline.py -q && uv run ruff check src/img2svg/presets.py src/img2svg/pipeline.py`
 
-- [ ] 11. Add `YOLOSegmentor` class in `detector.py` (yolo11s-seg, retina_masks=True)
+- [x] 11. Add `YOLOSegmentor` class in `detector.py` (yolo11s-seg, retina_masks=True)
 
   **What to do**:
   - Add new `YOLOSegmentor` class in `src/img2svg/detector.py` (after `YOLODetector`, ~80 lines)
@@ -1379,7 +1379,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/detector.py`
   - Pre-commit: `uv run pytest tests/test_detector.py -q && uv run ruff check src/img2svg/detector.py`
 
-- [ ] 12. Add mask extraction helpers (xy, area, bbox) in `detector.py`
+- [x] 12. Add mask extraction helpers (xy, area, bbox) in `detector.py`
 
   **What to do**:
   - Add 3 new module-level functions in `src/img2svg/detector.py` (after `YOLOSegmentor`):
@@ -1486,7 +1486,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/detector.py`, `tests/test_segmentation.py`
   - Pre-commit: `uv run pytest tests/test_segmentation.py -q && uv run ruff check src/img2svg/detector.py`
 
-- [ ] 13. Add per-region vtracer tracer in `detector.py` (crop, trace, return with offset)
+- [x] 13. Add per-region vtracer tracer in `detector.py` (crop, trace, return with offset)
 
   **What to do**:
   - Add new function `trace_region(image: np.ndarray, mask: np.ndarray, preset: str = "photo_hifi") -> tuple[list[str], tuple[int, int]]` in `src/img2svg/detector.py`:
@@ -1579,7 +1579,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/detector.py`, `tests/test_segmentation.py`
   - Pre-commit: `uv run pytest tests/test_segmentation.py -q && uv run ruff check src/img2svg/detector.py`
 
-- [ ] 14. Add CLI flags part 2 (--seg-model, --no-seg) + ConversionOptions fields
+- [x] 14. Add CLI flags part 2 (--seg-model, --no-seg) + ConversionOptions fields
 
   **What to do**:
   - In `src/img2svg/cli.py`, add 2 new Typer options to `_convert_cmd()`:
@@ -1660,7 +1660,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/cli.py`, `src/img2svg/models.py`
   - Pre-commit: `uv run pytest tests/test_cli.py tests/test_models.py -q && uv run ruff check src/img2svg/cli.py src/img2svg/models.py`
 
-- [ ] 15. Update pipeline to populate Sidecar.regions + model_variant for SEGMENTED mode
+- [x] 15. Update pipeline to populate Sidecar.regions + model_variant for SEGMENTED mode
 
   **What to do**:
   - In `src/img2svg/pipeline.py:Pipeline.run()`, add a new step (after step 6 "Per-ROI analysis skipped", before step 7 "Build empty SVG document"):
