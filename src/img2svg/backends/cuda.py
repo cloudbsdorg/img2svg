@@ -186,7 +186,7 @@ class CUDABackend:
         except ImportError:
             return
         try:
-            torch.cuda.init()
+            torch.cuda.init()  # type: ignore[no-untyped-call]
         except Exception:  # pragma: no cover - defensive
             # Eager init is best-effort. If the driver refuses, the
             # subsequent real call will surface the real error.

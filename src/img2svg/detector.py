@@ -79,9 +79,7 @@ class YOLODetector:
     :class:`ModelLoadError`. The error surfaces on first inference.
     """
 
-    def __init__(
-        self, model_name: str = "yolo11x.pt", backend: BackendSpec | None = None
-    ) -> None:
+    def __init__(self, model_name: str = "yolo11x.pt", backend: BackendSpec | None = None) -> None:
         """Store the backend spec; the actual backend is resolved on first .detect() call (lazy)."""
         if backend is None:
             backend = BackendSpec()
@@ -116,9 +114,7 @@ class YOLODetector:
         # ``to_ultralytics_string`` is responsible for raising
         # ``IndexError`` on an out-of-range index; the registry does
         # not pre-validate the index.
-        self.device = self._resolved_backend.to_ultralytics_string(
-            self._backend_spec.index or 0
-        )
+        self.device = self._resolved_backend.to_ultralytics_string(self._backend_spec.index or 0)
         _ensure_model_downloaded(self._model_name)
         try:
             from ultralytics import YOLO  # type: ignore[attr-defined]

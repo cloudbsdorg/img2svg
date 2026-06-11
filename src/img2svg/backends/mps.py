@@ -100,7 +100,7 @@ class MPSBackend:
     #: The single virtual device index exposed by this backend.
     _DEVICE_INDEX = 0
 
-    def type(self) -> "BackendType":
+    def type(self) -> BackendType:
         """Return the backend's :class:`BackendType` (always ``MPS``)."""
         # Local import to keep this module importable even if the
         # protocol/types module is still being authored in parallel.
@@ -160,8 +160,7 @@ class MPSBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         if not self.is_available():
             # Mirror the CPU backend's behaviour: return a label even
@@ -185,8 +184,7 @@ class MPSBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         if sys.platform == "win32":
             # os.sysconf is not present on native Windows. Returning 0
@@ -209,8 +207,7 @@ class MPSBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         if sys.platform == "win32":
             total = self.total_memory_mb(i)
@@ -234,8 +231,7 @@ class MPSBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"MPSBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         return "mps"
 
@@ -256,4 +252,4 @@ class MPSBackend:
 # unusable — :meth:`is_available` will simply return ``False``.
 MPS_BACKEND = MPSBackend()
 
-__all__ = ["MPSBackend", "MPS_BACKEND"]
+__all__ = ["MPS_BACKEND", "MPSBackend"]

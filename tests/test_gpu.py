@@ -759,4 +759,3 @@ def test_torch_fallback_returns_empty_when_cuda_unavailable(monkeypatch: object)
         gpu_mod.torch.cuda, "is_available", lambda: False
     )
     assert gpu_mod._torch_fallback() == []
-

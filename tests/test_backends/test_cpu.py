@@ -9,8 +9,8 @@ import pytest
 
 from img2svg.backends import CPU_BACKEND, CPUBackend
 from img2svg.backends.cpu import CPUBackend as CPUBackendDirect
-from img2svg.enums import GpuVendor
 from img2svg.backends.protocol import BackendType
+from img2svg.enums import GpuVendor
 
 
 def test_is_available_always_true() -> None:

@@ -65,7 +65,7 @@ class ROCMBackend:
     registry.
     """
 
-    def type(self) -> "BackendType":
+    def type(self) -> BackendType:
         """Return the backend's :class:`BackendType` (always ``ROCM``)."""
         from img2svg.backends.protocol import BackendType
 
@@ -118,9 +118,7 @@ class ROCMBackend:
         mixed CI fleets) stay unambiguous.
         """
         if not self.is_available():
-            raise RuntimeError(
-                "ROCMBackend.device_name called but ROCm is not available"
-            )
+            raise RuntimeError("ROCMBackend.device_name called but ROCm is not available")
         try:
             import torch
         except ImportError as exc:  # pragma: no cover - guard, not a path
@@ -138,18 +136,14 @@ class ROCMBackend:
         device from the recommendation ranking.
         """
         if not self.is_available():
-            raise RuntimeError(
-                "ROCMBackend.total_memory_mb called but ROCm is not available"
-            )
+            raise RuntimeError("ROCMBackend.total_memory_mb called but ROCm is not available")
         try:
             import torch
         except ImportError as exc:  # pragma: no cover - guard, not a path
-            raise RuntimeError(
-                "torch is required to query device memory"
-            ) from exc
+            raise RuntimeError("torch is required to query device memory") from exc
         try:
             props = torch.cuda.get_device_properties(i)
-        except Exception:
+        except Exception:  # pragma: no cover - defensive
             return 0
         total_bytes = getattr(props, "total_memory", 0) or 0
         return int(total_bytes // _BYTES_PER_MB)
@@ -164,18 +158,14 @@ class ROCMBackend:
         let the registry fall back to :meth:`total_memory_mb` heuristics.
         """
         if not self.is_available():
-            raise RuntimeError(
-                "ROCMBackend.free_memory_mb called but ROCm is not available"
-            )
+            raise RuntimeError("ROCMBackend.free_memory_mb called but ROCm is not available")
         try:
             import torch
         except ImportError as exc:  # pragma: no cover - guard, not a path
-            raise RuntimeError(
-                "torch is required to query free device memory"
-            ) from exc
+            raise RuntimeError("torch is required to query free device memory") from exc
         try:
             free_bytes, _total_bytes = torch.cuda.mem_get_info(i)
-        except Exception:
+        except Exception:  # pragma: no cover - defensive
             return 0
         return int(free_bytes // _BYTES_PER_MB)
 
@@ -193,9 +183,7 @@ class ROCMBackend:
         layer.
         """
         if i < 0:
-            raise IndexError(
-                f"ROCMBackend device index must be non-negative; got {i}"
-            )
+            raise IndexError(f"ROCMBackend device index must be non-negative; got {i}")
         return f"cuda:{i}"
 
     def warmup(self) -> None:
@@ -219,4 +207,4 @@ class ROCMBackend:
 # matrix for consistency.
 ROCM_BACKEND = ROCMBackend()
 
-__all__ = ["ROCMBackend", "ROCM_BACKEND"]
+__all__ = ["ROCM_BACKEND", "ROCMBackend"]

@@ -44,9 +44,7 @@ def _make_fake_torch_cuda(
     cuda_ns.get_device_properties = MagicMock(
         return_value=types.SimpleNamespace(total_memory=total_memory_bytes)
     )
-    cuda_ns.mem_get_info = MagicMock(
-        return_value=(free_memory_bytes, total_memory_bytes)
-    )
+    cuda_ns.mem_get_info = MagicMock(return_value=(free_memory_bytes, total_memory_bytes))
     cuda_ns.init = MagicMock(return_value=None)
     return cuda_ns
 
@@ -64,9 +62,7 @@ def _install_fake_torch(cuda_ns: types.SimpleNamespace | None) -> Any:
         # Use a property that raises AttributeError, matching the real
         # behavior of a CPU-only torch build.
         def _getattr(_name: str) -> Any:
-            raise AttributeError(
-                "module 'torch' has no attribute 'cuda' (CPU-only build)"
-            )
+            raise AttributeError("module 'torch' has no attribute 'cuda' (CPU-only build)")
 
         fake_torch.__getattr__ = _getattr  # type: ignore[attr-defined]
     return fake_torch
@@ -231,9 +227,7 @@ def test_total_memory_mb_converts_bytes_to_mib() -> None:
     """``total_memory_mb(i)`` converts bytes to MiB (integer division)."""
     # 8 GiB exactly — should report 8192 MiB.
     eight_gib = 8 * 1024 * 1024 * 1024
-    fake_torch = _install_fake_torch(
-        _make_fake_torch_cuda(total_memory_bytes=eight_gib)
-    )
+    fake_torch = _install_fake_torch(_make_fake_torch_cuda(total_memory_bytes=eight_gib))
     with patch.dict(sys.modules, {"torch": fake_torch}):
         assert CUDABackend().total_memory_mb(0) == 8192
 
@@ -241,9 +235,7 @@ def test_total_memory_mb_converts_bytes_to_mib() -> None:
 def test_total_memory_mb_returns_zero_on_runtime_error() -> None:
     """``total_memory_mb(i)`` returns ``0`` when properties cannot be read."""
     cuda_ns = _make_fake_torch_cuda()
-    cuda_ns.get_device_properties = MagicMock(
-        side_effect=RuntimeError("no such device")
-    )
+    cuda_ns.get_device_properties = MagicMock(side_effect=RuntimeError("no such device"))
     fake_torch = _install_fake_torch(cuda_ns)
     with patch.dict(sys.modules, {"torch": fake_torch}):
         assert CUDABackend().total_memory_mb(0) == 0

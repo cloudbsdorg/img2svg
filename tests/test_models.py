@@ -240,9 +240,7 @@ def test_conversion_options_device_default_emits_no_warning() -> None:
 
 def test_conversion_options_explicit_backend_wins_over_device() -> None:
     with pytest.warns(DeprecationWarning):
-        o = ConversionOptions(
-            device="cpu", backend=BackendSpec(requested="cuda", index=2)
-        )
+        o = ConversionOptions(device="cpu", backend=BackendSpec(requested="cuda", index=2))
     assert o.backend.requested == "cuda"
     assert o.backend.index == 2
     assert o.device == "cpu"

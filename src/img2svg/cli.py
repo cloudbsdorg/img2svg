@@ -307,7 +307,7 @@ def _convert_cmd(
         "--device",
         help=(
             "Compute backend: auto (default), cpu, cuda, cuda:N, mps, or rocm. "
-            "AMD ROCm requires a ROCm PyTorch build (pip install img2svg[amd])."
+            "AMD ROCm requires a ROCm PyTorch build (pip install img2svg\\[amd])."
         ),
     ),
     gpu_strategy: str = typer.Option(

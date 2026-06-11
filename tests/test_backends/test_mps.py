@@ -23,7 +23,6 @@ from img2svg.backends.mps import MPSBackend as MPSBackendDirect
 from img2svg.backends.protocol import BackendType
 from img2svg.enums import GpuVendor
 
-
 # --- 1. is_available when torch is missing or MPS attr is absent --------------
 
 

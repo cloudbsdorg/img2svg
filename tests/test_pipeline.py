@@ -224,9 +224,7 @@ def test_pipeline_raises_on_unsupported_format(tmp_path: Path, corrupt_path: Pat
 _SENTINEL_SVG = "<sentinel>do-not-overwrite</sentinel>\n"
 
 
-def test_pipeline_no_clobber_raises_on_existing_output(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_no_clobber_raises_on_existing_output(tmp_path: Path, logo_path: Path) -> None:
     """With `no_clobber=True` and a pre-existing output, raise and leave the file alone."""
     out_svg = tmp_path / "out.svg"
     out_svg.write_text(_SENTINEL_SVG, encoding="utf-8")
@@ -286,9 +284,7 @@ def test_pipeline_records_timings(tmp_path: Path, logo_path: Path) -> None:
 # ----------------------------------------------------------------------
 
 
-def test_pipeline_uses_explicit_backend_spec(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_uses_explicit_backend_spec(tmp_path: Path, logo_path: Path) -> None:
     """`ConversionOptions(backend=BackendSpec(requested='cpu'))` is honored."""
     out_svg = tmp_path / "out.svg"
     options = ConversionOptions(mode=Mode.LABELS, backend=BackendSpec(requested="cpu"))
@@ -297,9 +293,7 @@ def test_pipeline_uses_explicit_backend_spec(
     ) as mock_get:
         Pipeline(options).run(logo_path, out_svg)
 
-    mock_get.assert_called_once_with(
-        model_name="yolo11x.pt", backend=BackendSpec(requested="cpu")
-    )
+    mock_get.assert_called_once_with(model_name="yolo11x.pt", backend=BackendSpec(requested="cpu"))
 
 
 def test_pipeline_sidecar_records_backend_requested_and_resolved(
@@ -323,14 +317,10 @@ def test_pipeline_sidecar_records_backend_requested_and_resolved(
     assert raw["backend_resolved"] == "cuda:0"
 
 
-def test_pipeline_indexed_backend_formats_as_cuda_0(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_indexed_backend_formats_as_cuda_0(tmp_path: Path, logo_path: Path) -> None:
     """Indexed `BackendSpec(requested='cuda', index=0)` is passed to the detector."""
     out_svg = tmp_path / "out.svg"
-    options = ConversionOptions(
-        mode=Mode.LABELS, backend=BackendSpec(requested="cuda", index=0)
-    )
+    options = ConversionOptions(mode=Mode.LABELS, backend=BackendSpec(requested="cuda", index=0))
     with mock.patch(
         "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
     ) as mock_get:
@@ -341,18 +331,16 @@ def test_pipeline_indexed_backend_formats_as_cuda_0(
     )
 
 
-def test_pipeline_legacy_device_field_still_works(
-    tmp_path: Path, logo_path: Path
-) -> None:
+def test_pipeline_legacy_device_field_still_works(tmp_path: Path, logo_path: Path) -> None:
     """`ConversionOptions(device='cpu')` still works via T2's deprecation shim."""
     out_svg = tmp_path / "out.svg"
     with (
-        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])) as mock_get,
+        mock.patch(
+            "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
+        ) as mock_get,
         pytest.warns(DeprecationWarning, match="device is deprecated"),
     ):
         options = ConversionOptions(mode=Mode.LABELS, device="cpu")
         Pipeline(options).run(logo_path, out_svg)
 
-    mock_get.assert_called_once_with(
-        model_name="yolo11x.pt", backend=BackendSpec(requested="cpu")
-    )
+    mock_get.assert_called_once_with(model_name="yolo11x.pt", backend=BackendSpec(requested="cpu"))

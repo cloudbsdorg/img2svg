@@ -29,9 +29,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from img2svg.backends import ROCM_BACKEND, ROCMBackend
+from img2svg.backends.protocol import BackendType
 from img2svg.backends.rocm import ROCMBackend as ROCMBackendDirect
 from img2svg.enums import GpuVendor
-from img2svg.backends.protocol import BackendType
 
 
 def _install_fake_torch(
@@ -58,9 +58,7 @@ def _install_fake_torch(
     cuda_mod.get_device_properties = MagicMock(
         return_value=types.SimpleNamespace(total_memory=total_memory_bytes)
     )
-    cuda_mod.mem_get_info = MagicMock(
-        return_value=(free_memory_bytes, total_memory_bytes)
-    )
+    cuda_mod.mem_get_info = MagicMock(return_value=(free_memory_bytes, total_memory_bytes))
     torch_mod.cuda = cuda_mod
     sys.modules["torch"] = torch_mod
     sys.modules["torch.cuda"] = cuda_mod

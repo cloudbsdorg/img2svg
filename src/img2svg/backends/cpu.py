@@ -71,7 +71,7 @@ class CPUBackend:
     #: The single virtual device index exposed by this backend.
     _DEVICE_INDEX = 0
 
-    def type(self) -> "BackendType":
+    def type(self) -> BackendType:
         """Return the backend's :class:`BackendType` (always ``CPU``)."""
         # Local import to keep this module importable even if the
         # protocol/types module is still being authored in parallel.
@@ -102,8 +102,7 @@ class CPUBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         name = platform.processor() or ""
         return name.strip() or "CPU"
@@ -118,8 +117,7 @@ class CPUBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         if sys.platform == "win32":
             # os.sysconf is not present on native Windows. Returning 0 is
@@ -140,8 +138,7 @@ class CPUBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         if sys.platform == "win32":
             total = self.total_memory_mb(i)
@@ -163,8 +160,7 @@ class CPUBackend:
         """
         if i != self._DEVICE_INDEX:
             raise IndexError(
-                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); "
-                f"requested index {i}"
+                f"CPUBackend has 1 device (index {self._DEVICE_INDEX}); requested index {i}"
             )
         return "cpu"
 
@@ -182,4 +178,4 @@ class CPUBackend:
 # this constant rather than constructing a fresh CPUBackend every time.
 CPU_BACKEND = CPUBackend()
 
-__all__ = ["CPUBackend", "CPU_BACKEND"]
+__all__ = ["CPU_BACKEND", "CPUBackend"]

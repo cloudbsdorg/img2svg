@@ -1699,3 +1699,131 @@ and is callable from any shell.
 **Test status:** 472 passed, 1 pre-existing failure (`tests/test_i18n.py::test_ngettext_returns_singular_in_c_locale` — locale-related, unrelated to copyright; confirmed pre-existing by `git stash` test). 90% coverage maintained.
 
 **Staging strategy:** Used explicit `git add` with specific paths to avoid `git add -A` (user said don't). Did not stage T14's unstaged work, untracked files (docs/backends.md, mkdocs.yml), .sisyphus/, site/, evidence files, or lock files. The commit diff is purely copyright-line replacements — `git diff --cached --stat` shows 83 files, 83+/- 83+/-.
+
+## F2/F3 Advisory Fixes (2026-06-10)
+
+### Scope
+Final clean-up wave for the multi-vendor-gpu plan. All F1-F4 review
+verdicts were APPROVE; these are non-blocking advisory improvements
+flagged in F2 (code quality) and F3 (manual QA). No test logic was
+modified.
+
+### Manual fixes applied
+
+1. **`src/img2svg/cli.py:310` — escape `[amd]` rich markup** (F3 cosmetic)
+   - Source changed from `pip install img2svg[amd])` to
+     `pip install img2svg\\[amd])` (backslashes in the source string).
+   - Rich interprets `[amd]` as a markup tag and strips it during help
+     rendering, so the user saw `pip install img2svg).` with the
+     closing paren but no brackets. Backslash-escaping is the
+     simplest, no-helper fix; verified by
+     `uv run python -m img2svg convert --help | grep img2svg`
+     now returns `img2svg[amd]).` (literal brackets).
+
+2. **`src/img2svg/backends/cuda.py:189` — mypy `no-untyped-call`** (F2)
+   - Added `# type: ignore[no-untyped-call]` to the
+     `torch.cuda.init()` call inside `CUDABackend.warmup()`.
+   - The C extension binding `torch.cuda.init` is untyped in the
+     torch stubs, so strict mypy flagged the call. Inline ignore is
+     preferred over a module-level `# mypy: ignore-errors` because
+     the untyped surface is exactly this one C-call.
+
+3. **`src/img2svg/backends/rocm.py:152, 178` — pragma annotations**
+   (F2, consistency with `cuda.py`)
+   - Added `# pragma: no cover - defensive` to the two
+     `except Exception:` blocks in `total_memory_mb` and
+     `free_memory_mb`. Matches the cuda.py convention (5+ existing
+     usages). The `except Exception` arms are deliberately
+     unreachable in unit tests; without the pragma they would
+     deflate the coverage metric.
+
+### Auto-fixers
+
+`uv run ruff format src tests` reformatted **11 files**. The
+reformatting was whitespace-only and joined several multi-line
+`f"..."` strings into single lines (the project's `line-length`
+allows it). No semantic changes.
+
+`uv run ruff check --fix src tests` applied **9 auto-fixes** across
+6 source files:
+
+| File                    | Fixes    | Type                           |
+|-------------------------|----------|--------------------------------|
+| `backends/cpu.py`       | 5        | RUF022 `__all__` sort, UP037 quote removal, multi-line f-string joins |
+| `backends/mps.py`       | 5        | RUF022, UP037, multi-line f-string joins |
+| `backends/rocm.py`      | 5        | RUF022, UP037, multi-line f-string joins |
+| `detector.py`           | 2        | multi-line signature + call joins |
+| `gpu.py`                | 4        | multi-line `re.compile` + dict-comprehension joins |
+| `models.py`             | 2        | multi-line `raise ValueError` joins |
+
+All 9 fixes are whitespace / sort / quote-removal. The UP037 fix
+(`def type(self) -> "BackendType":` → `BackendType`) is safe because
+`from __future__ import annotations` is in effect on all backend
+modules (annotations are strings at runtime, so the unquoted
+reference resolves correctly at type-check time).
+
+After fixes, `ruff check` shows **32 errors remaining** — all
+pre-existing (B008 on `typer.Argument`/`typer.Option` defaults,
+N806 on `MockVec` capitalization, B017, B904, B905, SIM102, etc.)
+that are outside the F2 advisory scope. The task brief explicitly
+lists these as out of scope.
+
+### Verification results
+
+- `uv run pytest -m "not slow" -q` → **472 passed, 1 failed, 8
+  deselected**. The single failure is the pre-existing
+  `test_ngettext_returns_singular_in_c_locale` in
+  `tests/test_i18n.py` (C-locale plural forms; failing on the base
+  commit too, unrelated to this work).
+- `uv run ruff check src tests` → 32 pre-existing errors, no new
+  ones.
+- `uv run python -m img2svg convert --help` → `img2svg[amd]`
+  now renders correctly (was `img2svg).` before the fix).
+- `lsp_diagnostics` on `cuda.py` and `rocm.py` → clean.
+- `lsp_diagnostics` on `cli.py` → 4 pre-existing warnings
+  (B008 ×2, SIM102, B904) all from before this task; the
+  established typer pattern in the project (per T12 learnings).
+
+### Files changed by manual fixes (3 files, 6 lines)
+
+- `src/img2svg/cli.py`: 1 line (the `[amd]` escape).
+- `src/img2svg/backends/cuda.py`: 1 line (the `type: ignore`).
+- `src/img2svg/backends/rocm.py`: 2 lines (the two pragma
+  annotations).
+
+### Files changed by auto-fixers (6 files, ~20+ lines)
+
+See the table above. Net diff stat: 20 files in working tree
+(plus the 5 pre-existing `.sisyphus/` modifications from prior
+F-waves that were already in the tree at task-start).
+
+### Patterns worth reusing in later tasks
+
+- **For rich-markup escape in typer help text**: `\[xxx\]` in the
+  source string produces the literal `[xxx]` in rendered output.
+  This is the simplest fix; do not reach for `rich.markup.escape`
+  unless the string is built dynamically (then a helper centralises
+  the escaping).
+- **For `# pragma: no cover - defensive` on backend `except`
+  blocks**: this is the established convention across
+  `cuda.py`, `mps.py`, and now `rocm.py`. New backends (XPU, etc.)
+  should follow it. The pragma is recognised by `coverage.py`; it
+  is a tooling directive, not a prose comment.
+- **For C-extension `torch.cuda.*` calls under strict mypy**:
+  `# type: ignore[no-untyped-call]` is the right shape — targeted,
+  inline, and survives `warn_unused_ignores = true`. The
+  untyped-call category is the only `no-untyped-*` code that
+  fires on C-binding methods.
+- **For multi-agent ruff auto-fix verification**: after
+  `ruff check --fix`, sanity-check by importing the affected
+  modules (`uv run python -c "from img2svg.backends import ..."`).
+  The auto-fixes are whitespace/quote/sort only, so an import
+  test catches the rare case where `UP037` (quote removal) was
+  applied to a module that does NOT have
+  `from __future__ import annotations` (which would break runtime
+  evaluation of forward references).
+- **For "rich strips [x] from help" verification**: always test
+  the rendered output, not the source string. The escape is
+  invisible at the Python level (it's just backslashes in a
+  string); only the terminal-rendered help text shows the
+  difference.

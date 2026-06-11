@@ -119,13 +119,9 @@ class BackendSpec(BaseModel):
         try:
             parsed_idx = int(idx)
         except ValueError as exc:
-            raise ValueError(
-                f"Invalid index {idx!r} in {req!r}: must be an integer"
-            ) from exc
+            raise ValueError(f"Invalid index {idx!r} in {req!r}: must be an integer") from exc
         if parsed_idx < 0:
-            raise ValueError(
-                f"Backend index must be non-negative (got {parsed_idx})"
-            )
+            raise ValueError(f"Backend index must be non-negative (got {parsed_idx})")
         return {**data, "requested": base, "index": parsed_idx}
 
 

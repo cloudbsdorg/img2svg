@@ -98,9 +98,7 @@ def _parse_nvidia_smi() -> list[GPUInfo]:
 
 # Match lines like "GPU[0]		: Card Series: 		AMD Radeon 890M Graphics".
 # Captures the device index from "GPU[N]" and the marketing name after "Card Series:".
-_ROCM_PRODUCT_NAME_RE = re.compile(
-    r"GPU\[(\d+)\][^:]*:\s*Card Series:\s*(.+?)\s*$"
-)
+_ROCM_PRODUCT_NAME_RE = re.compile(r"GPU\[(\d+)\][^:]*:\s*Card Series:\s*(.+?)\s*$")
 
 # Match lines like "GPU[0]		: GPU Memory Allocated (VRAM%): 96".
 _ROCM_MEMUSE_RE = re.compile(
@@ -167,9 +165,7 @@ def _parse_rocm_smi() -> list[GPUInfo]:
         total_mb = max(0, total_b // (1024 * 1024))
         used_mb = max(0, used_b // (1024 * 1024))
         free_mb = max(0, total_mb - used_mb)
-        by_idx[idx] = gpu.model_copy(
-            update={"vram_total_mb": total_mb, "vram_free_mb": free_mb}
-        )
+        by_idx[idx] = gpu.model_copy(update={"vram_total_mb": total_mb, "vram_free_mb": free_mb})
     for idx, pct in util.items():
         if 0.0 <= pct <= 100.0:
             gpu = by_idx.get(idx) or GPUInfo(
@@ -184,9 +180,7 @@ def _parse_rocm_smi() -> list[GPUInfo]:
     return sorted(by_idx.values(), key=lambda g: g.index)
 
 
-def _rocm_smi_collect() -> tuple[
-    dict[int, str], dict[int, tuple[int, int]], dict[int, float]
-]:
+def _rocm_smi_collect() -> tuple[dict[int, str], dict[int, tuple[int, int]], dict[int, float]]:
     """Run the three rocm-smi subcommands and parse their output.
 
     Returns ``(names, vram, util)`` where:
@@ -307,11 +301,7 @@ def _parse_rocm_smi_vram_text(out: str) -> dict[int, tuple[int, int]]:
             used_values[idx] = value
         else:
             totals[idx] = value
-    return {
-        idx: (totals[idx], used_values[idx])
-        for idx in totals
-        if idx in used_values
-    }
+    return {idx: (totals[idx], used_values[idx]) for idx in totals if idx in used_values}
 
 
 def _parse_rocminfo() -> list[GPUInfo]:
@@ -458,9 +448,7 @@ def _torch_fallback() -> list[GPUInfo]:
         # Use torch.version.hip to distinguish a ROCm build of PyTorch from
         # a CUDA build. CUDA builds have torch.version.hip == None; ROCm
         # builds have a version string (e.g. "6.2.41134").
-        if getattr(torch, "version", None) is not None and getattr(
-            torch.version, "hip", None
-        ):
+        if getattr(torch, "version", None) is not None and getattr(torch.version, "hip", None):
             vendor = GpuVendor.AMD
         else:
             vendor = GpuVendor.NVIDIA
@@ -520,10 +508,7 @@ def list_gpus() -> list[GPUInfo]:
         # Reassign sequential indices so the table shows unique values per row.
         # (Each source assigns its own device index starting at 0; the merge
         # preserves those, causing duplicate "Index 0" in the table.)
-        return [
-            gpu.model_copy(update={"index": i})
-            for i, gpu in enumerate(sorted_gpus)
-        ]
+        return [gpu.model_copy(update={"index": i}) for i, gpu in enumerate(sorted_gpus)]
     return _torch_fallback()
 
 
