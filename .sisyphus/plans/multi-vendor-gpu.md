@@ -798,7 +798,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/cli.py`, `tests/test_cli.py`
   - Pre-commit: `uv run pytest tests/test_cli.py -q`
 
-- [ ] 13. **Smart install script + pyproject extras**
+- [x] 13. **Smart install script + pyproject extras**
 
   **What to do**:
   - Create `scripts/install_backend.sh` (executable):
@@ -856,7 +856,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `scripts/install_backend.sh`, `pyproject.toml`
   - Pre-commit: `bash scripts/install_backend.sh --dry-run && uv run pytest -q`
 
-- [ ] 14. **Documentation updates**
+- [x] 14. **Documentation updates**
 
   **What to do**:
   - Update `docs/installation.md`:
@@ -911,7 +911,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `docs/installation.md`, `docs/backends.md`, `docs/api.md`, `README.md`
   - Pre-commit: `uv run mkdocs build --strict`
 
-- [ ] 15. **Jenkinsfile matrix stages**
+- [x] 15. **Jenkinsfile matrix stages**
 
   **What to do**:
   - Update `Jenkinsfile` to add a `matrix` block for backend testing:
