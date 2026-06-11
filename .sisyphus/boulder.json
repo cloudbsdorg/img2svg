@@ -27,6 +27,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-11T09:17:43.730Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Add `YOLOSegmentor` class in `detector.py` (yolo11s-seg, retina_masks=True)",
+      "session_id": "ses_14a058c95ffe6zwndKTstyDDhV",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-11T09:29:35.070Z"
     }
   }
 }

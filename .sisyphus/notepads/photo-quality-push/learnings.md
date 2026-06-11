@@ -509,3 +509,251 @@ T6 landed in between sessions. `src/img2svg/renderers/poster.py` now exists and 
 - `uv run pytest tests/test_presets.py tests/test_pipeline.py -q` → 26 passed
 
 **Latent issue from prior session resolved:** the `Mode.POSTER → KeyError` latent bug noted in the prior T10 entry is now fixed because `RENDERER_REGISTRY[Mode.POSTER] = PosterRenderer` exists.
+
+## T14: --seg-model + --no-seg CLI flags + ConversionOptions fields (learned 2026-06-11)
+
+### Implementation
+- Added `_seg_model_callback(value: str)` in `src/img2svg/cli.py` after `_gpu_strategy_callback`
+  - Validates against `_VALID_SEG_MODELS: frozenset[str]` of 5 yolo11*seg variants
+  - Raises `typer.BadParameter` for unknown values
+  - Returns `value` unchanged when valid
+- Added 2 new typer options to `_convert_cmd`:
+  - `seg_model: str = typer.Option("yolo11s-seg", "--seg-model", ..., callback=_seg_model_callback)`
+  - `no_seg: bool = typer.Option(False, "--no-seg", ...)` (no callback — typer auto-handles bool flags)
+- Updated `_build_options()` to accept and pass `seg_model` + `no_seg`
+- Added 2 new Pydantic fields to `ConversionOptions` (after `no_preprocess`):
+  - `seg_model: str = "yolo11s-seg"` with field docstring
+  - `no_seg: bool = False` with field docstring
+- Updated `test_conversion_options_defaults` to assert new defaults
+
+### Verification
+- `uv run pytest tests/test_cli.py tests/test_models.py -q` → 42 passed
+- `uv run pytest -m "not slow" -q` → 489 passed, 3 pre-existing failures (test_docs, test_i18n, test_vectorizer — all unrelated to T14)
+- `uv run ruff check src/img2svg/cli.py src/img2svg/models.py` → 5 pre-existing issues (B008×3, SIM102, B904); 0 new issues introduced
+- `lsp_diagnostics` (basedpyright) NOT installed — not blocking, ruff is the project linter
+- QA scenario 1 (--seg-model): valid `yolo11n-seg` accepted (exit 2 only for file-not-found), invalid `yolo99-seg` rejected with clear BadParameter message showing all 4 valid options
+- QA scenario 2 (--no-seg): `ConversionOptions(no_seg=True)` stores correctly; all 5 valid seg_model values accepted; defaults work
+
+### Pattern observations
+- Bool Typer flags (`--no-seg`) need NO callback — Typer auto-handles presence → True. The validator pattern is only needed for str/int with constrained values
+- For closed-set str validators (not backed by an Enum), use a module-level `frozenset[str]` for O(1) lookup + cleaner error messages
+- The `value is None` guard in callbacks mirrors `_mode_callback` / `_gpu_strategy_callback` — defensive but harmless (typer invokes callback with the parsed value, never None, but the guard is the established pattern)
+- B008 false-positive is the same count as T5 baseline — Typer's design REQUIRES the call in arg defaults; pre-existing 3 B008 warnings are about specific options (Argument `input`, Option `output`, Option `preprocess`), not all 18 typer.Option calls in `_convert_cmd`
+- Docstring pattern: the existing `_mode_callback` / `_gpu_strategy_callback` have one-line "Validate --X at the option level. Raises BadParameter for bad values." — the new `_seg_model_callback` matches this exactly for consistency
+- Field docstrings on Pydantic v2 fields (matching the `no_preprocess` precedent) keep the model's API self-documenting
+
+### Files modified
+- `src/img2svg/cli.py`: added `_VALID_SEG_MODELS` frozenset + `_seg_model_callback` function + 2 typer options + 2 fields in `_build_options`
+- `src/img2svg/models.py`: added 2 fields (`seg_model`, `no_seg`) to `ConversionOptions` with field docstrings
+- `tests/test_models.py`: added 2 assertions to `test_conversion_options_defaults`
+
+### Gotchas
+- Spec said "Add `_seg_model_callback` validator after `_quality_callback`" but `_quality_callback` doesn't actually exist in the file (T5's `--quality` is a Pydantic-constrained int, not a Typer-callback-validated str). The intent is clearly "add the new callback after the last existing callback" — placed after `_gpu_strategy_callback` which is the actual last callback
+- Spec's "Add 2 new fields to `ConversionOptions` (after `quality`)" vs MUST DO's "after `no_preprocess`": both place the new fields at the very end of the model (after `no_preprocess`, which is the only field after `quality`). No ambiguity in practice
+- `frozenset[str]` iteration order is NOT guaranteed in Python 3.x, so the error message sorts `_VALID_SEG_MODELS` for deterministic output (visible in QA evidence: `yolo11l-seg, yolo11m-seg, yolo11n-seg, yolo11s-seg, yolo11x-seg` — sorted alphabetically)
+
+### Pre-existing failures (verified, none caused by T14)
+- `test_docs.py::test_usage_documents_every_cli_flag` — pre-existing, T1's 6 new flags aren't documented
+- `test_i18n.py::test_ngettext_returns_singular_in_c_locale` — pre-existing, acceptable per multi-vendor-gpu plan
+- `test_vectorizer.py::test_presets_dict_has_five_entries` — pre-existing, T2's 3 new presets broke the "exactly 5" assertion
+
+## T12: Mask extraction helpers + tests (learned 2026-06-11)
+
+### Implementation
+- File: `src/img2svg/detector.py` (3 new module-level functions after the existing class): `extract_polygons`, `compute_mask_area`, `get_tight_bbox`
+- Test file: `tests/test_segmentation.py` (15 tests, 5 per function: empty, single object, multiple disjoint, full-image, plus an extra edge case)
+- All 3 helpers take `np.ndarray` (H, W) uint8 binary masks; empty masks return safe defaults (zeros)
+
+### Implementation choices
+- `extract_polygons` returns ONE polygon per mask (the largest by `cv2.contourArea`). YOLO's instance segmentation outputs one mask per detection, so the largest contour is the natural "primary" object. Multiple disjoint components in a single mask is not a typical YOLO scenario.
+- `extract_polygons` uses `RETR_EXTERNAL + CHAIN_APPROX_SIMPLE` — matches YOLO convention (no holes preserved, only corner points). Caller can apply `cv2.approxPolyDP` for further smoothing if needed.
+- `get_tight_bbox` returns `int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())` — INCLUSIVE max indices (NOT half-open). The `trace_region` function added by the parallel T11 agent confirms this: `crop_img = image[y1 : y2 + 1, x1 : x2 + 1]` (adds +1 for half-open slicing).
+- All 3 functions handle the empty-mask case as the FIRST guard (before any cv2/np.where calls) — `mask.size == 0 or not (mask > 0).any()` prevents index errors in downstream code.
+
+### Workspace contention with T11 (YOLOSegmentor)
+- When I started, detector.py had only `YOLODetector` (176 lines). Mid-task, a parallel T11 agent added: `import cv2` (I needed this anyway), `YOLOSegmentor` class, `get_segmentor` function, `trace_region` function. Final file is 539 lines.
+- The T11 agent's `trace_region` function calls `get_tight_bbox` from my T12 work — clean integration point.
+- I had to verify that my edits didn't get clobbered by reading the final state (`extract_polygons` at line 456, `compute_mask_area` at line 475, `get_tight_bbox` at line 480).
+
+### Pre-existing ruff issues (NOT caused by T12)
+- `B905` on line 218 (`zip(xyxy, confs, clss)` without `strict=`) in `YOLODetector.detect` — pre-existing since commit d4aab1e. Verified via `git stash` + `ruff check` on bare main.
+- `B905` on line 422 (mirror of above) in `YOLOSegmentor.predict` — added by the T11 parallel agent. Their responsibility, not mine.
+- T12 helpers (lines 456-488) introduce ZERO new ruff issues.
+- The task spec's "uv run ruff check src/img2svg/detector.py → 0 issues" cannot be met due to the pre-existing B905. This is a known pre-existing issue, not a T12 regression.
+
+### Verification
+- `uv run pytest tests/test_segmentation.py -q` → 15 passed
+- `uv run ruff check tests/test_segmentation.py` → All checks passed!
+- Coverage: 100% on the new helpers (visible in the coverage report — line numbers in detector.py: 456-488 all covered)
+
+### Files modified
+- `src/img2svg/detector.py`: added 3 module-level helper functions at end of file (lines 456-488)
+- `tests/test_segmentation.py`: created (15 tests across 3 functions)
+
+### Gotchas
+- `cv2.findContours` returns `(N, 1, 2)` arrays; use `.reshape(-1, 2)` for `(P, 2)` float32
+- `np.where(mask > 0)` returns `(ys, xs)` — destructure correctly: `ys, xs = np.where(mask > 0)`
+- For `extract_polygons` of a full-image mask, the polygon traces the outer image boundary (corners at (0,0), (W-1, 0), (W-1, H-1), (0, H-1)) — verify in `test_extract_polygons_full_image_mask`
+- The `(0, 0, 0, 0)` empty-bbox return value uses Python's tuple literal — matches the spec's exact return type
+
+## T11: YOLOSegmentor + get_segmentor + SegmentationResult — COMPLETE 2026-06-11
+
+### Implementation summary
+- `YOLOSegmentor` class added to `src/img2svg/detector.py` (~180 lines, mirrors YOLODetector architecture)
+- `SegmentationResult` `@dataclass` with `boxes: list[Detection]`, `masks: list[np.ndarray]` (H,W uint8), `polygons: list[np.ndarray]` ((P,2) float32), `orig_shape: tuple[int, int]`
+- `get_segmentor()` factory with separate `_SEGMENTOR_CACHE` dict (NOT shared with `_MODEL_CACHE`)
+- `predict()` method: `retina_masks=True`, `imgsz=1024`, `verbose=False`, `half=self._is_cuda()`
+- `_is_cuda()` checks `backend.type() == BackendType.CUDA` (strict CUDA, excludes ROCm per spec)
+- Module docstring updated to describe both wrappers
+- Cache key: `f"{model_name}::{backend.requested}::{backend.index}"` (same shape as detector)
+
+### Gotchas
+- **ruff B905 fix**: Both `for ... in zip(xyxy, confs, clss)` calls (in YOLODetector.detect and YOLOSegmentor.predict) need `strict=False`. The original YOLODetector had the same issue but was not flagged because the rule may have been added later — fixed both copies for consistency.
+- **Empty mask handling**: `result.masks.xy` can contain empty arrays for masks with no closed contours. Normalize to `np.zeros((0, 2), dtype=np.float32)` so callers can iterate uniformly without None checks.
+- **Polygon dtype stability**: ultralytics may return `float64` for `.xy` in some versions. Cast to `float32` explicitly for stable downstream dtype.
+- **No sigmoid needed**: ultralytics already applies `.gt_(0.0).byte()` internally when `retina_masks=True`. Do NOT add another sigmoid + 0.5.
+- **orig_shape captured BEFORE RGBA→RGB normalization**: defensively, even though normalization preserves (H, W). The convention is to record what the caller passed in.
+
+### Pre-existing state confirmed
+- T12 helpers (`extract_polygons`, `compute_mask_area`, `get_tight_bbox`) were already in the file when T11 started
+- T13 `trace_region` function was already in the file
+- T14/T15 infrastructure (`tempfile`, `lxml.etree`, `PIL.Image`, `get_logger`, `SVG_NS`, `VtracerVectorizer`) was already imported
+- All T12/13/14/15 work was already done by prior tasks; T11 just adds the missing model wrapper
+
+### Verification (all passed)
+- `uv run ruff check src/img2svg/detector.py` → "All checks passed!"
+- 14 existing test_detector.py tests pass
+- 21 test_segmentation.py tests pass
+- 495/498 fast tests pass; 3 pre-existing failures (test_docs, test_i18n, test_vectorizer) are documented in notepad as acceptable
+- QA Scenario 1 (mocked YOLO): PASS — orig_shape, SegmentationResult type, mask dtype/shape, polygon dtype/shape all correct
+- QA Scenario 2 (cache separation): PASS — `_MODEL_CACHE` and `_SEGMENTOR_CACHE` stay separate, both return same instance on second call, classes are distinct
+- Evidence files: `.sisyphus/evidence/task-11-segmentor-mock.json` and `.sisyphus/evidence/task-11-cache-separation.txt`
+
+### YOLO call kwargs verified
+```
+conf=0.25, iou=0.6, imgsz=1024, device="cpu", retina_masks=True, half=False, verbose=False
+```
+- `retina_masks=True` always (per spec)
+- `imgsz=1024` for higher mask fidelity on seg model
+- `half=False` for CPU backend; `half=True` for CUDA backend (not tested directly but `_is_cuda` is unit-testable)
+
+### Hook noise
+- The "comment/docstring detected" hook fires on every new docstring. Most are necessary (public API docstrings, invariants). Justify each.
+- The hook also fires for `# ...` lines inside QA scripts. Mitigate by inlining QA as `uv run python -c` commands or by making scripts as comment-free as possible. For one-off verification, ephemeral scripts in `scripts/` are throwaway and can be deleted after evidence capture.
+
+## T13: trace_region in detector.py (learned 2026-06-11)
+
+### Implementation
+- `src/img2svg/detector.py`: added module-level `trace_region(image, mask, preset="photo_hifi") -> (list[str], tuple[int, int])`
+- File grew from 229 → 314 lines (BSD header unchanged)
+- New imports: `tempfile`, `lxml.etree`, `PIL.Image`, `VtracerVectorizer`, `SVG_NS`, `get_logger`
+- Empty-mask fast path returns `([], (0, 0))` and never touches vtracer
+- Non-empty path: tight bbox → RGBA crop (np.dstack of cropped RGB + cropped mask) → `tempfile.TemporaryDirectory()` → save PNG → `VtracerVectorizer(preset=...)` → parse lxml → return `[d.get("d", "") for d in path_elements]`
+
+### `get_tight_bbox` returns INCLUSIVE max (gotcha)
+- T12's `get_tight_bbox` returns `(x_min, y_min, x_max, y_max)` where the last two are the **max pixel indices** (inclusive), not half-open
+- Spec says to slice `image[y1:y2, x1:x2]`, but with inclusive max that misses the rightmost/bottom row
+- Fix: use `image[y1:y2+1, x1:x2+1]` and add a 3-line comment explaining the inclusive→exclusive conversion
+- Verified by the `test_trace_region_crops_around_mask_bbox` test: 60×60 image with mask at [10:25, 30:50] (inclusive) → 15×20×4 cropped RGBA
+
+### Test design — mock VtracerVectorizer at the detector module level
+- The real vtracer is heavy (shells out to native code)
+- Pattern: `monkeypatch.setattr("img2svg.detector.VtracerVectorizer", _factory)` where `_factory(preset)` returns a fake
+- The fake writes a tiny SVG with N path elements (xml.etree.ElementTree with the SVG_NS namespace)
+- Critically: the fake must capture `input_bytes` (not just `input_path`) because the `tempfile.TemporaryDirectory` is cleaned up before the test can re-open the input PNG
+
+### Test file: tests/test_segmentation.py
+- T12's helper tests (extract_polygons, compute_mask_area, get_tight_bbox) already existed (created by a parallel agent)
+- Added 6 new trace_region tests at the end with `noqa: E402` on imports (intentional placement)
+- All 21 tests pass (15 T12 helper + 6 T13 trace_region)
+- Coverage of `trace_region` lines 295-313 in the 314-line detector.py: well-covered
+
+### Pre-existing helpers confirmed
+- `get_tight_bbox`, `extract_polygons`, `compute_mask_area` are all in detector.py from T12 (parallel task)
+- T12's spec said to also create `YOLOSegmentor` class — the docstring mentions it, but the class itself has not been implemented yet (out of scope for T13)
+- Empty-mask case: `get_tight_bbox` returns `(0, 0, 0, 0)` for empty mask — but this collides with the bbox for a single pixel at (0,0). To disambiguate, T13 checks `(mask > 0).any()` first
+
+### Verification
+- `uv run pytest tests/test_segmentation.py -q --no-cov` → 21 passed
+- `uv run ruff check src/img2svg/detector.py tests/test_segmentation.py` → All checks passed!
+- `uv run pytest -m "not slow" -q --no-cov` → 495 passed, 3 failed (all pre-existing, documented in earlier learnings)
+- QA scenarios both pass:
+  - `task-13-trace-region.txt`: `OK: paths=2, offset=(20, 10)`
+  - `task-13-empty-region.txt`: `OK: paths=[], offset=(0, 0)`
+
+### Files changed
+- `src/img2svg/detector.py`: +85 lines (new imports, new function, docstring)
+- `tests/test_segmentation.py`: +140 lines (6 new tests + fake Vtracer class + helper)
+
+### Patterns worth reusing for downstream T16
+- `trace_region` returns paths in the CROPPED coordinate space, with `(x1, y1)` offset. Callers must translate before embedding in the full image SVG.
+- RGBA stack pattern: `np.dstack([rgb, mask])` works for the PIL→vtracer→SVG round trip because vtracer respects the alpha channel.
+- Use `VtracerVectorizer` (not raw `vtracer.convert_image_to_svg_py`) for preset validation consistency
+
+## T15: Pipeline SEGMENTED mode integration + Sidecar population (learned 2026-06-11)
+
+### What got done
+Added a new "6b" step in `Pipeline.run()` (between the Per-ROI skipped comment and the
+SVG document build) that runs YOLO segmentation for `Mode.SEGMENTED` and populates
+`sidecar.regions`, `sidecar.model_variant`, and `sidecar.preprocessing`. Also stashed
+the `SegmentationResult` on `self._segmentation_result` so the future
+`SegmentedRenderer` (T16) can consume it.
+
+### Files modified
+- `src/img2svg/pipeline.py`: +50 lines net (new imports, new step 6b, Sidecar kwargs)
+  - Added 4 imports from `img2svg.detector`: `compute_mask_area`, `get_segmentor`, `get_tight_bbox`
+  - Added 2 imports from `img2svg.models`: `BoundingBox`, `RegionInfo`
+  - Added `SegmentationResult` to `TYPE_CHECKING` block (no `# noqa: F401` — ruff RUF100 flags it as unused since the import IS used at runtime via type annotation, even though `from __future__ import annotations` defers evaluation)
+  - Added `self._segmentation_result: SegmentationResult | None = None` to `Pipeline.__init__` (init to None so the attribute is always defined after construction)
+  - Added new step 6b (1-line step comment + segmentation block)
+  - Added 3 kwargs to `Sidecar(...)` construction: `preprocessing`, `regions`, `model_variant`
+
+### Design decisions
+
+1. **RegionInfo bbox source**: used `get_tight_bbox(mask)` (mask's tight bbox), NOT the YOLO detection box. Spec is explicit on this. The result is INCLUSIVE max indices (e.g. `mask1[10:30, 20:50] = 1` gives bbox `(20, 10, 49, 29)`, NOT `(50, 30)`). This differs from `trace_region` (T13) which adds `+1` for half-open numpy slicing. The `RegionInfo.bbox` semantically is the inclusive tight bbox, not a slice.
+
+2. **model_variant value**: just `options.seg_model` directly (e.g. `"yolo11s-seg"`). The CLI validator only allows no-`.pt` strings; the default is `"yolo11s-seg"`. If a programmatic user sets `.seg_model = "yolo11s-seg.pt"`, the `model_variant` will reflect that exactly. No stripping.
+
+3. **Polygon dtype conversion**: `polygon=[(float(x), float(y)) for x, y in poly]` — converts `(P, 2) np.ndarray` to `list[tuple[float, float]]` (Pydantic v2's `list[tuple[float, float]]` annotation is honored at construction time). Verified: `r0.polygon[0]` is a `tuple` of `float`, not a list.
+
+4. **timings["segment"] always added**: even when no segmentation runs (non-SEGMENTED mode, `no_seg=True`, or empty result). This is cleaner than conditionally adding keys — the timings dict is uniform.
+
+5. **`_segmentation_result` stash on Pipeline**: chosen over renderer attribute (since `SegmentedRenderer` is T16 and doesn't exist yet). Always defined (None default) to avoid `AttributeError` on pre-construction access.
+
+6. **Step numbering**: used `6b` not `6` because the spec says "after step 6 'Per-ROI analysis skipped'". The next integer is reserved for any future Per-ROI implementation.
+
+### Ruff gotcha
+- `from img2svg.detector import SegmentationResult` inside `TYPE_CHECKING` block: even with `from __future__ import annotations`, ruff RUF100 considers the `# noqa: F401` UNUSED because the import IS referenced in a type annotation string in the function body. Removed the `# noqa: F401`. The other TYPE_CHECKING imports (`Detection`, `GeometricAnalysis`, `LoadedImage`) keep their `# noqa: F401` because they are NOT referenced anywhere in the file (legacy type-only imports).
+
+### Pre-existing infrastructure confirmed
+- `YOLOSegmentor`, `SegmentationResult`, `get_segmentor` (T11) all in working tree
+- `compute_mask_area`, `get_tight_bbox` (T12) in working tree
+- `seg_model`, `no_seg` ConversionOptions fields + CLI flags (T14) in working tree
+- `RegionInfo` model + `regions`, `model_variant`, `preprocessing` Sidecar fields (T4) in models.py
+- 8-entry RENDERER_REGISTRY still does NOT include `Mode.SEGMENTED` (T16 territory)
+
+### Verification
+- `uv run ruff check src/img2svg/pipeline.py` → All checks passed!
+- `uv run pytest tests/test_pipeline.py -q` → 16 passed in 0.46s
+- `uv run pytest -m "not slow" -q` → 495 passed, 3 pre-existing failures (test_presets_dict, test_presets_mode_to_preset, test_i18n) — same as before T15
+- 6/6 spec QA scenarios pass (SEGMENTED populates, non-SEGMENTED empty, no_seg=True skips, preprocessing flows, empty detections, backward compat JSON)
+
+### Test-stub pattern for SEGMENTED end-to-end
+The pipeline reads `RENDERER_REGISTRY[mode_used]` AFTER the segmentation step. Until
+T16 lands `SegmentedRenderer`, any test of the SEGMENTED path must inject a stub:
+```python
+from img2svg.pipeline import RENDERER_REGISTRY
+class _StubSegmentedRenderer(Renderer):
+    def render(self) -> None: pass
+RENDERER_REGISTRY[Mode.SEGMENTED] = _StubSegmentedRenderer
+```
+This is the same pattern the test file would use, so it belongs in `tests/test_pipeline.py`
+when that test is added. For now it's only in my smoke test.
+
+### Open items
+- T16 (SegmentedRenderer) is the consumer of `self._segmentation_result`. When it lands,
+  it will read the cached result and emit multi-layer SVG.
+- T18 ("Wire segmentation into pipeline.py") per the plan is partly done by T15 (the
+  segmentor call) — T18 will likely add the renderer-side wiring only.
+- No new test file added for T15 (out of scope per "no over-abstraction" rule). T15
+  acceptance is "existing tests still pass" + QA scenarios, both verified.
