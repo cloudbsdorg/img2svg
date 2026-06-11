@@ -1,5 +1,5 @@
 # img2svg - pytest configuration and shared fixtures.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Pytest configuration and shared fixtures for img2svg tests."""
 

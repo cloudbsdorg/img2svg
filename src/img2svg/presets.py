@@ -1,5 +1,5 @@
 # img2svg - auto-mode selection: map image type to renderer mode, and mode to vtracer preset.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Auto-mode selection: map image type to renderer mode, and mode to vtracer preset."""
 

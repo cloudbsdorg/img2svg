@@ -59,5 +59,5 @@ See [Usage](usage.md) for the full flag reference and batch examples, or jump st
 
 - Source: `https://github.com/cloudbsdorg/img2svg`
 - Issues: `https://github.com/cloudbsdorg/img2svg/issues`
-- License: BSD 3-Clause. Copyright (c) 2026, CloudBSD.
+- License: BSD 3-Clause. Copyright (c) 2026, REVYTECH, Inc.
 - Status: pre-alpha. APIs may change between minor versions.

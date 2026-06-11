@@ -1,5 +1,5 @@
 # img2svg - SVG document builder using lxml for clean namespace handling.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """SVG document builder using lxml for clean namespace handling.
 

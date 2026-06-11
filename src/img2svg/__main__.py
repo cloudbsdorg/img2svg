@@ -1,5 +1,5 @@
 # img2svg - Allow ``python -m img2svg`` to invoke the CLI.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Allow ``python -m img2svg`` to invoke the CLI.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install_backend.sh - smart install of img2svg GPU/CPU backend extras.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Usage:  ./scripts/install_backend.sh [--dry-run] [--apply]

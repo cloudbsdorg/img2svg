@@ -1,5 +1,5 @@
 # img2svg - tests for the img2svg(1) man page.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Tests for the img2svg(1) man page.
 

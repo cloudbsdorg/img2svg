@@ -1,5 +1,5 @@
 # img2svg - AnnotatedRenderer: combines vtracer trace (background) with detection overlays (foreground).
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """AnnotatedRenderer: combines vtracer trace (background) with detection overlays (foreground).
 

@@ -1,5 +1,5 @@
 # img2svg - tests for PyPI packaging metadata in pyproject.toml.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Tests for PyPI packaging metadata in pyproject.toml.
 

@@ -1,5 +1,5 @@
 # img2svg - convert raster images to clean, optimized SVG.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """img2svg — convert raster images to clean, optimized SVG.
 

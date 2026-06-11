@@ -1,5 +1,5 @@
 # img2svg - XDG Base Directory compliant paths for img2svg.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """XDG Base Directory compliant paths for img2svg.
 

@@ -1,5 +1,5 @@
 # img2svg - Typer-based CLI entry point for img2svg.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Typer-based CLI entry point for img2svg.
 

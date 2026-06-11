@@ -1,5 +1,5 @@
 # img2svg - tests for platform compatibility docs and the FreeBSD smoke-test script.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Tests for platform compatibility docs and the FreeBSD smoke-test script.
 

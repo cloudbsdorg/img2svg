@@ -1,5 +1,5 @@
 # img2svg - geometric (non-ML) image analysis using OpenCV.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Geometric (non-ML) image analysis using OpenCV.
 

@@ -1,5 +1,5 @@
 # img2svg - image loading with format validation and normalization.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Image loading with format validation and normalization."""
 

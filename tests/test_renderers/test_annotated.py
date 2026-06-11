@@ -1,5 +1,5 @@
 # img2svg - tests for `AnnotatedRenderer` (vtracer trace + detection overlays).
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Tests for `AnnotatedRenderer` (vtracer trace + detection overlays)."""
 

@@ -1,5 +1,5 @@
 # img2svg - TraceRenderer: traces the image with vtracer's 'photo' preset.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """TraceRenderer: traces the image with vtracer's 'photo' preset.
 

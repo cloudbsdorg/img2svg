@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # verify_backend.sh - assert that the detected backend matches the expected one.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Invoked by the Jenkins "Backend Matrix" stage (one call per matrix cell)

@@ -1,5 +1,5 @@
 # img2svg - structural tests for the Jenkinsfile and the local CI script.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Structural tests for the Jenkinsfile and the local CI script."""
 

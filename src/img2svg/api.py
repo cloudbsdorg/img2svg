@@ -1,5 +1,5 @@
 # img2svg - high-level public API for img2svg.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """High-level public API for img2svg.
 

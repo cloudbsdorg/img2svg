@@ -1,5 +1,5 @@
 # img2svg - integration tests (real YOLO detector and vtracer against fixtures).
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Integration tests for img2svg.
 

@@ -1,5 +1,5 @@
 # img2svg - DeviceBackend protocol and BackendType enum.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """DeviceBackend protocol and BackendType enum.
 

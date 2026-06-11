@@ -1,5 +1,5 @@
 # img2svg - Pydantic v2 data models for img2svg.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Pydantic v2 data models for img2svg."""
 

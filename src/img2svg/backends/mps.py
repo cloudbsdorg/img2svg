@@ -1,5 +1,5 @@
 # img2svg - Apple Metal Performance Shaders compute backend.
-# Copyright (c) 2026, CloudBSD
+# Copyright (c) 2026, REVYTECH, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 """Apple Metal Performance Shaders (MPS) compute backend.
 
