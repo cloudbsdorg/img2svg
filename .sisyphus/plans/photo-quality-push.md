@@ -1756,7 +1756,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/pipeline.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py`
 
-- [ ] 16. Add `SegmentedRenderer` (multi-layer SVG: background + per-region groups)
+- [x] 16. Add `SegmentedRenderer` (multi-layer SVG: background + per-region groups)
 
   **What to do**:
   - Create `src/img2svg/renderers/segmented.py` (~150 lines)
@@ -1857,7 +1857,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/renderers/segmented.py`
   - Pre-commit: `uv run ruff check src/img2svg/renderers/segmented.py`
 
-- [ ] 17. Wire preprocessing into `pipeline.py` (post-load, pre-vtracer; mode-driven default)
+- [x] 17. Wire preprocessing into `pipeline.py` (post-load, pre-vtracer; mode-driven default)
 
   **What to do**:
   - In `src/img2svg/pipeline.py:Pipeline.run()`, add a new step (after step 5 YOLO detection, before step 6 "Per-ROI analysis skipped"):

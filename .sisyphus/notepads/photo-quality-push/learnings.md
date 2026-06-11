@@ -757,3 +757,181 @@ when that test is added. For now it's only in my smoke test.
   segmentor call) — T18 will likely add the renderer-side wiring only.
 - No new test file added for T15 (out of scope per "no over-abstraction" rule). T15
   acceptance is "existing tests still pass" + QA scenarios, both verified.
+
+## T16: SegmentedRenderer (multi-layer SVG with per-region groups) (learned 2026-06-11)
+
+### Implementation
+- File: `src/img2svg/renderers/segmented.py` (216 lines, BSD-3-Clause header)
+- `SegmentedRenderer(Renderer)` with `_segmentation_result: SegmentationResult | None` instance attribute initialized to None in `__init__`
+- `set_segmentation(result)` setter for pipeline injection
+- `render()`: 4-step flow per spec
+  1. Fallback to `_render_with_vtracer(self, "default")` if result None or all masks empty
+  2. Build bg_mask via `cv2.subtract` from all-255 starting point
+  3. White-fill foreground regions: `bg_image[bg_mask == 0] = 255` (sets alpha to 255 on RGBA too — intentional per spec)
+  4. Trace bg via `VtracerVectorizer(preset="default")` with local helper `_embed_background_paths`
+  5. Per region (in confidence desc order): `trace_region(image, mask, preset="photo_hifi")` → outer group + inner translated group + path children
+- Skips regions with 0 paths from trace_region (per spec, no empty groups)
+
+### Module-level helpers (not in the spec but small)
+- `_has_any_region(result)`: checks `result is not None` + at least one mask with `> 0` pixel
+- `_build_background_mask(image_shape, masks)`: subtracts each mask from all-255 base
+- `_embed_background_paths(bg_image, svg)`: mirrors `visual._embed_vtracer_paths` but takes an explicit image (the white-filled bg) — vtracer needs a path, not numpy array
+
+### SVG structure produced
+```
+<svg>
+  <title/><desc/><style/>
+  <g id="background" data-role="background">
+    <!-- vtracer default paths deep-copied -->
+  </g>
+  <g id="obj_person_0" data-class="person" data-conf="0.9">
+    <g transform="translate(20 10)">
+      <path d="..."/>
+    </g>
+  </g>
+  <g id="obj_dog_1" data-class="dog" data-conf="0.7">
+    <g transform="translate(50 60)">
+      <path d="..."/>
+    </g>
+  </g>
+</svg>
+```
+
+### Gotchas / Decisions
+
+**1. SVGGroup has no `add_group` method** — only `add_rect`, `add_path`, `add_text`. For the inner translated group, used raw lxml: `etree.SubElement(outer.element, f"{{{SVG_NS}}}g", transform=...)` then `etree.SubElement(inner_el, f"{{{SVG_NS}}}path")` for each path. This is the cleanest way to nest groups without extending SVGGroup's API.
+
+**2. `from __future__ import annotations` + ruff UP037** — all string-quoted type annotations in `__init__` and `_embed_background_paths` triggered UP037. Fix: remove the quotes since `from __future__ import annotations` already defers evaluation.
+
+**3. `trace_region` only returns d-strings, not full path elements** — fill colors from vtracer's color quantizer are lost. This is a known limitation inherited from T13. For the multi-layer SVG, paths use `fill=None` to skip the fill attribute (SVG defaults to black, path is visible). User can recolor layers in any vector editor. Could be improved by extending `trace_region` to return full elements, but that's a T13 modification out of scope.
+
+**4. Testing pattern for vtracer mocking** — to mock vtracer for per-region trace, must patch BOTH `img2svg.renderers.segmented.VtracerVectorizer` (for background) AND `img2svg.detector.VtracerVectorizer` (for trace_region's internal call). Same pattern as T13's `test_segmentation.py`.
+
+**5. No new tests added in T16** — T16's acceptance is just file existence + ruff clean (per spec). Tests are a follow-up (likely T19 in this plan). The smoke tests I ran validated the 4 critical paths: multi-layer render, empty-fallback (None), empty-fallback (empty masks), tiny-region skip.
+
+**6. Spec says "fall back to VisualRenderer behavior" via `_render_with_vtracer(self, "default")`** — Visual's helper is whole-image (uses `renderer.image.np_array`). For the empty case this is correct (the user has no segments, so we trace the whole image). For background with segments, I needed a separate helper that takes the white-filled bg_image.
+
+**7. Hook noise** — the "comment/docstring detected" hook is aggressive and fires on EVERY comment, including the mandatory BSD header. The pattern is: respond with the justification, not just remove the comment. The remaining comments are all public-API docstrings (mandatory) or essential helper docstrings.
+
+### Pre-existing infrastructure confirmed
+- `SegmentationResult` dataclass from T11 (`boxes`, `masks`, `polygons`, `orig_shape`)
+- `trace_region(image, mask, preset)` from T13 returns `(list[str], (int, int))`
+- `_render_with_vtracer(renderer, preset)` from visual.py for whole-image trace
+- `cv2`, `numpy`, `lxml.etree`, `PIL.Image`, `tempfile` all already used elsewhere in the project
+- `Mode.SEGMENTED` enum value from T3 (pipeline T15 wires the segmentor)
+
+### Verification
+- `uv run ruff check src/img2svg/renderers/segmented.py` → "All checks passed!"
+- `uv run pytest tests/test_renderers/ -q` → 23 passed (no regression in existing renderer tests)
+- `uv run pytest tests/test_segmentation.py -q` → 21 passed (no regression in T12/T13 helper tests)
+- `uv run pytest -m "not slow" -q` → 495 passed, 3 pre-existing failures (test_docs, test_i18n, test_vectorizer — all unrelated to T16)
+- `lsp_diagnostics` (basedpyright) NOT installed on host — not blocking, ruff is the project linter
+- 4 smoke tests pass:
+  1. Multi-layer SVG with 2 regions → 1 background + 2 obj_ groups
+  2. Empty segmentation result → falls back to vtracer-output group, no obj_ groups
+  3. None segmentation (set_segmentation never called) → falls back to vtracer-output group
+  4. Empty-mask segmentation → falls back to vtracer-output group
+  5. Tiny region (0 paths from trace_region) → group skipped, not added
+- Coverage on new file: 0% (no tests added in T16; tests are a follow-up)
+
+### Files modified (this task)
+- `src/img2svg/renderers/segmented.py`: created (216 lines, BSD-3-Clause header)
+- No other files modified
+
+### Pattern observations
+- **Per-renderer init extension**: to add a renderer-specific state to a Renderer subclass, override `__init__` to call `super().__init__(...)` and set the new attribute. The base class signature is `(svg, image, detections, geometric)` — fixed.
+- **Helper for tracing an arbitrary image**: `_embed_background_paths` follows the visual.py pattern (write PNG to temp, run vtracer, parse output, deep-copy paths into a group). The difference is the source image comes from a parameter, not `renderer.image.np_array`.
+- **Multi-group structure**: outer group for metadata (id, data-*), inner group for transform. This is cleaner than applying both to the same group because data-* attributes stay on the metadata layer and paths get a separate transform.
+- **Sorting by confidence desc**: used `sorted(range(len(result.boxes)), key=lambda i: result.boxes[i].confidence, reverse=True)` to get the indices in order, then iterate. The YOLO NMS output is already in confidence desc order, but explicit sorting makes the code defensive against any future change in YOLO's return order.
+
+## T17: Preprocessing step in Pipeline.run() (learned 2026-06-11)
+
+### Implementation summary
+- File: `src/img2svg/pipeline.py` (+114 lines, BSD header unchanged)
+- New step "1b" inserted between no-clobber guard (1a) and analyze_global (2)
+- New module-level helpers: `_PREPROCESS_ALIASES`, `_PREPROCESS_SHORT_NAMES`, `_PHOTO_MODES`, `_format_preprocessing_label()`, `_resolve_preprocessing_steps()`
+- New import: `from PIL import Image as _PILImage` (PIL was not yet imported in this module)
+- New import: `from img2svg.preprocessing import PREPROCESSING_PRESETS, PreprocessingPipeline`
+
+### Mode-driven default — trust `options.mode` for non-AUTO
+- Spec says use `mode_used` for the photo-mode check (DETAILED/WATERCOLOR/SEGMENTED)
+- Optimization: when `options.mode != Mode.AUTO`, trust it directly (no classify round-trip)
+- When `options.mode == Mode.AUTO`, do a quick `classify()` + `select_mode()` to resolve
+- The official `analyze_global` + `classify` + `select_mode` steps still run later and operate on the preprocessed image — this is the spec's "before analyze" contract
+
+### Mutation pattern: replace `loaded.pil_image` in place
+- `LoadedImage` is a regular `@dataclass` (not frozen) → mutation is allowed
+- `np_array` is a `@property` that calls `np.asarray(self.pil_image)` → re-runs after mutation, so downstream steps see the preprocessed image
+- Pattern: `loaded.pil_image = _PILImage.fromarray(_preprocessor.apply(loaded.np_array))`
+- `original_mode` and `has_alpha` are NOT updated (they describe the source file, not the in-memory state) — accepted
+
+### Sidecar format matches user's CLI form
+- `sidecar.preprocessing` shows short aliases with kwargs: `["bilateral(d=5, sigma=50)", "unsharp(sigma=2.0, amount=0.5)"]`
+- NOT the verbose function name: `["denoise_bilateral(d=5, sigma=50)", ...]`
+- Achieved via `_format_preprocessing_label()` that reverse-looks-up the short alias from `_PREPROCESS_ALIASES`
+- Previously the sidecar was just `list(options.preprocess)` which only reflected the user's request; now it reflects the FILTERS ACTUALLY APPLIED (including mode-driven defaults)
+
+### Error handling: raise ValueError for unknown aliases
+- Spec didn't explicitly require this, but silent no-op is hostile UX
+- `ValueError("Unknown preprocessing filter 'foo'. Available: [bilateral, nlmeans, ...]")`
+- Caught by Typer at the CLI level (similar to other Pydantic validation errors)
+
+### Decision tree (4 branches)
+1. `options.no_preprocess == True` → return [] (overrides everything)
+2. `options.preprocess` non-empty → resolve aliases to (full_name, default_kwargs) tuples
+3. `mode_used in _PHOTO_MODES` (DETAILED/WATERCOLOR/SEGMENTED) → use `PREPROCESSING_PRESETS["light"]`
+4. Otherwise → return [] (logo/diagram/etc. don't need it)
+
+### Alias mapping covers BOTH short and full names
+- 7 filters total: bilateral, nlmeans, median, unsharp, posterize, canny, clahe
+- Each has 2 entries: short alias (CLI form) + full name (programmatic)
+- Pre-computed `_PREPROCESS_SHORT_NAMES` tuple for the ValueError message (avoids inline set comprehension)
+
+### Verification
+- `uv run pytest tests/test_pipeline.py -q` → 16 passed
+- `uv run ruff check src/img2svg/pipeline.py` → "All checks passed!"
+- `uv run pytest -m "not slow" -q --no-cov` → 495 passed, 3 pre-existing failures (test_docs, test_i18n, test_vectorizer — all unrelated to T17, documented in earlier learnings)
+- 8-scenario smoke test (5 basic + 3 AUTO mode) all pass: no_preprocess skip, explicit preprocess, no_preprocess override, non-photo mode skip, photo mode light preset, AUTO+PHOTO→DETAILED applies, AUTO+LOGO→VISUAL skips, unknown alias raises ValueError
+
+### Gotchas
+- `LoadedImage.np_array` is a property, not a stored field — mutating `pil_image` propagates to all subsequent `loaded.np_array` calls
+- `_PILImage.fromarray(arr)` preserves the array's channel count (RGB→RGB, RGBA→RGBA) — alpha-aware preprocessing chain from T1 just works
+- Timing recorded as `timings["preprocess"]` (always present, even if ~4µs for skipped path) — keeps test contract clean
+- ruff C416 (unnecessary list comprehension) — `[step for step in PREPROCESSING_PRESETS["light"]]` → `list(PREPROCESSING_PRESETS["light"])`
+
+### Files modified (this task)
+- `src/img2svg/pipeline.py`: +114 lines net (5 new constants/functions + new step 1b + Sidecar change)
+- No test changes (existing 16 test_pipeline.py tests all pass)
+- No other files touched
+
+### Spec ambiguity resolved: "after load, before analyze" with "use mode_used"
+- The spec asks for preprocessing BEFORE analyze_global (so analyze sees preprocessed image) AND for the decision to use mode_used (which is computed in step 4, after analyze)
+- Resolution: do a quick classify+select_mode inside the new step 1b, using the ORIGINAL image
+- The official analyze_global in step 2 still runs (on the preprocessed image) — minimal duplicate work
+- The official classify+select_mode in steps 3-4 also still run (on the preprocessed image) and produce the final `mode_used` used by the renderer
+- Duplicate work is 1 quick `analyze_global` + 1 quick `classify` + 1 quick `select_mode` (each ~1-5ms on photo.jpg) — acceptable cost for spec compliance
+
+
+## T10 Follow-up: SegmentedRenderer wired into pipeline.py — COMPLETE 2026-06-11
+
+### Changes (2 lines in src/img2svg/pipeline.py)
+1. Added import: `from img2svg.renderers.segmented import SegmentedRenderer` — placed alphabetically between `poster` (p) and `trace` (t) to satisfy ruff I001.
+2. Added registry entry: `    Mode.SEGMENTED: SegmentedRenderer,` — appended at the end of RENDERER_REGISTRY (after `Mode.WATERCOLOR`).
+
+### Gotcha: import position
+- User instruction said "alphabetical order with the other renderer imports (after WatercolorRenderer)" — the two halves of that instruction conflict because pure alphabetical placement of `segmented` (s) is between `poster` (p) and `trace` (t), not after `watercolor` (w).
+- Initial placement at the end (after WatercolorRenderer) failed `ruff check` with I001 ("Import block is un-sorted or un-formatted"). Moved the line to its true alphabetical position (between poster and trace). Total delta: 2 lines, just relocated one of them.
+- The plan's snippet shows the import at the bottom but the registry entry shows the alphabetical kind of ordering — the plan is inconsistent with the project's existing alphabetical sort. Ruff wins.
+
+### Verification (all passed)
+- `uv run python -c "from img2svg.pipeline import RENDERER_REGISTRY; from img2svg.enums import Mode; assert Mode.SEGMENTED in RENDERER_REGISTRY; assert len(RENDERER_REGISTRY) == 9; print('OK')"` → "OK"
+- `uv run ruff check src/img2svg/pipeline.py` → "All checks passed!"
+- `uv run pytest tests/test_pipeline.py -q` → 16 passed
+
+### Latent issue noted (NOT fixed per user instruction)
+- The comment block above RENDERER_REGISTRY (lines 72-75) still says "Mode.SEGMENTED is also absent — its SegmentedRenderer lands in T16." This is now stale.
+- User said "DO NOT touch any other file. DO NOT change anything else. ONLY add the 2 lines." — left as-is. A follow-up should clean up that comment.
+
+### Parallel work observed
+- During this T10 follow-up, T17 (Pipeline preprocessing integration) landed in parallel. The git diff shows ~95 lines of new code in pipeline.py from T17 (PIL import, PREPROCESSING_PRESETS import, _PREPROCESS_ALIASES dict, _format_preprocessing_label, _resolve_preprocessing_steps, the Pipeline.run preprocessing block).
+- These are T17's work, not mine. My 2 lines are the only T10 follow-up contribution.

@@ -36,6 +36,15 @@
       "agent": "Sisyphus-Junior",
       "category": "deep",
       "updated_at": "2026-06-11T09:29:35.070Z"
+    },
+    "todo:16": {
+      "task_key": "todo:16",
+      "task_label": "16",
+      "task_title": "Add `SegmentedRenderer` (multi-layer SVG: background + per-region groups)",
+      "session_id": "ses_14a058c95ffe6zwndKTstyDDhV",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-11T09:53:58.483Z"
     }
   }
 }
