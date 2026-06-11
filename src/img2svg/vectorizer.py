@@ -16,7 +16,9 @@ import vtracer
 
 from img2svg.errors import VectorizationError
 
-Preset = Literal["default", "bw", "logo", "poster", "photo"]
+Preset = Literal[
+    "default", "bw", "logo", "poster", "photo", "photo_hifi", "bw_edge", "watercolor"
+]
 
 # Each preset maps to vtracer's keyword args.
 PRESETS: dict[str, dict] = {
@@ -86,6 +88,45 @@ PRESETS: dict[str, dict] = {
         "length_threshold": 4.0,
         "max_iterations": 10,
         "splice_threshold": 45,
+        "path_precision": 3,
+    },
+    "photo_hifi": {
+        "colormode": "color",
+        "hierarchical": "stacked",
+        "mode": "spline",
+        "filter_speckle": 4,
+        "color_precision": 8,
+        "layer_difference": 24,
+        "corner_threshold": 60,
+        "length_threshold": 3.5,
+        "max_iterations": 20,
+        "splice_threshold": 30,
+        "path_precision": 4,
+    },
+    "bw_edge": {
+        "colormode": "binary",
+        "hierarchical": "stacked",
+        "mode": "polygon",
+        "filter_speckle": 8,
+        "color_precision": 6,
+        "layer_difference": 16,
+        "corner_threshold": 120,
+        "length_threshold": 5.0,
+        "max_iterations": 5,
+        "splice_threshold": 60,
+        "path_precision": 2,
+    },
+    "watercolor": {
+        "colormode": "color",
+        "hierarchical": "stacked",
+        "mode": "spline",
+        "filter_speckle": 14,
+        "color_precision": 7,
+        "layer_difference": 32,
+        "corner_threshold": 20,
+        "length_threshold": 5.0,
+        "max_iterations": 15,
+        "splice_threshold": 20,
         "path_precision": 3,
     },
 }
