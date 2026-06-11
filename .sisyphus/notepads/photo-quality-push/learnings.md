@@ -340,3 +340,172 @@ delivers the module, a follow-up task can add a proper test file).
 - When a user specifies a verification command, RUN IT VERBATIM — do not substitute a "similar" check
 - The user's spec is the contract; my self-constructed alternative is at best a redundancy, at worst a false positive
 - Top-level package imports can mask missing submodule definitions; always test the actual module the user named
+
+## T9: WatercolorRenderer (learned 2026-06-11)
+
+### Implementation
+- File: `src/img2svg/renderers/watercolor.py` (32 lines, BSD-3-Clause header)
+- `WatercolorRenderer(Renderer)` with `preset_name: ClassVar[str] = "watercolor"`
+- `render()` calls `_render_with_vtracer(self, self.preset_name)` — same as `TraceRenderer` and `VisualRenderer`
+- Mirrors `src/img2svg/renderers/trace.py` structure exactly (BSD header, `from __future__ import annotations`, `ClassVar[str]`, single-import pattern)
+
+### Verification
+- `uv run ruff check src/img2svg/renderers/watercolor.py` → "All checks passed!"
+- `uv run python -c "from img2svg.renderers.watercolor import WatercolorRenderer; assert WatercolorRenderer.preset_name == 'watercolor'"` → "OK: watercolor"
+
+### Pattern: adding a new preset-specific renderer
+- Each preset-renderer file is ~30 lines: BSD header + module docstring + class docstring + 3 imports + 4 lines of class body
+- The hard work lives in `visual.py::_render_with_vtracer` — new renderers are just thin shims
+- This pattern means adding a new Mode (e.g. DETAILED → photo_hifi) is a 3-file change: vectorizer.py PRESETS dict, enums.py Mode enum, renderers/<name>.py — all minimal and isolated
+
+## T7: DetailedRenderer (learned 2026-06-11)
+
+### Implementation
+- File: `src/img2svg/renderers/detailed.py` (33 lines, BSD-3-Clause header)
+- `DetailedRenderer(Renderer)` with `preset_name: ClassVar[str] = "photo_hifi"`
+- `render()` calls `_render_with_vtracer(self, self.preset_name)` — same as TraceRenderer/VisualRenderer/WatercolorRenderer
+- Mirrors `src/img2svg/renderers/trace.py` structure exactly (BSD header, `from __future__ import annotations`, `ClassVar[str]`, single-import pattern from visual)
+- Module docstring verbatim from spec: "DetailedRenderer: traces the image with the new 'photo_hifi' preset — high color_precision=8, low filter_speckle=4, fine path_precision=4, max_iterations=20. Designed to be paired with the pre-processing pipeline (bilateral + unsharp) for maximum photo fidelity."
+
+### Verification
+- `uv run ruff check src/img2svg/renderers/detailed.py` → "All checks passed!"
+- `uv run python -c "from img2svg.renderers.detailed import DetailedRenderer; assert DetailedRenderer.preset_name == 'photo_hifi'"` → "OK: DetailedRenderer.preset_name == 'photo_hifi'"
+- File is 33 lines (spec said ~40, close enough — spec noted approximate)
+
+### Pre-existing infrastructure confirmed
+- `Mode.DETAILED` enum value already added in T3 (`enums.py`)
+- `Mode.DETAILED → "photo_hifi"` mapping already in `presets.py:28`
+- `"photo_hifi"` already in `vectorizer.py:PRESETS` dict (T2)
+- All prerequisites for T7 wiring were complete before this task started — T7 was purely the renderer file
+
+### Gotchas
+- The `from img2svg.renderers.visual import _render_with_vtracer` import (leading underscore) ruff-lints as N801 by default, but is silent under the project's selected rules (`select = ["E", "W", "F", "I", "B", "UP", "N", "C4", "SIM", "RUF"]` — no N rules). Existing trace.py uses the same import, so the project is already comfortable with this pattern
+- The `T7` task and `T9` task are nearly identical patterns (just different preset names) — any future preset-renderer addition is now a copy-paste of this template
+- The detailed.py does NOT wire up preprocessing — that's T17's job. T7 just creates the renderer that consumes the photo_hifi preset
+
+
+## T8: EdgeRenderer (learned 2026-06-11)
+
+### Implementation
+- File: `src/img2svg/renderers/edge.py` (35 lines, BSD-3-Clause header)
+- `EdgeRenderer(Renderer)` with `preset_name: ClassVar[str] = "bw_edge"`
+- `render()` calls `_render_with_vtracer(self, self.preset_name)` — same as TraceRenderer/VisualRenderer/WatercolorRenderer/DetailedRenderer
+- Mirrors `src/img2svg/renderers/trace.py` structure exactly (BSD header, `from __future__ import annotations`, `ClassVar[str]`, single-import pattern from visual)
+- Module docstring verbatim from spec: "EdgeRenderer: traces the image with the 'bw_edge' preset (binary colormode, polygon mode). Produces line-art style SVGs with no fills — just outlines. Best paired with pre-processing (median + Canny) to extract clean edges from photos."
+
+### Verification
+- `uv run ruff check src/img2svg/renderers/edge.py` → "All checks passed!"
+- `from img2svg.renderers.edge import EdgeRenderer; assert EdgeRenderer.preset_name == "bw_edge"` → passes when run via stub-import (see gotcha)
+- File is 35 lines (spec said ~40, close enough — spec noted approximate)
+
+### Pre-existing infrastructure confirmed
+- `Mode.EDGE` enum value already added in T3 (`enums.py`)
+- `Mode.EDGE → "bw_edge"` mapping already in `presets.py:30`
+- `"bw_edge"` already in `vectorizer.py:PRESETS` dict (T2)
+- All prerequisites for T8 wiring were complete before this task started — T8 was purely the renderer file
+
+### Gotchas
+- Full package import `from img2svg.renderers.edge import EdgeRenderer` fails at the `img2svg.api` level because `pipeline.py:46` imports `from img2svg.renderers.poster import PosterRenderer` — a module that doesn't exist yet (T-something else in the plan). The `edge.py` file itself is correct; the failure is a pre-existing parallel-task dependency in api.py/pipeline.py. To verify edge.py in isolation, use a stub-import pattern that bypasses `img2svg/__init__.py`:
+
+  ```python
+  import sys, types
+  pkg = types.ModuleType('img2svg'); pkg.__path__ = ['src/img2svg']; sys.modules['img2svg'] = pkg
+  sub = types.ModuleType('img2svg.renderers'); sub.__path__ = ['src/img2svg/renderers']; sys.modules['img2svg.renderers'] = sub
+  from img2svg.renderers.edge import EdgeRenderer
+  assert EdgeRenderer.preset_name == "bw_edge"
+  ```
+
+- The `_render_with_vtracer` import (leading underscore) is silent under the project's ruff rules — same pattern as trace.py/visual.py
+- Pattern is now fully established: adding a new preset-renderer is a 5-minute copy-paste of the template. The renderers/ directory will accumulate one file per Mode-preset pair (trace/visual/watercolor/detailed/edge/poster as needed)
+
+---
+
+## T10 (Pipeline Registry + ImageType→Mode) — Learnings
+
+### Blocker: T6 (PosterRenderer) was never created
+- The T10 spec assumed `src/img2svg/renderers/poster.py` existed (T6). It does NOT.
+- `ls src/img2svg/renderers/` only has: annotated, base, detailed, edge, labels, trace, visual, watercolor
+- Grep for `PosterRenderer` across the whole repo: 0 matches (before this T10 commit)
+- This blocker was already documented in this notepad (line 408) by a prior agent: "Full package import fails at the `img2svg.api` level because `pipeline.py:46` imports `from img2svg.renderers.poster import PosterRenderer`"
+- **Resolution**: Wire only the 3 renderers that exist (Detailed, Edge, Watercolor). Ship 7-entry registry (not 8). Document the gap with a comment in pipeline.py pointing at T6. When T6 lands, the import + entry are a 2-line add.
+
+### Latent issue found in T3: `Mode.POSTER` is wired in MODE_TO_PRESET but has no renderer
+- After this T10 commit, `MODE_TO_PRESET[Mode.POSTER] = "poster"` exists, but `RENDERER_REGISTRY[Mode.POSTER]` does not.
+- If a user explicitly runs `--mode poster`, the pipeline will `KeyError` in `RENDERER_REGISTRY[mode_used]` (pipeline.py:175).
+- This is OUT OF SCOPE for T10. It is fixed the moment T6 lands.
+
+### IMAGE_TYPE_TO_MODE constraint — tests added as regression guards
+- Added 2 new tests in tests/test_presets.py to guard the user constraint:
+  - `test_image_type_to_mode_never_picks_explicit_only_modes` — asserts no entry maps to LABELS/ANNOTATED/SEGMENTED
+  - `test_image_type_to_mode_photo_uses_detailed` — asserts PHOTO → DETAILED specifically
+- These tests are necessary because the constraint is a product rule, not a code convention. Without the guard, a future agent could "fix" the AUTO mode by routing PHOTO to TRACE/ANNOTATED and break the user's photo-fidelity default.
+
+### Test fix beyond the spec — test_pipeline.py
+- `test_pipeline_auto_mode_resolves_to_concrete` asserted `mode_used == Mode.LABELS` (old LOGO→LABELS mapping)
+- Had to update to `Mode.VISUAL` because LOGO now maps to VISUAL
+- Comment also updated to reflect new mapping
+- This test fix is in scope of "no regressions in test_pipeline.py" per the T10 spec, even though the spec only explicitly called out test_presets.py.
+
+### `RENDERER_REGISTRY` comment is load-bearing
+- The comment block above the registry documenting why POSTER + SEGMENTED are absent is not decorative. It is the only thing that prevents a future maintainer from "fixing" the gap and re-breaking the import chain. A prior agent documented this exact failure mode in line 408. The comment is necessary.
+
+### Pre-existing failures (verified via git stash)
+- `test_docs.py::test_usage_documents_every_cli_flag` — fails on bare main (T4/T7 work)
+- `test_vectorizer.py::test_presets_dict_has_five_entries` — fails on bare main (T3 work, count is 8 not 5)
+- `test_i18n.py::test_ngettext_returns_singular_in_c_locale` — pre-existing acceptable per T10 spec
+- NONE of these are caused by T10 changes.
+
+### Pattern: registry entries for vtracer-preset renderers are uniform
+- All 5 vtracer-preset renderers (Visual, Trace, Detailed, Edge, Watercolor, and future Poster) follow the same shape: `preset_name: ClassVar[str]` + `render()` that calls `_render_with_vtracer(self, self.preset_name)`. The wiring in pipeline.py is mechanical.
+
+## T6: PosterRenderer (learned 2026-06-11) — RESOLVES T10 BLOCKER
+
+### Implementation
+- File: `src/img2svg/renderers/poster.py` (~26 lines, BSD-3-Clause header)
+- `PosterRenderer(Renderer)` with `preset_name: ClassVar[str] = "poster"`
+- `render()` calls `_render_with_vtracer(self, self.preset_name)` — same pattern as TraceRenderer/VisualRenderer/WatercolorRenderer/DetailedRenderer/EdgeRenderer
+- Mirrors `src/img2svg/renderers/trace.py` structure exactly
+- Module docstring verbatim from spec: "PosterRenderer: traces the image with vtracer's 'poster' preset for stylized, limited-color output. The 'poster' preset has color_precision=8 for high color fidelity with stacked layers."
+- Imports: `from img2svg.renderers.base import Renderer` and `from img2svg.renderers.visual import _render_with_vtracer` ONLY — no new imports per the "MUST NOT DO" rule
+
+### Verification (all passed)
+- `ls -la src/img2svg/renderers/poster.py` → file exists (1024 bytes)
+- `uv run python -c "from img2svg.renderers.poster import PosterRenderer; assert PosterRenderer.preset_name == 'poster'; print('OK')"` → "OK"
+- `uv run ruff check src/img2svg/renderers/poster.py` → "All checks passed!"
+- `lsp_diagnostics` (basedpyright) NOT installed on host — not blocking, ruff is the project linter
+
+### T10 blocker resolved
+- T10 had documented the missing `poster.py` and shipped a 7-entry registry with a comment pointing at T6
+- T6 now provides the missing file
+- The T10 follow-up work: add `PosterRenderer: PosterRenderer` to the registry + `from img2svg.renderers.poster import PosterRenderer` import
+- Once those 2 lines are added, `Mode.POSTER` resolves end-to-end and `img2svg --mode poster` works
+
+### Pre-existing infrastructure confirmed
+- `Mode.POSTER` enum value already added in T3 (`enums.py`)
+- `Mode.POSTER → "poster"` mapping already in `presets.py:29`
+- `"poster"` already in `vectorizer.py:PRESETS` dict (T2)
+- All prerequisites for T6 were complete; T6 was purely the renderer file
+
+### Gotchas
+- The `from img2svg.renderers.visual import _render_with_vtracer` import (leading underscore) is silent under the project's ruff rules (`select` excludes N) — same as trace.py
+- No new helpers, no preprocessing wiring (T17's job), no bbox overlays — pure template mirror per "MUST NOT DO"
+- File is 26 lines (spec said ~40) — terser than spec because the docstrings are the only "extra" content; matches the established T7/T8/T9 pattern
+
+---
+
+## T10 Final Fix — PosterRenderer now wired
+
+T6 landed in between sessions. `src/img2svg/renderers/poster.py` now exists and exports `PosterRenderer`. Wired it into T10.
+
+**Changes (3 lines total in src/img2svg/pipeline.py):**
+1. Added import: `from img2svg.renderers.poster import PosterRenderer` — placed alphabetically between `labels` and `trace` (user instruction said "after AnnotatedRenderer, before TraceRenderer" but the project's existing convention is full alphabetical sort; labels < poster < trace is the correct slot and is also "after AnnotatedRenderer" in a loose reading)
+2. Added registry entry: `Mode.POSTER: PosterRenderer,` — placed after `Mode.TRACE` to match the visual grouping of new entries (POSTER, DETAILED, EDGE, WATERCOLOR all adjacent)
+3. Updated the comment block above RENDERER_REGISTRY: removed the "PosterRenderer doesn't exist yet" paragraph (no longer true) and kept only the SEGMENTED/T16 note (still relevant)
+
+**Verification:**
+- `len(RENDERER_REGISTRY) == 8` ✓
+- `Mode.POSTER in RENDERER_REGISTRY` ✓
+- `uv run ruff check src/img2svg/pipeline.py` → All checks passed!
+- `uv run pytest tests/test_presets.py tests/test_pipeline.py -q` → 26 passed
+
+**Latent issue from prior session resolved:** the `Mode.POSTER → KeyError` latent bug noted in the prior T10 entry is now fixed because `RENDERER_REGISTRY[Mode.POSTER] = PosterRenderer` exists.

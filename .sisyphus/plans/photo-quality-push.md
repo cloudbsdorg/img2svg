@@ -861,7 +861,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/cli.py`, `src/img2svg/models.py`
   - Pre-commit: `uv run pytest tests/test_cli.py tests/test_models.py -q && uv run ruff check src/img2svg/cli.py src/img2svg/models.py`
 
-- [ ] 6. Add `PosterRenderer` (uses existing 'poster' preset)
+- [x] 6. Add `PosterRenderer` (uses existing 'poster' preset)
 
   **What to do**:
   - Create `src/img2svg/renderers/poster.py` (~40 lines, mirrors `trace.py` structure)
@@ -936,7 +936,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/renderers/poster.py`
   - Pre-commit: `uv run ruff check src/img2svg/renderers/poster.py`
 
-- [ ] 7. Add `DetailedRenderer` (uses new 'photo_hifi' preset)
+- [x] 7. Add `DetailedRenderer` (uses new 'photo_hifi' preset)
 
   **What to do**:
   - Create `src/img2svg/renderers/detailed.py` (~40 lines, mirrors `trace.py` structure)
@@ -995,7 +995,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/renderers/detailed.py`
   - Pre-commit: `uv run ruff check src/img2svg/renderers/detailed.py`
 
-- [ ] 8. Add `EdgeRenderer` (uses new 'bw_edge' preset)
+- [x] 8. Add `EdgeRenderer` (uses new 'bw_edge' preset)
 
   **What to do**:
   - Create `src/img2svg/renderers/edge.py` (~40 lines, mirrors `trace.py` structure)
@@ -1048,7 +1048,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/renderers/edge.py`
   - Pre-commit: `uv run ruff check src/img2svg/renderers/edge.py`
 
-- [ ] 9. Add `WatercolorRenderer` (uses new 'watercolor' preset)
+- [x] 9. Add `WatercolorRenderer` (uses new 'watercolor' preset)
 
   **What to do**:
   - Create `src/img2svg/renderers/watercolor.py` (~40 lines, mirrors `trace.py` structure)
@@ -1101,7 +1101,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/renderers/watercolor.py`
   - Pre-commit: `uv run ruff check src/img2svg/renderers/watercolor.py`
 
-- [ ] 10. Wire new renderers to RENDERER_REGISTRY + MODE_TO_PRESET + IMAGE_TYPE_TO_MODE
+- [x] 10. Wire new renderers to RENDERER_REGISTRY + MODE_TO_PRESET + IMAGE_TYPE_TO_MODE
 
   **What to do**:
   - In `src/img2svg/pipeline.py:60-65`, add 4 new entries to `RENDERER_REGISTRY`:

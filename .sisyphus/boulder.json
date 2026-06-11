@@ -18,6 +18,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-11T09:04:27.851Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Add `PosterRenderer` (uses existing 'poster' preset)",
+      "session_id": "ses_14a10895cffezVPBCyiOUfwot5",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-11T09:17:43.730Z"
     }
   }
 }
