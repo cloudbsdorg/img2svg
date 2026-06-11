@@ -356,9 +356,7 @@ def test_cli_no_seg_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> N
     logo = fixtures_dir / "logo.png"
     out = tmp_path / "out.svg"
     with _PatchStack(_success_patches()):
-        result = runner.invoke(
-            app, [str(logo), "-o", str(out), "--mode", "labels", "--no-seg"]
-        )
+        result = runner.invoke(app, [str(logo), "-o", str(out), "--mode", "labels", "--no-seg"])
     assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
 
 
@@ -414,3 +412,136 @@ def test_cli_convert_help_documents_new_flags() -> None:
         "--max-svg-size",
     ):
         assert flag in result.output, f"convert --help is missing flag: {flag}"
+
+
+# ----------------------------------------------------------------------
+# F3-remediation: 4 flags that were previously non-functional
+# ----------------------------------------------------------------------
+
+
+def test_cli_denoise_flag_adds_preprocessing_step(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--denoise bilateral` adds the bilateral denoise filter to the preprocessing list.
+
+    The sidecar's ``preprocessing`` field is the visible record of what
+    filters ran; before the F3 fix the field was empty for ``--denoise``,
+    which meant the flag did nothing.
+    """
+    import json
+
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--denoise", "bilateral"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    sidecar = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
+    preprocessing = sidecar.get("preprocessing", [])
+    assert any("bilateral" in step for step in preprocessing), (
+        f"--denoise bilateral did not register in sidecar.preprocessing: {preprocessing}"
+    )
+
+
+def test_cli_sharpen_flag_adds_preprocessing_step(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--sharpen unsharp` adds the unsharp sharpen filter to the preprocessing list."""
+    import json
+
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--sharpen", "unsharp"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    sidecar = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
+    preprocessing = sidecar.get("preprocessing", [])
+    assert any("unsharp" in step for step in preprocessing), (
+        f"--sharpen unsharp did not register in sidecar.preprocessing: {preprocessing}"
+    )
+
+
+def test_cli_denoise_sharpen_combo_adds_both_steps(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--denoise bilateral --sharpen unsharp` records both filters in order."""
+    import json
+
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app,
+            [
+                str(logo),
+                "-o",
+                str(out),
+                "--mode",
+                "labels",
+                "--denoise",
+                "bilateral",
+                "--sharpen",
+                "unsharp",
+            ],
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    sidecar = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
+    preprocessing = sidecar.get("preprocessing", [])
+    bilat_idxs = [i for i, s in enumerate(preprocessing) if "bilateral" in s]
+    unsharp_idxs = [i for i, s in enumerate(preprocessing) if "unsharp" in s]
+    assert bilat_idxs and unsharp_idxs, (
+        f"expected both bilateral and unsharp in preprocessing, got: {preprocessing}"
+    )
+    assert bilat_idxs[0] < unsharp_idxs[0], (
+        f"bilateral should come before unsharp, got: {preprocessing}"
+    )
+
+
+def test_cli_quality_flag_stored_in_sidecar(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--quality 50` records the value in sidecar.quality (the help text was previously a lie)."""
+    import json
+
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--quality", "50"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    sidecar = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
+    assert sidecar.get("quality") == 50, (
+        f"--quality 50 was not stored in sidecar.quality: got {sidecar.get('quality')!r}"
+    )
+
+
+def test_cli_max_colors_produces_different_svg_output(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--max-colors 4` and `--max-colors 64` must produce DIFFERENT SVG bytes.
+
+    Before the F3 fix the flag was accepted but ignored, so both
+    invocations produced byte-identical output. This test is the
+    canary for the fix. Uses ``--mode detailed`` (a vtracer-based mode)
+    so the ``color_precision`` override actually affects the trace.
+    """
+    logo = fixtures_dir / "logo.png"
+    out_low = tmp_path / "low.svg"
+    out_high = tmp_path / "high.svg"
+    with _PatchStack(_success_patches()):
+        r1 = runner.invoke(
+            app, [str(logo), "-o", str(out_low), "--mode", "detailed", "--max-colors", "4"]
+        )
+        r2 = runner.invoke(
+            app, [str(logo), "-o", str(out_high), "--mode", "detailed", "--max-colors", "64"]
+        )
+    assert r1.exit_code == 0, f"max-colors 4 failed: {r1.output}"
+    assert r2.exit_code == 0, f"max-colors 64 failed: {r2.output}"
+    a = out_low.read_bytes()
+    b = out_high.read_bytes()
+    assert a != b, "--max-colors=4 and --max-colors=64 produced identical SVG output"
+
+
+def test_cli_max_colors_zero_is_no_op(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--max-colors 0` (default) means no cap; the sidecar JSON validates and exit code is 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--max-colors", "0"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"

@@ -1,0 +1,50 @@
+F841 Local variable `reasoning_parts` is assigned to but never used
+B008 Do not perform function call `typer.Argument` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+B008 Do not perform function call `typer.Option` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+B008 Do not perform function call `typer.Option` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+=== Ruff summary ===
+      2 B008 Do not perform function call `typer.Option` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+      1 F841 Local variable `reasoning_parts` is assigned to but never used
+      1 B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+      1 B008 Do not perform function call `typer.Argument` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+
+=== Errors by file ===
+      5 src/img2svg/patterns.py
+      5 src/img2svg/cli.py
+      1 src/img2svg/metadata.py
+      1 src/img2svg/classifier.py
+      1 src/img2svg/api.py
+
+=== Are these issues in T1-T26 files? ===
+Files in T1-T26 scope:
+  - src/img2svg/preprocessing.py
+  - src/img2svg/vectorizer.py
+  - src/img2svg/enums.py
+  - src/img2svg/models.py
+  - src/img2svg/cli.py
+  - src/img2svg/renderers/*
+  - src/img2svg/detector.py
+  - src/img2svg/pipeline.py
+  - src/img2svg/errors.py
+
+Per-file ruff check on T1-T26 files:
+  src/img2svg/preprocessing.py:  issues
+  src/img2svg/vectorizer.py:  issues
+  src/img2svg/enums.py:  issues
+  src/img2svg/models.py:  issues
+  src/img2svg/cli.py: 1 issues
+  src/img2svg/detector.py:  issues
+  src/img2svg/pipeline.py:  issues
+  src/img2svg/errors.py:  issues
+  src/img2svg/renderers/annotated.py:  issues
+  src/img2svg/renderers/base.py:  issues
+  src/img2svg/renderers/detailed.py:  issues
+  src/img2svg/renderers/edge.py:  issues
+  src/img2svg/renderers/__init__.py:  issues
+  src/img2svg/renderers/labels.py:  issues
+  src/img2svg/renderers/poster.py:  issues
+  src/img2svg/renderers/segmented.py:  issues
+  src/img2svg/renderers/trace.py:  issues
+  src/img2svg/renderers/visual.py:  issues
+  src/img2svg/renderers/watercolor.py:  issues

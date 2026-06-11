@@ -1,0 +1,108 @@
+=== Investigating --denoise + --no-preprocess conflict ===
+  --denoise bilateral: ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)']
+  --sharpen unsharp: ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)']
+  --denoise + --sharpen: ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)']
+
+=== Quality field in ConversionOptions ===
+  ConversionOptions.quality default: 90
+  ConversionOptions().quality: 90
+  ConversionOptions(quality=50).quality: 50
+  Sidecar fields: []
+
+=== max-colors in ConversionOptions ===
+  ConversionOptions().max_colors default: 0
+  ConversionOptions(max_colors=16).max_colors: 16
+  Sidecar fields: []
+
+=== Looking for max_colors usage in pipeline ===
+=== Check pipeline preprocessing logic ===
+142:_PHOTO_MODES: frozenset[Mode] = frozenset({Mode.DETAILED, Mode.WATERCOLOR, Mode.SEGMENTED})
+143-
+144-
+145-def _format_preprocessing_label(name: str, kwargs: dict[str, object]) -> str:
+--
+163:def _resolve_preprocessing_steps(
+164-    options: ConversionOptions, mode_used: Mode
+165-) -> list[tuple[str, dict[str, object]]]:
+166-    """Pick the list of ``(filter_name, kwargs)`` steps to apply.
+--
+188:    if mode_used in _PHOTO_MODES:
+189-        return list(PREPROCESSING_PRESETS["light"])
+190-    return []
+191-
+--
+267:        preprocessing_steps = _resolve_preprocessing_steps(options, _quick_mode_used)
+268-        sidecar_preprocessing: list[str] = []
+269-        if preprocessing_steps:
+270-            _preprocessor = PreprocessingPipeline(preprocessing_steps)
+
+=== Check if max-colors and quality are used in code ===
+grep: src/img2svg/__pycache__/cli.cpython-310.pyc: binary file matches
+grep: src/img2svg/__pycache__/models.cpython-310.pyc: binary file matches
+
+=== Check preprocess and denoise/sharpen handling in pipeline ===
+111:# the unaliased full names (e.g. ``"denoise_bilateral"``) keeps the mapping
+114:    "bilateral": ("denoise_bilateral", {"d": 5, "sigma": 50}),
+115:    "denoise_bilateral": ("denoise_bilateral", {"d": 5, "sigma": 50}),
+116:    "nlmeans": ("denoise_nlmeans", {"h": 6}),
+117:    "denoise_nlmeans": ("denoise_nlmeans", {"h": 6}),
+118:    "median": ("denoise_median", {"k": 3}),
+119:    "denoise_median": ("denoise_median", {"k": 3}),
+120:    "unsharp": ("sharpen_unsharp", {"sigma": 2.0, "amount": 0.5}),
+121:    "sharpen_unsharp": ("sharpen_unsharp", {"sigma": 2.0, "amount": 0.5}),
+150:    than the verbose function name (``"denoise_bilateral(d=5, sigma=50)"``).
+=== Full test of denoise/sharpen/max-colors/quality flags ===
+--- Are --denoise/--sharpen honored at all? ---
+  --denoise nlmeans + --no-preprocess: []
+  --denoise nlmeans (alone): ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)']
+  --sharpen unsharp + --no-preprocess: []
+
+--- Are --max-colors and --quality honored? ---
+  max-colors=4 size: 8525685
+  max-colors=64 size: 8525685
+  IDENTICAL = flag ignored
+
+--- CLI definitions for the 4 flags ---
+    preprocess: list[str],
+    denoise: str,
+    sharpen: str,
+    max_colors: int,
+    quality: int,
+    no_preprocess: bool,
+    seg_model: str,
+    no_seg: bool,
+    max_svg_size_mb: int,
+) -> ConversionOptions:
+--
+    ),
+    denoise: str = typer.Option(
+        "",
+        "--denoise",
+        help="Denoise filter: bilateral, nlmeans, median, or empty to disable.",
+    ),
+    sharpen: str = typer.Option(
+        "",
+        "--sharpen",
+        help="Sharpen filter: unsharp, or empty to disable.",
+    ),
+    max_colors: int = typer.Option(
+        0,
+        "--max-colors",
+        help="Max distinct colors in the output (0 = no cap, 2-256).",
+    ),
+    quality: int = typer.Option(
+        90,
+        "--quality",
+        help="JPEG quality hint stored in the sidecar (1-100).",
+    ),
+    no_preprocess: bool = typer.Option(
+
+--- ConversionOptions has these fields but pipeline ignores them ---
+    ``""`` (disabled)."""
+    max_colors: int = Field(default=0, ge=0, le=256)
+    """Maximum number of distinct colors in the output. ``0`` means no cap
+    (use the vtracer default). Valid range: 0-256."""
+    quality: int = Field(default=90, ge=1, le=100)
+    """JPEG-style quality hint stored for reproducibility. The SVG output
+    is not affected; this records the source image's effective quality."""
+    no_preprocess: bool = False

@@ -1397,3 +1397,112 @@ The comment block at `RENDERER_REGISTRY` (lines 77-81) had a stale `Mode.SEGMENT
   3. The other renderers are no-op if `set_*` is never called
 - This is similar to the optional context pattern used by `trace_with_capture` and friends
 - An alternative would be a `RendererContext` dataclass that gets passed to the renderer factory, but that's overkill for 1 optional dependency
+
+---
+
+## F3 + F2 Remediation (T25 — 2026-06-11)
+
+### Goal
+Flip F2 (Code Quality REJECT) and F3 (Real Manual QA REJECT) to APPROVE by:
+1. Wiring 4 previously non-functional CLI flags (`--denoise`, `--sharpen`, `--max-colors`, `--quality`)
+2. Running `ruff format` to fix 9 reformattable files
+3. Fixing 4 specified mypy errors in NEW files
+
+### F3 — 4 Flags Wired
+
+**`--denoise` and `--sharpen`**: Extended `_resolve_preprocessing_steps()` in `pipeline.py` to consult these options when `--preprocess` is empty. Order is `denoise` then `sharpen` (matches the original `light` preset order).
+
+**`--max-colors`**: Added a `_max_colors_to_color_precision()` helper that maps `max_colors` → vtracer's `color_precision` (1-8) via `log2`, clamped to `[1, 8]`. The mapping was chosen to match the spec: `max_colors=4 → color_precision=2`, `max_colors=64 → color_precision=6`. Applied to the renderer via a new `set_vtracer_params_override()` method on the `Renderer` base class.
+
+**`--quality`**: Added `quality: int | None = None` field to `Sidecar` model. Pipeline now passes `options.quality` when constructing the Sidecar. The help text was already correct ("stored in the sidecar") and is now true.
+
+### Architecture Decision: vtracer param override
+
+The cleanest way to apply `--max-colors` without refactoring all 9 renderers was:
+1. Add `params_override: dict | None` to `VtracerVectorizer.__init__` (overrides preset defaults)
+2. Add `_vtracer_params_override` to `Renderer` base + `set_vtracer_params_override()` setter
+3. Update `_render_with_vtracer` (the shared helper) to forward the override
+4. Update `_embed_background_paths` (segmented) and `trace_region` (detector) to accept the override explicitly
+
+The SegmentedRenderer passes `self._vtracer_params_override` to both the background vtracer call and each per-region vtracer call, so the override propagates uniformly. Other renderers (Visual, Trace, Detailed, Poster, Watercolor, Edge, Annotated) all use the shared `_render_with_vtracer` helper, so they get the override for free.
+
+### F2 — mypy fixes (4 listed errors)
+
+1. **`pipeline.py:65` (LoadedImage)**: The `LoadedImage` was imported from `img2svg.models` via `TYPE_CHECKING`, but it actually lives in `img2svg.loader`. Fixed by importing it from `img2svg.loader` directly (and removing it from the `TYPE_CHECKING` block). Also removed unused `GeometricAnalysis` import (was in the same import group).
+
+2. **`detector.py` (np.ndarray type args)**: Added `Any` to the typing import and explicit type args to all `np.ndarray` references: `np.ndarray[Any, np.dtype[np.uint8]]` for image/mask types, `np.ndarray[Any, np.dtype[np.float32]]` for polygon types. ~12 lines updated.
+
+3. **`renderers/segmented.py:18` (lxml stubs)**: Added `# type: ignore[import-untyped]` to the `from lxml import etree` line. The error code is `import-untyped`, not `import-not-found` (my first attempt was wrong).
+
+4. **`renderers/segmented.py:71` (assignment type)**: The `cv2.subtract()` result was being assigned to a `np.uint8` variable but mypy inferred a broader type. Fixed with `.astype(np.uint8)` on the result. Also added explicit `np.ndarray[Any, np.dtype[np.uint8]]` type annotation to the function signature.
+
+### Unintended mypy side-effects (also fixed)
+
+My type changes to `detector.py` propagated through type inference and introduced 3 new errors in `pipeline.py:368` (the `for x, y in poly` unpacking). This is a known mypy/numpy interaction: when `polygons` is correctly typed as `np.ndarray[Any, np.dtype[np.float32]]`, mypy sees each element as `np.float32` (not iterable) instead of an untyped numpy scalar. Fixed with `# type: ignore[misc, has-type]` on that specific line.
+
+I also introduced a new error in `detector.py:546` (`trace_region` calling `VtracerVectorizer(preset=preset, ...)` where `preset: str` doesn't match `Literal[...]`). Fixed with `# type: ignore[arg-type]` on that call.
+
+### Tests
+
+Added 5 new tests to `tests/test_cli.py`:
+- `test_cli_denoise_flag_adds_preprocessing_step`
+- `test_cli_sharpen_flag_adds_preprocessing_step`
+- `test_cli_denoise_sharpen_combo_adds_both_steps`
+- `test_cli_quality_flag_stored_in_sidecar`
+- `test_cli_max_colors_produces_different_svg_output`
+- `test_cli_max_colors_zero_is_no_op`
+
+Also updated 3 existing test files to handle the new `params_override` parameter:
+- `tests/test_renderers/test_visual.py:116`
+- `tests/test_renderers/test_trace.py:112`
+- `tests/test_renderers/test_annotated.py:192`
+- `tests/test_segmentation.py:_install_fake_vtracer` (fake factory signature)
+
+### Manual QA (verifying the spec criteria)
+
+```
+$ uv run img2svg convert "tests/testimg/Designer (1).jpeg" -o /tmp/qa-denoise.svg --mode detailed --denoise bilateral
+$ uv run img2svg convert "tests/testimg/Designer (1).jpeg" -o /tmp/qa-no-denoise.svg --mode detailed
+$ wc -c /tmp/qa-denoise.svg /tmp/qa-no-denoise.svg
+ 7669174 /tmp/qa-denoise.svg
+ 8525685 /tmp/qa-no-denoise.svg
+$ diff -q /tmp/qa-denoise.svg /tmp/qa-no-denoise.svg
+Files /tmp/qa-denoise.svg and /tmp/qa-no-denoise.svg differ
+
+$ uv run img2svg convert "tests/testimg/Designer (1).jpeg" -o /tmp/qa-quality.svg --mode detailed --quality 50
+$ cat /tmp/qa-quality.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('quality:', d.get('quality', 'MISSING'))"
+quality: 50
+
+$ uv run img2svg convert "tests/testimg/Designer (1).jpeg" -o /tmp/qa-mc-4.svg --mode detailed --max-colors 4
+$ uv run img2svg convert "tests/testimg/Designer (1).jpeg" -o /tmp/qa-mc-64.svg --mode detailed --max-colors 64
+$ wc -c /tmp/qa-mc-4.svg /tmp/qa-mc-64.svg
+   1319 /tmp/qa-mc-4.svg      ← 4 colors = 1.3KB
+7985647 /tmp/qa-mc-64.svg      ← 64 colors = 8MB
+$ diff -q /tmp/qa-mc-4.svg /tmp/qa-mc-64.svg
+Files /tmp/qa-mc-4.svg and /tmp/qa-mc-64.svg differ
+```
+
+### Final Verification
+
+| Check | Baseline | After | Notes |
+|-------|----------|-------|-------|
+| `pytest -m "not slow"` | 609 pass, 1 fail (i18n) | 615 pass, 1 fail (i18n) | +6 new tests (1 in test_cli.py + 5 cli flag tests) |
+| `ruff check src tests` | 32 errors | 32 errors | 0 new issues |
+| `ruff format --check` | 9 files need reformat | 0 files | All formatted |
+| `mypy src` | 70 errors | 52 errors | Fixed 18 (4 listed + 14 np.ndarray + side-effects) |
+| `--denoise` flag | Broken | Working | Sidecar shows `bilateral(d=5, sigma=50)` |
+| `--sharpen` flag | Broken | Working | Sidecar shows `unsharp(sigma=2.0, amount=0.5)` |
+| `--max-colors` flag | Broken | Working | max-colors=4 vs =64 produces 1.3KB vs 8MB |
+| `--quality` flag | Broken (help text lied) | Working | Sidecar shows `quality: 50` |
+
+### Key learnings
+
+1. **The "light" preset vs `--denoise` interaction is subtle**: When the mode is a photo mode (DETAILED/WATERCOLOR/SEGMENTED), the pipeline normally applies the `light` preset (bilateral + unsharp). When the user sets `--denoise bilateral`, my new code overrides the `light` preset with just the bilateral filter. This is correct semantically (the user asked for a specific denoise, not the default chain) but worth noting in user-facing docs.
+
+2. **The `max_colors=0` semantics**: `0` means "no cap" (use the preset's default `color_precision`). My helper returns `None` for this case, which the pipeline checks before calling `set_vtracer_params_override`. This avoids unnecessary calls to the setter.
+
+3. **Mypy/numpy interaction with `for x, y in arr`**: When `arr: np.ndarray[Any, np.dtype[np.float32]]`, mypy infers each element as `np.float32` which isn't iterable. The untyped version (`np.ndarray`) doesn't have this problem because mypy falls back to `Any`. This is a known gotcha; the `# type: ignore[misc, has-type]` is the standard fix.
+
+4. **Test fakes must match real signatures**: The `_install_fake_vtracer` factory in `test_segmentation.py` was a `def _factory(preset: str = "default")` that didn't accept `params_override`. When I added the new parameter to the real `VtracerVectorizer`, all 5 tests in that file failed until I updated the fake factory's signature. This is a common pattern with monkeypatched fakes — they need to be kept in sync with the real signature.
+
+5. **Mode-specific test fixtures matter**: The denoise/sharpen tests initially used `--mode labels` (which doesn't use vtracer). When I switched the max-colors test to `--mode detailed` (which uses vtracer), the test caught a real wiring bug — the SVGs were byte-identical because labels mode doesn't call vtracer at all. Mode choice matters for these tests.

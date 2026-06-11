@@ -1,0 +1,13 @@
+=== CROSS-TASK INTEGRATION TEST ===
+Photo + preprocessing (medium preset) + segmentation
+Using Python API to combine all T1-T20 features:
+  options: ConversionOptions(mode=<Mode.SEGMENTED: 'segmented'>, model='yolo11x.pt', device='auto', backend=BackendSpec(requested='auto', index=None), conf=0.25, iou=0.7, gpu_strategy=<DeviceStrategy.POWER: 'power'>, no_clobber=False, force_overwrite=False, preprocess=['bilateral', 'unsharp', 'posterize'], denoise='', sharpen='', max_colors=0, quality=90, no_preprocess=False, seg_model='yolo11s-seg', no_seg=False, max_svg_size_mb=50)
+
+Converted /tmp/qa-integration.svg
+  ids: ['background', 'obj_person_0']
+  sidecar mode_used: segmented
+  sidecar preprocessing: ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)', 'posterize(bits=4)']
+  sidecar model_variant: yolo11s-seg
+  sidecar regions: 1
+  timings keys: ['analyze', 'classify', 'detect', 'load', 'preprocess', 'render', 'segment', 'select_mode', 'total', 'vectorize', 'write']
+  PASS: full integration working

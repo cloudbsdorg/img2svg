@@ -1,0 +1,30 @@
+=== auto ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=30, g=1
+=== labels ===
+  ids: ['background', 'det_scissors_0', 'det_scissors_1']
+  rect=3, text=2, path=0, g=3
+=== visual ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=47, g=1
+=== annotated ===
+  ids: ['vtracer-output', 'det_scissors_0', 'det_scissors_1']
+  rect=2, text=2, path=47, g=3
+=== trace ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=92, g=1
+=== poster ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=47, g=1
+=== detailed ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=30, g=1
+=== edge ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=1, g=1
+=== watercolor ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=9, g=1
+=== segmented ===
+  ids: ['vtracer-output']
+  rect=0, text=0, path=42, g=1

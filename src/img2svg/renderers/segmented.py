@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import cv2
 import numpy as np
-from lxml import etree
+from lxml import etree  # type: ignore[import-untyped]
 from PIL import Image
 
 from img2svg.detector import SegmentationResult, trace_region
@@ -56,8 +56,8 @@ def _has_any_region(result: SegmentationResult | None) -> bool:
 
 
 def _build_background_mask(
-    image_shape: tuple[int, ...], masks: list[np.ndarray]
-) -> np.ndarray:
+    image_shape: tuple[int, ...], masks: list[np.ndarray[Any, np.dtype[np.uint8]]]
+) -> np.ndarray[Any, np.dtype[np.uint8]]:
     """Build a uint8 mask of background pixels (255 = keep, 0 = fill).
 
     Starts as all-255 and subtracts each region mask via ``cv2.subtract``
@@ -66,13 +66,19 @@ def _build_background_mask(
     unsigned-int8 saturation behavior -- we never go negative even if a
     mask somehow exceeded 255.
     """
-    bg_mask = np.ones(image_shape[:2], dtype=np.uint8) * _BG_FILL
+    bg_mask: np.ndarray[Any, np.dtype[np.uint8]] = (
+        np.ones(image_shape[:2], dtype=np.uint8) * _BG_FILL
+    )
     for mask in masks:
-        bg_mask = cv2.subtract(bg_mask, mask)
+        bg_mask = cv2.subtract(bg_mask, mask).astype(np.uint8)
     return bg_mask
 
 
-def _embed_background_paths(bg_image: np.ndarray, svg: SVGDocument) -> None:
+def _embed_background_paths(
+    bg_image: np.ndarray[Any, np.dtype[np.uint8]],
+    svg: SVGDocument,
+    vtracer_params_override: dict[str, object] | None,
+) -> None:
     """Run vtracer on bg_image and embed the resulting paths as one group.
 
     Writes bg_image to a temp PNG (vtracer needs a filesystem path), runs
@@ -81,21 +87,23 @@ def _embed_background_paths(bg_image: np.ndarray, svg: SVGDocument) -> None:
     ``<g id="background" data-role="background">`` group. Mirrors
     :func:`img2svg.renderers.visual._embed_vtracer_paths` but operates on
     an explicit image (the white-filled background) rather than the
-    renderer's source image.
+    renderer's source image. ``vtracer_params_override`` is forwarded to
+    :class:`VtracerVectorizer` so the pipeline can apply
+    ``--max-colors`` here as well as to the per-region traces.
     """
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
         input_png = td_path / "bg.png"
         output_svg = td_path / "bg.svg"
         Image.fromarray(bg_image).save(str(input_png))
-        VtracerVectorizer(preset="default").vectorize(input_png, output_svg)
+        VtracerVectorizer(preset="default", params_override=vtracer_params_override).vectorize(
+            input_png, output_svg
+        )
         tree = etree.parse(str(output_svg))
         root = tree.getroot()
         vtracer_paths = list(root.findall(f"{{{SVG_NS}}}path"))
 
-    group = svg.add_group(
-        id=_BG_GROUP_ID, **{_BG_DATA_ROLE_ATTR: _BG_DATA_ROLE_VALUE}
-    )
+    group = svg.add_group(id=_BG_GROUP_ID, **{_BG_DATA_ROLE_ATTR: _BG_DATA_ROLE_VALUE})
     for path_el in vtracer_paths:
         group.element.append(etree.fromstring(etree.tostring(path_el)))
 
@@ -181,7 +189,7 @@ class SegmentedRenderer(Renderer):
         bg_image = image.copy()
         bg_image[bg_mask == 0] = _BG_FILL
 
-        _embed_background_paths(bg_image, self.svg)
+        _embed_background_paths(bg_image, self.svg, self._vtracer_params_override)
 
         order = sorted(
             range(len(result.boxes)),
@@ -191,7 +199,12 @@ class SegmentedRenderer(Renderer):
         for idx, i in enumerate(order):
             det = result.boxes[i]
             mask = result.masks[i]
-            paths, offset = trace_region(image, mask, preset="photo_hifi")
+            paths, offset = trace_region(
+                image,
+                mask,
+                preset="photo_hifi",
+                vtracer_params_override=self._vtracer_params_override,
+            )
             if not paths:
                 _log.debug(
                     "skipping empty region: class=%s idx=%d (0 paths)",

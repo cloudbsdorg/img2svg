@@ -1,0 +1,18 @@
+=== SEGMENTED on multiple photos (verify multi-layer) ===
+    Designer (2): ids=['background', 'obj_cat_0'], has_bg=True, obj_count=1, mode=segmented, regions=1
+    Designer (5): ids=['vtracer-output'], has_bg=False, obj_count=0, mode=segmented, regions=0
+    Designer (10): ids=['vtracer-output'], has_bg=False, obj_count=0, mode=segmented, regions=0
+    Designer (15): ids=['background', 'obj_scissors_0', 'obj_scissors_1'], has_bg=True, obj_count=2, mode=segmented, regions=2
+    Designer (20): ids=['background', 'obj_spoon_0', 'obj_bottle_1', 'obj_cake_2', 'obj_cat_3'], has_bg=True, obj_count=4, mode=segmented, regions=4
+
+=== RUFF STATUS ===
+131 |     x2 = max(0, min(w, int(round(bbox.x2))))
+132 |     y2 = max(0, min(h, int(round(bbox.y2))))
+    |                        ^^^^^^^^^^^^^^^^^^^
+133 |     if x2 <= x1 or y2 <= y1:
+134 |         return GeometricAnalysis()
+    |
+help: Remove unnecessary `int` call
+
+Found 13 errors.
+No fixes available (9 hidden fixes can be enabled with the `--unsafe-fixes` option).

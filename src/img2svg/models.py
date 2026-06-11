@@ -169,8 +169,10 @@ class ConversionOptions(BaseModel):
     """Maximum number of distinct colors in the output. ``0`` means no cap
     (use the vtracer default). Valid range: 0-256."""
     quality: int = Field(default=90, ge=1, le=100)
-    """JPEG-style quality hint stored for reproducibility. The SVG output
-    is not affected; this records the source image's effective quality."""
+    """Source-image quality hint (1-100) recorded in the sidecar for
+    reproducibility. The SVG output is independent of this value (vtracer
+    works on the decoded pixel array, not the source bitstream). Mirrors
+    the ``--quality`` CLI flag."""
     no_preprocess: bool = False
     """When True, force-disable all preprocessing regardless of any
     ``preprocess`` entries. Wins over positive ``--preprocess`` choices."""
@@ -246,6 +248,11 @@ class Sidecar(BaseModel):
     preprocessing: list[str] = Field(default_factory=list)
     regions: list[RegionInfo] = Field(default_factory=list)
     model_variant: str = ""
+    quality: int | None = None
+    """Source-image quality hint captured from the ``--quality`` CLI flag
+    (1-100). Records the user's stated JPEG quality for reproducibility —
+    the SVG output is independent of this value (vtracer works on the
+    decoded pixel array, not the source bitstream)."""
 
 
 class ConversionResult(BaseModel):

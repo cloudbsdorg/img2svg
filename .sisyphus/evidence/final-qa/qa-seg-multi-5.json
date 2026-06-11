@@ -1,0 +1,67 @@
+{
+  "version": "0.1.0",
+  "input_path": "tests/testimg/Designer (5).jpeg",
+  "input_hash": "f1aff5613290a1398ac66af2d89053e2acfe2b87abcf5ee05ff68ebbbfafe635",
+  "output_path": "/tmp/qa-seg-multi-5.svg",
+  "output_size": 4067306,
+  "mode_used": "segmented",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "cuda:0",
+  "backend_requested": "auto",
+  "backend_resolved": "cuda:0",
+  "image_type": "photo",
+  "detections": [],
+  "geometric": {
+    "dominant_colors": [
+      [
+        37,
+        18,
+        49
+      ],
+      [
+        63,
+        44,
+        84
+      ],
+      [
+        84,
+        82,
+        129
+      ],
+      [
+        118,
+        127,
+        166
+      ],
+      [
+        178,
+        196,
+        216
+      ]
+    ],
+    "edge_density": 0.04765129089355469,
+    "contour_count": 58,
+    "has_alpha": false
+  },
+  "timings": {
+    "load": 0.005968190000203322,
+    "preprocess": 0.007414380999762216,
+    "analyze": 0.183188192999296,
+    "classify": 0.000650574998871889,
+    "select_mode": 2.845001290552318e-6,
+    "detect": 1.5127764600001683,
+    "segment": 0.6245450499991421,
+    "render": 1.201715092998711,
+    "vectorize": 1.19971570800044,
+    "write": 0.0076502730007632636,
+    "total": 3.5440149349997228
+  },
+  "timestamp": "2026-06-11T10:51:10.399260+00:00",
+  "preprocessing": [
+    "bilateral(d=5, sigma=50)",
+    "unsharp(sigma=2.0, amount=0.5)"
+  ],
+  "regions": [],
+  "model_variant": "yolo11s-seg"
+}

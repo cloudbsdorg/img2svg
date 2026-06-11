@@ -13,12 +13,12 @@ from img2svg.vectorizer import Preset
 # those are explicit-only modes. SEGMENTED is also explicit-only (it has no
 # sensible default and is a power-user mode).
 IMAGE_TYPE_TO_MODE: dict[ImageType, Mode] = {
-    ImageType.LOGO:       Mode.VISUAL,
-    ImageType.PHOTO:      Mode.DETAILED,  # Aggressive: pre-process + high-fidelity trace
-    ImageType.DIAGRAM:    Mode.VISUAL,
+    ImageType.LOGO: Mode.VISUAL,
+    ImageType.PHOTO: Mode.DETAILED,  # Aggressive: pre-process + high-fidelity trace
+    ImageType.DIAGRAM: Mode.VISUAL,
     ImageType.SCREENSHOT: Mode.VISUAL,
-    ImageType.LINE_ART:   Mode.VISUAL,
-    ImageType.UNKNOWN:    Mode.VISUAL,
+    ImageType.LINE_ART: Mode.VISUAL,
+    ImageType.UNKNOWN: Mode.VISUAL,
 }
 
 # Which vtracer preset to use for each Mode.

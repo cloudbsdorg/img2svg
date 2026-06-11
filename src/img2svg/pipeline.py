@@ -19,6 +19,7 @@ resolve AUTO to a concrete mode, then looks up the renderer.
 
 from __future__ import annotations
 
+import math
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -42,6 +43,7 @@ from img2svg.models import (
     BoundingBox,
     ConversionOptions,
     ConversionResult,
+    Detection,
     RegionInfo,
     Sidecar,
 )
@@ -62,7 +64,6 @@ from img2svg.svg_builder import SVGDocument
 
 if TYPE_CHECKING:
     from img2svg.detector import SegmentationResult
-    from img2svg.models import Detection, GeometricAnalysis, LoadedImage  # noqa: F401
 
 _logger = get_logger("img2svg.pipeline")
 
@@ -165,12 +166,16 @@ def _resolve_preprocessing_steps(
 ) -> list[tuple[str, dict[str, object]]]:
     """Pick the list of ``(filter_name, kwargs)`` steps to apply.
 
-    Decision tree (from T17 spec):
+    Decision tree (from T17 spec, plus F3-remediation denoise/sharpen):
       1. ``options.no_preprocess`` → skip (overrides everything).
       2. ``options.preprocess`` non-empty → resolve each alias to its
          full function name and default kwargs.
-      3. ``mode_used`` in the photo-mode set → use the ``light`` preset.
-      4. Otherwise → skip (logo / diagram / etc. don't need it).
+      3. ``options.denoise`` / ``options.sharpen`` are short-form
+         aliases consulted when ``options.preprocess`` is empty. They
+         are appended in the order ``denoise`` then ``sharpen`` so the
+         pre-existing ``light`` preset's order is preserved.
+      4. ``mode_used`` in the photo-mode set → use the ``light`` preset.
+      5. Otherwise → skip (logo / diagram / etc. don't need it).
     """
     if options.no_preprocess:
         return []
@@ -185,9 +190,39 @@ def _resolve_preprocessing_steps(
             full_name, default_kwargs = _PREPROCESS_ALIASES[alias]
             steps.append((full_name, dict(default_kwargs)))
         return steps
+    short_form_steps: list[tuple[str, dict[str, object]]] = []
+    if options.denoise:
+        if options.denoise not in _PREPROCESS_ALIASES:
+            raise ValueError(
+                f"Unknown denoise filter '{options.denoise}'. "
+                f"Available: bilateral, nlmeans, median."
+            )
+        full_name, default_kwargs = _PREPROCESS_ALIASES[options.denoise]
+        short_form_steps.append((full_name, dict(default_kwargs)))
+    if options.sharpen:
+        if options.sharpen not in _PREPROCESS_ALIASES:
+            raise ValueError(f"Unknown sharpen filter '{options.sharpen}'. Available: unsharp.")
+        full_name, default_kwargs = _PREPROCESS_ALIASES[options.sharpen]
+        short_form_steps.append((full_name, dict(default_kwargs)))
+    if short_form_steps:
+        return short_form_steps
     if mode_used in _PHOTO_MODES:
         return list(PREPROCESSING_PRESETS["light"])
     return []
+
+
+# Mapping from ``--max-colors`` (1-256) to vtracer's ``color_precision``
+# (1-8, number of bits per color channel). ``color_precision`` bits
+# per channel means ``2 ** (3 * color_precision)`` distinct colors max,
+# which grows too fast to be a useful proxy. We use the spec's mapping:
+# ``color_precision = log2(max_colors)`` clamped to [1, 8], so
+# ``max_colors=4 → color_precision=2`` and ``max_colors=64 →
+# color_precision=6``. ``max_colors=0`` (or out-of-range) disables the
+# cap and yields ``None`` so the preset's default applies.
+def _max_colors_to_color_precision(max_colors: int) -> int | None:
+    if max_colors <= 0:
+        return None
+    return max(1, min(8, int(math.log2(max_colors))))
 
 
 class Pipeline:
@@ -271,8 +306,7 @@ class Pipeline:
             _preprocessed_array = _preprocessor.apply(loaded.np_array)
             loaded.pil_image = _PILImage.fromarray(_preprocessed_array)
             sidecar_preprocessing = [
-                _format_preprocessing_label(name, kwargs)
-                for name, kwargs in preprocessing_steps
+                _format_preprocessing_label(name, kwargs) for name, kwargs in preprocessing_steps
             ]
         timings["preprocess"] = time.perf_counter() - t0
 
@@ -309,9 +343,7 @@ class Pipeline:
         region_infos: list[RegionInfo] = []
         model_variant = ""
         if mode_used == Mode.SEGMENTED and not options.no_seg:
-            segmentor = get_segmentor(
-                model_name=options.seg_model, backend=options.backend
-            )
+            segmentor = get_segmentor(model_name=options.seg_model, backend=options.backend)
             segmentation_result = segmentor.predict(
                 loaded.np_array, conf=options.conf, iou=options.iou
             )
@@ -332,7 +364,7 @@ class Pipeline:
                             y2=float(mask_y2),
                         ),
                         area_pixels=compute_mask_area(mask),
-                        polygon=[(float(x), float(y)) for x, y in poly],
+                        polygon=[(float(x), float(y)) for x, y in poly],  # type: ignore[misc, has-type]
                         mask_path=None,
                     )
                 )
@@ -346,12 +378,8 @@ class Pipeline:
         t0 = time.perf_counter()
         # T18 fallback: SEGMENTED with no regions / --no-seg uses VisualRenderer
         # so the user still gets a real SVG instead of an empty multi-layer one.
-        if (
-            mode_used == Mode.SEGMENTED
-            and (
-                options.no_seg
-                or not (segmentation_result and segmentation_result.masks)
-            )
+        if mode_used == Mode.SEGMENTED and (
+            options.no_seg or not (segmentation_result and segmentation_result.masks)
         ):
             _logger.warning(
                 "SEGMENTED mode requested but no detections or --no-seg, "
@@ -361,6 +389,14 @@ class Pipeline:
         else:
             renderer_cls = RENDERER_REGISTRY[mode_used]
         renderer = renderer_cls(svg, loaded, detections, analysis_global)
+        # Wire --max-colors into vtracer via the renderer's params override.
+        # The override is consulted by every vtracer call in the renderer
+        # (whole-image trace, background trace, per-region trace for
+        # SEGMENTED mode). ``max_colors=0`` is a no-op and leaves the
+        # preset's default ``color_precision`` in place.
+        color_precision = _max_colors_to_color_precision(options.max_colors)
+        if color_precision is not None:
+            renderer.set_vtracer_params_override({"color_precision": color_precision})
         # Inject the YOLO segmentation result so SegmentedRenderer can emit
         # the per-region multi-layer SVG instead of falling back to a
         # single vtracer-output group. Other renderers ignore this call.
@@ -400,9 +436,7 @@ class Pipeline:
                 size_mb,
                 options.max_svg_size_mb,
             )
-            raise SVGSizeLimitError(
-                str(output_path), size_mb, options.max_svg_size_mb
-            )
+            raise SVGSizeLimitError(str(output_path), size_mb, options.max_svg_size_mb)
 
         # 10. Record total BEFORE building the sidecar so timings["total"]
         #     is part of what gets serialized.
@@ -430,6 +464,7 @@ class Pipeline:
             preprocessing=sidecar_preprocessing,
             regions=region_infos,
             model_variant=model_variant,
+            quality=options.quality,
         )
 
         # 12. Write the sidecar JSON next to the SVG.

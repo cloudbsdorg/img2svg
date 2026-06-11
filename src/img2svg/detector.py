@@ -22,7 +22,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -177,7 +177,7 @@ class YOLODetector:
 
     def detect(
         self,
-        image: np.ndarray,
+        image: np.ndarray[Any, np.dtype[np.uint8]],
         conf: float = 0.25,
         iou: float = 0.7,
         imgsz: int = 640,
@@ -251,13 +251,13 @@ class SegmentationResult:
     """One :class:`Detection` per instance, in the order YOLO returns
     them. Same shape the plain :class:`YOLODetector` produces."""
 
-    masks: list[np.ndarray]
+    masks: list[np.ndarray[Any, np.dtype[np.uint8]]]
     """One ``(H, W)`` ``uint8`` binary mask per instance. ``0`` is
     background, ``1`` is foreground. ``H`` and ``W`` match
     :attr:`orig_shape` because :meth:`YOLOSegmentor.predict` always
     sets ``retina_masks=True``."""
 
-    polygons: list[np.ndarray]
+    polygons: list[np.ndarray[Any, np.dtype[np.float32]]]
     """One ``(P, 2)`` ``float32`` pixel polygon per instance, sourced
     from :attr:`ultralytics.engine.results.Masks.xy`. Empty masks
     yield a ``(0, 2)`` array rather than ``None`` so callers can
@@ -350,7 +350,7 @@ class YOLOSegmentor:
 
     def predict(
         self,
-        image: np.ndarray,
+        image: np.ndarray[Any, np.dtype[np.uint8]],
         conf: float = 0.25,
         iou: float = 0.6,
         imgsz: int = 1024,
@@ -437,14 +437,16 @@ class YOLOSegmentor:
         # already binary (0/1) — ultralytics applies ``.gt_(0.0)`` /
         # ``.byte()`` internally when ``retina_masks=True``, so we do
         # NOT add another sigmoid + 0.5 here.
-        mask_arrays: list[np.ndarray] = [m.cpu().numpy() for m in result.masks.data]
+        mask_arrays: list[np.ndarray[Any, np.dtype[np.uint8]]] = [
+            m.cpu().numpy() for m in result.masks.data
+        ]
         # ``result.masks.xy`` is already a list of ``(P, 2)`` numpy
         # arrays in pixel coordinates (not normalized). Cast to
         # ``float32`` explicitly for a stable downstream dtype
         # (ultralytics may return ``float64`` on some versions). Empty
         # arrays are normalized to ``(0, 2)`` so callers can iterate
         # uniformly without a ``None`` check.
-        polygons: list[np.ndarray] = [
+        polygons: list[np.ndarray[Any, np.dtype[np.float32]]] = [
             np.asarray(p, dtype=np.float32) if p.size else np.zeros((0, 2), dtype=np.float32)
             for p in result.masks.xy
         ]
@@ -453,12 +455,14 @@ class YOLOSegmentor:
         )
 
 
-def extract_polygons(masks_data: list[np.ndarray]) -> list[np.ndarray]:
+def extract_polygons(
+    masks_data: list[np.ndarray[Any, np.dtype[np.uint8]]],
+) -> list[np.ndarray[Any, np.dtype[np.float32]]]:
     """Extract the largest external contour from each binary mask as (P, 2) float32.
 
     Empty masks yield (0, 2) zeros. RETR_EXTERNAL drops interior holes (YOLO convention).
     """
-    polygons: list[np.ndarray] = []
+    polygons: list[np.ndarray[Any, np.dtype[np.float32]]] = []
     for mask in masks_data:
         if mask.size == 0 or not (mask > 0).any():
             polygons.append(np.zeros((0, 2), dtype=np.float32))
@@ -472,12 +476,12 @@ def extract_polygons(masks_data: list[np.ndarray]) -> list[np.ndarray]:
     return polygons
 
 
-def compute_mask_area(mask: np.ndarray) -> int:
+def compute_mask_area(mask: np.ndarray[Any, np.dtype[np.uint8]]) -> int:
     """Return the number of nonzero pixels in a binary mask."""
     return int((mask > 0).sum())
 
 
-def get_tight_bbox(mask: np.ndarray) -> tuple[int, int, int, int]:
+def get_tight_bbox(mask: np.ndarray[Any, np.dtype[np.uint8]]) -> tuple[int, int, int, int]:
     """Return the (x1, y1, x2, y2) tight bounding box of nonzero mask pixels.
 
     Empty masks yield (0, 0, 0, 0).
@@ -489,7 +493,10 @@ def get_tight_bbox(mask: np.ndarray) -> tuple[int, int, int, int]:
 
 
 def trace_region(
-    image: np.ndarray, mask: np.ndarray, preset: str = "photo_hifi"
+    image: np.ndarray[Any, np.dtype[np.uint8]],
+    mask: np.ndarray[Any, np.dtype[np.uint8]],
+    preset: str = "photo_hifi",
+    vtracer_params_override: dict[str, object] | None = None,
 ) -> tuple[list[str], tuple[int, int]]:
     """Trace a single image region with vtracer.
 
@@ -509,6 +516,10 @@ def trace_region(
         H x W uint8 binary mask; non-zero pixels are "in" the region.
     preset : str
         One of the keys in ``img2svg.vectorizer.PRESETS``.
+    vtracer_params_override : dict[str, object] | None
+        Optional kwargs forwarded to :class:`VtracerVectorizer` to
+        override the preset's defaults (used by the pipeline to apply
+        ``--max-colors`` to per-region traces).
 
     Returns
     -------
@@ -532,7 +543,9 @@ def trace_region(
         input_png = td_path / "input.png"
         output_svg = td_path / "output.svg"
         Image.fromarray(rgba).save(str(input_png))
-        VtracerVectorizer(preset=preset).vectorize(input_png, output_svg)
+        VtracerVectorizer(preset=preset, params_override=vtracer_params_override).vectorize(  # type: ignore[arg-type]
+            input_png, output_svg
+        )
         tree = etree.parse(str(output_svg))
         root = tree.getroot()
         paths = [el.get("d", "") for el in root.findall(f"{{{SVG_NS}}}path")]

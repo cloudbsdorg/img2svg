@@ -1,0 +1,181 @@
+SIM108 Use ternary operator `out_dir = Path(output_dir) if output_dir is not None else _default_output_dir(inputs, paths)` instead of `if`-`else`-block
+   --> src/img2svg/api.py:269:5
+    |
+267 |       paths = _normalize_inputs(inputs, recursive=recursive)
+268 |
+269 | /     if output_dir is not None:
+270 | |         out_dir = Path(output_dir)
+271 | |     else:
+272 | |         out_dir = _default_output_dir(inputs, paths)
+    | |____________________________________________________^
+273 |       out_dir.mkdir(parents=True, exist_ok=True)
+    |
+help: Replace `if`-`else`-block with `out_dir = Path(output_dir) if output_dir is not None else _default_output_dir(inputs, paths)`
+
+F841 Local variable `reasoning_parts` is assigned to but never used
+  --> src/img2svg/classifier.py:42:5
+   |
+40 |     has_alpha = analysis.has_alpha
+41 |
+42 |     reasoning_parts: list[str] = []
+   |     ^^^^^^^^^^^^^^^
+43 |
+44 |     # Heuristic rules, ordered by specificity.
+   |
+help: Remove assignment to unused variable `reasoning_parts`
+
+B008 Do not perform function call `typer.Argument` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src/img2svg/cli.py:325:19
+    |
+323 |   )
+324 |   def _convert_cmd(
+325 |       input: Path = typer.Argument(
+    |  ___________________^
+326 | |         ...,
+327 | |         help="Input file, glob, or directory",
+328 | |     ),
+    | |_____^
+329 |       output: Path | None = typer.Option(
+330 |           None,
+    |
+
+B008 Do not perform function call `typer.Option` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src/img2svg/cli.py:329:27
+    |
+327 |           help="Input file, glob, or directory",
+328 |       ),
+329 |       output: Path | None = typer.Option(
+    |  ___________________________^
+330 | |         None,
+331 | |         "-o",
+332 | |         "--output",
+333 | |         help="Output file (or directory for batch)",
+334 | |     ),
+    | |_____^
+335 |       mode: str = typer.Option(
+336 |           "auto",
+    |
+
+B008 Do not perform function call `typer.Option` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src/img2svg/cli.py:363:29
+    |
+361 |           False, "--no-clobber", help="Don't overwrite existing output files"
+362 |       ),
+363 |       preprocess: list[str] = typer.Option(
+    |  _____________________________^
+364 | |         [],
+365 | |         "--preprocess",
+366 | |         help=(
+367 | |             "Preprocessing filter to apply before tracing. May be repeated. "
+368 | |             "Filters: bilateral, nlmeans, median, unsharp. "
+369 | |             "Overridden by --no-preprocess."
+370 | |         ),
+371 | |     ),
+    | |_____^
+372 |       denoise: str = typer.Option(
+373 |           "",
+    |
+
+SIM102 Use a single `if` statement instead of nested `if` statements
+   --> src/img2svg/cli.py:442:5
+    |
+440 |       # File-existence check (only for plain files; globs and existing
+441 |       # directories are passed through to convert_batch).
+442 | /     if not _is_batch_input(input):
+443 | |         if not input.exists():
+    | |______________________________^
+444 |               _console.print(f"[red]file not found:[/red] {input}")
+445 |               raise typer.Exit(2)
+    |
+help: Combine `if` statements using `and`
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/img2svg/cli.py:548:9
+    |
+546 |         valid = ", ".join(s.value for s in DeviceStrategy)
+547 |         _console.print(f"[red]invalid strategy {strategy!r}. Valid strategies: {valid}[/red]")
+548 |         raise typer.Exit(2)
+    |         ^^^^^^^^^^^^^^^^^^^
+549 |
+550 |     gpus = list_gpus()
+    |
+
+SIM105 Use `contextlib.suppress(OSError)` instead of `try`-`except`-`pass`
+  --> src/img2svg/metadata.py:38:9
+   |
+36 |           os.replace(tmp_name, target)
+37 |       except Exception:
+38 | /         try:
+39 | |             os.unlink(tmp_name)
+40 | |         except OSError:
+41 | |             pass
+   | |________________^
+42 |           raise
+   |
+help: Replace `try`-`except`-`pass` with `with contextlib.suppress(OSError): ...`
+
+SIM108 Use ternary operator `rgb_image = image[..., :3] if image.shape[-1] == 4 else image` instead of `if`-`else`-block
+  --> src/img2svg/patterns.py:31:5
+   |
+29 |           return []
+30 |       h, w = image.shape[:2]
+31 | /     if image.shape[-1] == 4:
+32 | |         rgb_image = image[..., :3]
+33 | |     else:
+34 | |         rgb_image = image
+   | |_________________________^
+35 |       pixels = rgb_image.reshape((-1, 3))
+36 |       if pixels.shape[0] < k:
+   |
+help: Replace `if`-`else`-block with `rgb_image = image[..., :3] if image.shape[-1] == 4 else image`
+
+RUF046 Value being cast to `int` is already an integer
+   --> src/img2svg/patterns.py:129:24
+    |
+127 |     """Per-ROI geometric analysis. Extracts the region and runs the same analysis."""
+128 |     h, w = image.shape[:2]
+129 |     x1 = max(0, min(w, int(round(bbox.x1))))
+    |                        ^^^^^^^^^^^^^^^^^^^
+130 |     y1 = max(0, min(h, int(round(bbox.y1))))
+131 |     x2 = max(0, min(w, int(round(bbox.x2))))
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src/img2svg/patterns.py:130:24
+    |
+128 |     h, w = image.shape[:2]
+129 |     x1 = max(0, min(w, int(round(bbox.x1))))
+130 |     y1 = max(0, min(h, int(round(bbox.y1))))
+    |                        ^^^^^^^^^^^^^^^^^^^
+131 |     x2 = max(0, min(w, int(round(bbox.x2))))
+132 |     y2 = max(0, min(h, int(round(bbox.y2))))
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src/img2svg/patterns.py:131:24
+    |
+129 |     x1 = max(0, min(w, int(round(bbox.x1))))
+130 |     y1 = max(0, min(h, int(round(bbox.y1))))
+131 |     x2 = max(0, min(w, int(round(bbox.x2))))
+    |                        ^^^^^^^^^^^^^^^^^^^
+132 |     y2 = max(0, min(h, int(round(bbox.y2))))
+133 |     if x2 <= x1 or y2 <= y1:
+    |
+help: Remove unnecessary `int` call
+
+RUF046 Value being cast to `int` is already an integer
+   --> src/img2svg/patterns.py:132:24
+    |
+130 |     y1 = max(0, min(h, int(round(bbox.y1))))
+131 |     x2 = max(0, min(w, int(round(bbox.x2))))
+132 |     y2 = max(0, min(h, int(round(bbox.y2))))
+    |                        ^^^^^^^^^^^^^^^^^^^
+133 |     if x2 <= x1 or y2 <= y1:
+134 |         return GeometricAnalysis()
+    |
+help: Remove unnecessary `int` call
+
+Found 13 errors.
+No fixes available (9 hidden fixes can be enabled with the `--unsafe-fixes` option).

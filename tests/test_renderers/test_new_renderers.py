@@ -104,9 +104,7 @@ class TestNewRendererClasses:
             (SegmentedRenderer, "default"),
         ],
     )
-    def test_preset_name_classvar(
-        self, renderer_cls: type[Renderer], expected_preset: str
-    ) -> None:
+    def test_preset_name_classvar(self, renderer_cls: type[Renderer], expected_preset: str) -> None:
         """Each renderer declares the correct vtracer preset as a ClassVar."""
         assert renderer_cls.preset_name == expected_preset
 
@@ -212,9 +210,7 @@ class TestImageTypeToMode:
         """AUTO must never resolve to LABELS, ANNOTATED, or SEGMENTED."""
         forbidden = {Mode.LABELS, Mode.ANNOTATED, Mode.SEGMENTED}
         for image_type, mode in IMAGE_TYPE_TO_MODE.items():
-            assert mode not in forbidden, (
-                f"AUTO must not resolve {image_type!r} to {mode!r}"
-            )
+            assert mode not in forbidden, f"AUTO must not resolve {image_type!r} to {mode!r}"
 
     def test_photo_uses_detailed(self) -> None:
         assert IMAGE_TYPE_TO_MODE[ImageType.PHOTO] == Mode.DETAILED
@@ -254,7 +250,5 @@ class TestModeToPreset:
             (Mode.SEGMENTED, "default"),
         ],
     )
-    def test_specific_mode_to_preset(
-        self, mode: Mode, expected_preset: str
-    ) -> None:
+    def test_specific_mode_to_preset(self, mode: Mode, expected_preset: str) -> None:
         assert MODE_TO_PRESET[mode] == expected_preset

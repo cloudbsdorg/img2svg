@@ -1,0 +1,36 @@
+=== Re-test: All 7 preprocessing filters WITHOUT --no-preprocess override ===
+  bilateral: ['bilateral(d=5, sigma=50)']
+  nlmeans: ['nlmeans(h=6)']
+  median: ['median(k=3)']
+  unsharp: ['unsharp(sigma=2.0, amount=0.5)']
+  posterize: ['posterize(bits=4)']
+  canny: ['canny(low=80, high=180)']
+  clahe: ['clahe(clip=2.0, tile=(8, 8))']
+
+=== Re-test invalid flag values with proper exit codes ===
+Try 'img2svg convert --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value for '--max-svg-size': 0 is not in the range 1<=x<=1024.        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT=2
+
+Try 'img2svg convert --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value for '--max-svg-size': 9999 is not in the range 1<=x<=1024.     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT=2
+
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value for '--seg-model': invalid seg-model 'foo'. Valid models:      │
+│ yolo11l-seg, yolo11m-seg, yolo11n-seg, yolo11s-seg, yolo11x-seg              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT=2
+
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value for '--mode': invalid mode 'bogus'. Valid modes: auto, labels, │
+│ visual, annotated, trace, detailed, edge, poster, segmented, watercolor      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT=2
+
+file not found: /tmp/nope.png
+EXIT=2

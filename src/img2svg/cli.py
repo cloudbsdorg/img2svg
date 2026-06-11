@@ -182,9 +182,7 @@ def _seg_model_callback(value: str) -> str:
         return value
     if value not in _VALID_SEG_MODELS:
         valid = ", ".join(sorted(_VALID_SEG_MODELS))
-        raise typer.BadParameter(
-            f"invalid seg-model {value!r}. Valid models: {valid}"
-        ) from None
+        raise typer.BadParameter(f"invalid seg-model {value!r}. Valid models: {valid}") from None
     return value
 
 

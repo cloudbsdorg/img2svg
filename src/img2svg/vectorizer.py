@@ -16,9 +16,7 @@ import vtracer
 
 from img2svg.errors import VectorizationError
 
-Preset = Literal[
-    "default", "bw", "logo", "poster", "photo", "photo_hifi", "bw_edge", "watercolor"
-]
+Preset = Literal["default", "bw", "logo", "poster", "photo", "photo_hifi", "bw_edge", "watercolor"]
 
 # Each preset maps to vtracer's keyword args.
 PRESETS: dict[str, dict] = {
@@ -135,11 +133,28 @@ PRESETS: dict[str, dict] = {
 class VtracerVectorizer:
     """Wrapper around vtracer with named presets."""
 
-    def __init__(self, preset: Preset = "default") -> None:
+    def __init__(
+        self,
+        preset: Preset = "default",
+        params_override: dict[str, object] | None = None,
+    ) -> None:
+        """Build a vtracer wrapper around the named preset.
+
+        Args:
+            preset: Named preset key (one of :data:`PRESETS`).
+            params_override: Optional dict whose entries overwrite the
+                preset's defaults. Used by the pipeline to apply
+                ``--max-colors`` (which sets ``color_precision``) on top
+                of whatever preset the active renderer picked. Keys must
+                be valid vtracer kwargs; unknown keys are forwarded to
+                vtracer and may raise at vectorize time.
+        """
         if preset not in PRESETS:
             raise ValueError(f"unknown preset: {preset!r}; valid: {list(PRESETS)}")
         self.preset = preset
         self.params = dict(PRESETS[preset])
+        if params_override:
+            self.params.update(params_override)
 
     def vectorize(self, input_path: str | Path, output_path: str | Path) -> None:
         """Convert `input_path` to an SVG at `output_path` using this preset.

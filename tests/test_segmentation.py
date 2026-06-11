@@ -179,14 +179,15 @@ class _FakeVtracer:
         ET.ElementTree(svg).write(str(output_path), xml_declaration=True, encoding="utf-8")
 
 
-def _install_fake_vtracer(
-    monkeypatch: pytest.MonkeyPatch, num_paths: int = 2
-) -> _FakeVtracer:
+def _install_fake_vtracer(monkeypatch: pytest.MonkeyPatch, num_paths: int = 2) -> _FakeVtracer:
     """Swap detector.VtracerVectorizer for a fake. Returns the fake instance."""
     fake = _FakeVtracer(num_paths=num_paths)
 
-    def _factory(preset: str = "default") -> _FakeVtracer:
+    def _factory(
+        preset: str = "default", params_override: dict[str, Any] | None = None
+    ) -> _FakeVtracer:
         fake.preset = preset
+        fake.params_override = params_override
         return fake
 
     monkeypatch.setattr("img2svg.detector.VtracerVectorizer", _factory)

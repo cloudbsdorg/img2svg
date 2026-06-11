@@ -1,0 +1,16 @@
+=== AUTO mode on real photo (must NOT pick labels/annotated) ===
+Converted /tmp/qa-auto-photo.svg
+  mode_used: visual
+  image_type: screenshot
+  model: yolo11x.pt
+  preprocessing: []
+  PASS: auto did not pick labels or annotated
+---
+=== AUTO mode on a few more photos (verify no LABELS/ANNOTATED) ===
+  Designer (2): mode=detailed, type=photo
+  Designer (3): mode=detailed, type=photo
+  Designer (4): mode=detailed, type=photo
+  Designer (5): mode=detailed, type=photo
+  Designer (10): mode=detailed, type=photo
+  Designer (25): mode=visual, type=screenshot
+  Designer (50): mode=visual, type=screenshot

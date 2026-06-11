@@ -1,0 +1,76 @@
+{
+  "version": "0.1.0",
+  "input_path": "tests/testimg/Designer (1).jpeg",
+  "input_hash": "ed6056abfd64e564037965425883f190c0b4bdb0b4b3a387b17cad5ea99dc6c4",
+  "output_path": "/tmp/qa-flag-denoise.svg",
+  "output_size": 9358016,
+  "mode_used": "detailed",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "cuda:0",
+  "backend_requested": "auto",
+  "backend_resolved": "cuda:0",
+  "image_type": "screenshot",
+  "detections": [
+    {
+      "class_id": 0,
+      "class_name": "person",
+      "confidence": 0.875642716884613,
+      "bbox": {
+        "x1": 204.12832641601562,
+        "y1": 258.3731384277344,
+        "x2": 885.0484619140625,
+        "y2": 1023.11572265625
+      }
+    }
+  ],
+  "geometric": {
+    "dominant_colors": [
+      [
+        90,
+        58,
+        159
+      ],
+      [
+        43,
+        22,
+        98
+      ],
+      [
+        194,
+        93,
+        188
+      ],
+      [
+        89,
+        125,
+        210
+      ],
+      [
+        184,
+        196,
+        229
+      ]
+    ],
+    "edge_density": 0.12466049194335938,
+    "contour_count": 210,
+    "has_alpha": false
+  },
+  "timings": {
+    "load": 0.0065827180005726404,
+    "preprocess": 3.1159997888607904e-6,
+    "analyze": 0.2192286450008396,
+    "classify": 0.000524609999047243,
+    "select_mode": 2.1739997464464977e-6,
+    "detect": 1.5785541360000934,
+    "segment": 4.968998837284744e-6,
+    "render": 4.7924536780010385,
+    "vectorize": 0.0,
+    "write": 0.018492327999410918,
+    "total": 6.615954965998753
+  },
+  "timestamp": "2026-06-11T10:36:23.146983+00:00",
+  "preprocessing": [],
+  "regions": [],
+  "model_variant": ""
+}

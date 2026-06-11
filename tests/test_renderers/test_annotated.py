@@ -189,5 +189,5 @@ def test_vtracer_vectorizer_called_with_default_preset() -> None:
         MockVec.return_value.vectorize.side_effect = _fake_vectorize(_KNOWN_VTRACER_SVG)
         renderer.render()
 
-    MockVec.assert_called_once_with(preset="default")
+    MockVec.assert_called_once_with(preset="default", params_override=None)
     MockVec.return_value.vectorize.assert_called_once()

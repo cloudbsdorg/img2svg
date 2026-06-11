@@ -1,0 +1,7 @@
+=== INVALID INPUT test (nonexistent file) ===
+EXIT CODE: 2
+PASS: exit code non-zero
+
+=== INVALID INPUT test (corrupt file) ===
+EXIT CODE: 2
+

@@ -44,6 +44,18 @@ class Renderer(ABC):
         self.image = image
         self.detections = detections
         self.geometric = geometric
+        self._vtracer_params_override: dict[str, object] | None = None
+
+    def set_vtracer_params_override(self, params: dict[str, object] | None) -> None:
+        """Override vtracer kwargs applied by every vtracer call this renderer makes.
+
+        The pipeline sets this to apply ``--max-colors`` (which becomes
+        ``color_precision``) on top of whatever preset the active renderer
+        picked. Subclasses that call vtracer directly should consult
+        :attr:`_vtracer_params_override` and forward it to
+        :class:`img2svg.vectorizer.VtracerVectorizer`.
+        """
+        self._vtracer_params_override = dict(params) if params else None
 
     @abstractmethod
     def render(self) -> None:

@@ -134,9 +134,7 @@ class SVGSizeLimitError(Img2SvgError):
     to a non-zero exit code so the user is told why no SVG was produced.
     """
 
-    def __init__(
-        self, path: str, size_mb: float, limit_mb: int
-    ) -> None:
+    def __init__(self, path: str, size_mb: float, limit_mb: int) -> None:
         self.path = path
         self.size_mb = size_mb
         self.limit_mb = limit_mb

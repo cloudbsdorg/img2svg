@@ -85,7 +85,9 @@ def _render_with_vtracer(renderer: Renderer, preset: str) -> None:
         input_png = td_path / "input.png"
         output_svg = td_path / "output.svg"
         Image.fromarray(renderer.image.np_array).save(str(input_png))
-        VtracerVectorizer(preset=preset).vectorize(input_png, output_svg)
+        VtracerVectorizer(
+            preset=preset, params_override=renderer._vtracer_params_override
+        ).vectorize(input_png, output_svg)
         _embed_vtracer_paths(renderer.svg, output_svg)
     _log.debug("embedded vtracer %r output as %s", preset, _VTRACER_GROUP_ID)
 

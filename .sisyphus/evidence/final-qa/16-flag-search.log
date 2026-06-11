@@ -1,0 +1,5 @@
+=== EXHAUSTIVE SEARCH: where are --denoise, --sharpen, --max-colors, --quality read? ===
+
+=== Search for any 'denoise' or 'sharpen' string usage outside of preprocessing.py and cli/models ===
+
+=== CONFIRMED: these flags are NOT read anywhere in the pipeline ===

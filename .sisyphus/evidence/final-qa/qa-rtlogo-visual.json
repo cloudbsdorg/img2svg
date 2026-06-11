@@ -1,0 +1,87 @@
+{
+  "version": "0.1.0",
+  "input_path": "/home/mlapointe/Documents/rtlogo-1.png",
+  "input_hash": "4197f3dc1a37b3487c7caeeda7dee27e1352e60074212f37c29262e6665e56dc",
+  "output_path": "/tmp/qa-rtlogo-visual.svg",
+  "output_size": 19442,
+  "mode_used": "visual",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "cuda:0",
+  "backend_requested": "auto",
+  "backend_resolved": "cuda:0",
+  "image_type": "photo",
+  "detections": [
+    {
+      "class_id": 76,
+      "class_name": "scissors",
+      "confidence": 0.7076594829559326,
+      "bbox": {
+        "x1": 2.6198244094848633,
+        "y1": 1.7413616180419922,
+        "x2": 143.27589416503906,
+        "y2": 147.33633422851562
+      }
+    },
+    {
+      "class_id": 76,
+      "class_name": "scissors",
+      "confidence": 0.4507918953895569,
+      "bbox": {
+        "x1": 2.670307159423828,
+        "y1": 1.3682126998901367,
+        "x2": 91.15545654296875,
+        "y2": 147.26031494140625
+      }
+    }
+  ],
+  "geometric": {
+    "dominant_colors": [
+      [
+        248,
+        254,
+        255
+      ],
+      [
+        54,
+        197,
+        148
+      ],
+      [
+        39,
+        151,
+        204
+      ],
+      [
+        54,
+        174,
+        219
+      ],
+      [
+        36,
+        155,
+        134
+      ]
+    ],
+    "edge_density": 0.04,
+    "contour_count": 1,
+    "has_alpha": true
+  },
+  "timings": {
+    "load": 0.003444104999289266,
+    "preprocess": 3.827000909950584e-6,
+    "analyze": 0.06148793200009095,
+    "classify": 0.00007900799937488046,
+    "select_mode": 3.466999260126613e-6,
+    "detect": 1.5562594050006737,
+    "segment": 4.418001481099054e-6,
+    "render": 0.01028671699896222,
+    "vectorize": 0.0,
+    "write": 0.00016209299974434543,
+    "total": 1.631824586998846
+  },
+  "timestamp": "2026-06-11T10:31:45.045135+00:00",
+  "preprocessing": [],
+  "regions": [],
+  "model_variant": ""
+}

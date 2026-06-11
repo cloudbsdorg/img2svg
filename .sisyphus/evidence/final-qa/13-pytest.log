@@ -1,0 +1,31 @@
+=== RUN FAST PYTEST SUITE (skip slow) ===
+..................................                                       [100%]
+=================================== FAILURES ===================================
+__________________ test_ngettext_returns_singular_in_c_locale __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b0f7b24d4b0>
+
+    def test_ngettext_returns_singular_in_c_locale(monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LC_ALL", raising=False)
+        monkeypatch.delenv("LANG", raising=False)
+        i18n.init_locale("C")
+        assert i18n.ngettext("one file", "many files", 1) == "one file"
+>       assert i18n.ngettext("one file", "many files", 5) == "one file"  # NullTranslations
+E       AssertionError: assert 'many files' == 'one file'
+E         
+E         - one file
+E         + many files
+
+tests/test_i18n.py:25: AssertionError
+=============================== warnings summary ===============================
+tests/test_cli.py: 12 warnings
+  /home/mlapointe/PyCharmMiscProject/.venv/lib/python3.10/site-packages/pydantic/main.py:263: DeprecationWarning: ConversionOptions.device is deprecated; use ConversionOptions.backend=BackendSpec(requested=...) instead. The ``device`` field will be removed in 0.3.0.
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_i18n.py::test_ngettext_returns_singular_in_c_locale - AssertionError: assert 'many files' == 'one file'
+  
+  - one file
+  + many files
+1 failed, 609 passed, 8 deselected, 12 warnings in 3.72s

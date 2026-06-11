@@ -1,0 +1,52 @@
+=== MODE: auto ===
+Converted /tmp/qa-rtlogo-auto.svg
+  size: 19740 bytes
+zsh:10: command not found: python
+=== MODE: labels ===
+Converted /tmp/qa-rtlogo-labels.svg
+  size: 1324 bytes
+zsh:10: command not found: python
+=== MODE: visual ===
+Converted /tmp/qa-rtlogo-visual.svg
+  size: 19442 bytes
+zsh:10: command not found: python
+=== MODE: annotated ===
+Converted /tmp/qa-rtlogo-annotated.svg
+  size: 20261 bytes
+zsh:10: command not found: python
+=== MODE: trace ===
+Converted /tmp/qa-rtlogo-trace.svg
+  size: 27126 bytes
+zsh:10: command not found: python
+=== MODE: poster ===
+Converted /tmp/qa-rtlogo-poster.svg
+  size: 19442 bytes
+zsh:10: command not found: python
+=== MODE: detailed ===
+Converted /tmp/qa-rtlogo-detailed.svg
+  size: 19740 bytes
+zsh:10: command not found: python
+=== MODE: edge ===
+Converted /tmp/qa-rtlogo-edge.svg
+  size: 965 bytes
+zsh:10: command not found: python
+=== MODE: watercolor ===
+Converted /tmp/qa-rtlogo-watercolor.svg
+  size: 9841 bytes
+zsh:10: command not found: python
+=== MODE: segmented ===
+WARNING  SEGMENTED mode requested but no detections or --no-seg, falling back to
+         VisualRenderer                                                         
+Converted /tmp/qa-rtlogo-segmented.svg
+  size: 16453 bytes
+zsh:10: command not found: python
+mode=auto: OK {http://www.w3.org/2000/svg}svg
+mode=labels: OK {http://www.w3.org/2000/svg}svg
+mode=visual: OK {http://www.w3.org/2000/svg}svg
+mode=annotated: OK {http://www.w3.org/2000/svg}svg
+mode=trace: OK {http://www.w3.org/2000/svg}svg
+mode=poster: OK {http://www.w3.org/2000/svg}svg
+mode=detailed: OK {http://www.w3.org/2000/svg}svg
+mode=edge: OK {http://www.w3.org/2000/svg}svg
+mode=watercolor: OK {http://www.w3.org/2000/svg}svg
+mode=segmented: OK {http://www.w3.org/2000/svg}svg

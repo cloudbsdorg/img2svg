@@ -1,0 +1,287 @@
+=== Investigating CLI handling of SVGSizeLimitError ===
+    seg_model: str,
+    no_seg: bool,
+    max_svg_size_mb: int,
+) -> ConversionOptions:
+    """Build a ConversionOptions from validated CLI values."""
+    # Mode and gpu_strategy are already validated by their callbacks.
+    # ``--no-preprocess`` wins over any positive ``--preprocess`` choices.
+    effective_preprocess: list[str] = [] if no_preprocess else preprocess
+    return ConversionOptions(
+        mode=Mode(mode),
+        model=model,
+--
+        seg_model=seg_model,
+        no_seg=no_seg,
+        max_svg_size_mb=max_svg_size_mb,
+    )
+
+
+def _print_gpu_table(gpus: list, recommended: object | None) -> None:
+    """Print a Rich table of detected GPUs. T22 will replace this stub."""
+    if not gpus:
+        _console.print("[yellow]No GPUs detected.[/yellow]")
+        return
+--
+        help="Disable segmentation even when the mode would normally use it.",
+    ),
+    max_svg_size_mb: int = typer.Option(
+        50,
+        "--max-svg-size",
+        min=1,
+
+=== CLI catches and exits 0 (soft fail) ===
+    try:
+        Mode(value)
+    except ValueError:
+        valid = ", ".join(m.value for m in Mode)
+        raise typer.BadParameter(f"invalid mode {value!r}. Valid modes: {valid}") from None
+    return value
+
+
+def _gpu_strategy_callback(value: str) -> str:
+    """Validate --gpu-strategy at the option level. Raises BadParameter for bad values."""
+    if value is None:
+--
+    try:
+        DeviceStrategy(value)
+    except ValueError:
+        valid = ", ".join(s.value for s in DeviceStrategy)
+        raise typer.BadParameter(
+            f"invalid gpu-strategy {value!r}. Valid strategies: {valid}"
+        ) from None
+    return value
+
+
+_VALID_SEG_MODELS: frozenset[str] = frozenset(
+--
+
+        torch_version = torch.__version__
+    except ImportError:
+        torch_version = "no-torch"
+    if backend_type == BackendType.CPU:
+        device_part = "CPU only"
+    help="Convert images (single file, directory, or glob) to SVG.",
+)
+def _convert_cmd(
+    input: Path = typer.Argument(
+        ...,
+        help="Input file, glob, or directory",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "-o",
+        "--output",
+        help="Output file (or directory for batch)",
+    ),
+    mode: str = typer.Option(
+        "auto",
+        "--mode",
+        help=(
+            "Output mode: auto, labels, visual, annotated, trace, "
+            "poster, detailed, edge, watercolor, segmented"
+        ),
+        callback=_mode_callback,
+    ),
+    model: str = typer.Option("yolo11x.pt", "--model", help="YOLO model name"),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help=(
+            "Compute backend: auto (default), cpu, cuda, cuda:N, mps, or rocm. "
+            "AMD ROCm requires a ROCm PyTorch build (pip install img2svg\\[amd])."
+        ),
+    ),
+    gpu_strategy: str = typer.Option(
+        "power",
+59:# a literal path. Used to decide whether to call ``convert()`` (single
+142:        raise typer.Exit(0)
+154:    except ValueError:
+156:        raise typer.BadParameter(f"invalid mode {value!r}. Valid modes: {valid}") from None
+166:    except ValueError:
+168:        raise typer.BadParameter(
+185:        raise typer.BadParameter(
+303:    except ImportError:
+310:        except (IndexError, RuntimeError):
+429:    ``convert_batch()``; everything else goes to ``convert()``.
+445:            raise typer.Exit(2)
+448:    # raised BadParameter (exit 2) on bad values, so Mode(...) and
+449:    # DeviceStrategy(...) below will not raise ValueError.
+468:    except (ValueError, TypeError) as exc:
+470:        raise typer.Exit(2) from exc
+497:                raise typer.Exit(1)
+502:                raise typer.Exit(2)
+503:            result = api_convert(str(input), str(output), options=options)
+505:    except typer.Exit:
+507:        raise
+508:    except (FileNotFoundError, UnsupportedFormatError, CorruptImageError) as exc:
+510:        raise typer.Exit(2) from exc
+511:    except OutputPathCollisionError as exc:
+513:        raise typer.Exit(2) from exc
+514:    except DeviceUnavailableError as exc:
+516:        raise typer.Exit(2) from exc
+517:    except (ModelLoadError, ConfigError) as exc:
+519:        raise typer.Exit(3) from exc
+520:    except Img2SvgError as exc:
+523:        raise typer.Exit(1) from exc
+
+        help=(
+            "YOLO segmentation model variant. One of: yolo11n-seg, yolo11s-seg, "
+            "yolo11m-seg, yolo11l-seg, yolo11x-seg. Used by the SEGMENTED mode."
+        ),
+        callback=_seg_model_callback,
+    ),
+    no_seg: bool = typer.Option(
+        False,
+        "--no-seg",
+        help="Disable segmentation even when the mode would normally use it.",
+    ),
+    max_svg_size_mb: int = typer.Option(
+        50,
+        "--max-svg-size",
+        min=1,
+        max=1024,
+        help=(
+            "Hard upper bound on the rendered SVG's on-disk size in MB. "
+            "If the output exceeds this cap, the file is deleted and the "
+            "run fails. Range: 1-1024. Default: 50."
+        ),
+    ),
+    quiet: bool = typer.Option(False, "-q", "--quiet", help="Suppress non-essential output"),
+    verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug output"),
+) -> None:
+    """Convert a single image, a glob, or a directory of images to SVG.
+
+    The branch (single file vs. batch) is decided by inspecting the
+    input path: glob characters and existing directories go to
+    ``convert_batch()``; everything else goes to ``convert()``.
+    """
+    # Configure logging FIRST so any subsequent log calls use the
+    # user's chosen verbosity.
+    if quiet:
+        setup_logging("quiet")
+    elif verbose:
+        setup_logging("verbose")
+    else:
+        setup_logging("default")
+
+    # File-existence check (only for plain files; globs and existing
+    # directories are passed through to convert_batch).
+    if not _is_batch_input(input):
+        if not input.exists():
+            _console.print(f"[red]file not found:[/red] {input}")
+            raise typer.Exit(2)
+
+    # Build options. The mode / gpu_strategy callbacks have already
+    # raised BadParameter (exit 2) on bad values, so Mode(...) and
+    # DeviceStrategy(...) below will not raise ValueError.
+    try:
+        options = _build_options(
+            mode=mode,
+            model=model,
+            device=device,
+            gpu_strategy=gpu_strategy,
+            conf=conf,
+            no_clobber=no_clobber,
+            preprocess=preprocess,
+            denoise=denoise,
+            sharpen=sharpen,
+            max_colors=max_colors,
+            quality=quality,
+            no_preprocess=no_preprocess,
+            seg_model=seg_model,
+            no_seg=no_seg,
+            max_svg_size_mb=max_svg_size_mb,
+        )
+    except (ValueError, TypeError) as exc:
+        _console.print(f"[red]invalid options:[/red] {exc}")
+        raise typer.Exit(2) from exc
+
+    is_batch = _is_batch_input(input)
+
+    # Branch: single file (convert) vs. batch (convert_batch).
+    try:
+        if is_batch:
+            if output is None:
+                # Allow default output resolution inside convert_batch.
+                out_dir_arg: str | None = None
+            else:
+                out_dir_arg = str(output)
+            results = convert_batch(
+                str(input),
+                output_dir=out_dir_arg,
+                options=options,
+                show_progress=not quiet,
+            )
+            successes = sum(1 for r in results if not r.errors)
+            failures = len(results) - successes
+            if failures > 0:
+                _console.print(
+                    f"[yellow]Batch complete: {successes} succeeded, {failures} failed[/yellow]"
+                )
+                for r in results:
+                    if r.errors:
+                        _console.print(f"  [red]{r.svg_path.name}:[/red] {r.errors[0]}")
+                raise typer.Exit(1)
+            _console.print(f"[green]Batch complete: {successes} succeeded, 0 failed[/green]")
+        else:
+            if output is None:
+=== Re-test --max-svg-size 1 with explicit exit code ===
+EXIT CODE: 1
+ls: cannot access '/tmp/qa-size-cap.svg': No such file or directory
+
+=== Re-test --max-svg-size 2 (still under photo size) ===
+EXIT CODE: 1
+ls: cannot access '/tmp/qa-size-cap-2.svg': No such file or directory
+
+=== Check pipeline code for SVGSizeLimitError handling ===
+)
+from img2svg.enums import Mode
+from img2svg.errors import OutputPathCollisionError, SVGSizeLimitError
+from img2svg.loader import load_image
+from img2svg.logging import get_logger
+from img2svg.metadata import compute_file_hash, write_sidecar
+from img2svg.models import (
+    BackendSpec,
+    BoundingBox,
+    ConversionOptions,
+    ConversionResult,
+    RegionInfo,
+    Sidecar,
+--
+
+# Default cap on the rendered SVG's on-disk size (MB). Must match
+# ``ConversionOptions.max_svg_size_mb`` and the ``--max-svg-size`` CLI flag.
+MAX_SVG_SIZE_MB: int = 50
+
+# Map a resolved `Mode` to the corresponding renderer class. `Mode.AUTO` is
+# intentionally absent — the pipeline must resolve AUTO via `select_mode()`
+# before looking up a renderer. `Mode.SEGMENTED` entry exists but the
+# renderer is only used when ``segmentation_result`` is non-empty (else
+# pipeline.py falls back to VisualRenderer; see step 8 fallback gate below).
+RENDERER_REGISTRY: dict[Mode, type[Renderer]] = {
+    Mode.LABELS: LabelsRenderer,
+    Mode.VISUAL: VisualRenderer,
+--
+        size_bytes = output_path.stat().st_size
+        size_mb = size_bytes / (1024 * 1024)
+        if size_mb > options.max_svg_size_mb:
+            try:
+                output_path.unlink()
+            except OSError as unlink_exc:
+                _logger.warning(
+                    "failed to delete oversize SVG %s: %s",
+                    output_path,
+                    unlink_exc,
+                )
+            _logger.warning(
+                "SVG size %.1fMB exceeds limit %dMB, skipping write",
+                size_mb,
+                options.max_svg_size_mb,
+            )
+            raise SVGSizeLimitError(
+                str(output_path), size_mb, options.max_svg_size_mb
+            )
+
+        # 10. Record total BEFORE building the sidecar so timings["total"]
+        #     is part of what gets serialized.

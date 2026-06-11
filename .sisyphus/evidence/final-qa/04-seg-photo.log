@@ -1,0 +1,23 @@
+Running SEGMENTED on real photo...
+Converted /tmp/qa-seg-photo.svg
+---
+File size:
+9503319
+---
+XML validation:
+valid: {http://www.w3.org/2000/svg}svg
+---
+SVG structure check (background + obj_):
+  ids: ['background', 'obj_person_0']
+  has background: True
+  obj_ count: 1
+  obj_ examples: ['obj_person_0']
+---
+Sidecar regions:
+  mode_used: segmented
+  image_type: screenshot
+  model: yolo11x.pt
+  model_variant: yolo11s-seg
+  regions count: 1
+  preprocessing: ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)']
+  region 0: class=person, conf=0.645, area=238358, poly_pts=None

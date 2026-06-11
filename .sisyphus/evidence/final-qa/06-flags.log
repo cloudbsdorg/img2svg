@@ -1,0 +1,25 @@
+=== Flag 7: --seg-model yolo11n-seg ===
+[KDownloading https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-seg.pt to 'yolo11n-seg.pt': 94% ━━━━━━━━━━━─ 5.6/5.9MB 55.4MB/s 0.1s<0.0s[KDownloading https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-seg.pt to 'yolo11n-seg.pt': 100% ━━━━━━━━━━━━ 5.9MB 55.8MB/s 0.1s
+Converted /tmp/qa-flag-segmodel.svg
+  sidecar model_variant: yolo11n-seg
+  PASS
+
+=== Flag 8: --no-seg with --mode segmented (must fall back) ===
+WARNING  SEGMENTED mode requested but no detections or --no-seg, falling back to
+         VisualRenderer                                                         
+Converted /tmp/qa-flag-noseg.svg
+  ids: ['vtracer-output']
+  has vtracer-output (fallback): True
+  has obj_ (segmented): False
+  sidecar mode_used: segmented
+  sidecar regions: 0
+  PASS: no-seg fell back to vtracer-output
+
+=== Flag 9: --max-svg-size 1 on a complex photo (must hit cap) ===
+INFO     convert: tests/testimg/Designer (1).jpeg ->                            
+         /tmp/qa-flag-maxsize-cap.svg (mode=Mode.DETAILED)                      
+WARNING  SVG size 8.1MB exceeds limit 1MB, skipping write                       
+SVG output '/tmp/qa-flag-maxsize-cap.svg' is 8.1MB which exceeds the 
+--max-svg-size limit of 1MB; skipping write
+exit code: 0
+file exists? NO
