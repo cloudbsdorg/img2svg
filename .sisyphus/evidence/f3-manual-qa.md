@@ -1,94 +1,42 @@
-# F3: Real Manual QA Report
+# F3: Real Manual QA Report — multi-vendor-gpu plan
 
 **Date:** 2026-06-10
 **Reviewer:** Sisyphus-Junior (F3 wave)
 **Project root:** `/home/mlapointe/PyCharmMiscProject/`
-**Scope:** End-to-end execution of all CLI commands, Python API calls, and conversion scenarios listed in the F3 task brief.
-**Test environment:** Linux 6.x, Python 3.10.20, uv-managed venv, NVIDIA GeForce RTX 5070 Laptop GPU (8151 MB total / 7680 MB free), CUDA build of PyTorch 2.12.0+cu130.
+**Git HEAD:** `43adb2d` (15 commits on main, "chore: gitignore site/ + mark Wave 4 tasks complete")
+**Test environment:** Linux 6.x, Python 3.10.20, uv-managed venv, NVIDIA GeForce RTX 5070 Laptop GPU (8151 MB total / 7696 MB free), AMD Radeon 890M iGPU (512 MB total / 29 MB free), CUDA build of PyTorch 2.12.0+cu130
 
 ---
 
 ## VERDICT: **APPROVE WITH CAVEAT**
 
-All 28 executable scenarios pass. The CLI, Python API, all 4 render modes, error handling, and GPU detection behave as specified. One **non-blocking caveat** was discovered: the `--no-clobber` flag is declared and accepted by the CLI, the value flows into `ConversionOptions`, but the conversion pipeline never actually checks it. The flag is currently a documented no-op. This is a real bug but is out of F3's read-only scope and can be filed as a follow-up.
+All 12 executable scenarios **functionally pass**. The CLI, the help text, the install/verify scripts, the docs build, and the sidecar metadata all behave as the plan specifies. One **non-blocking cosmetic bug** was discovered: in the rendered `--device --help` output, the text `pip install img2svg[amd]` appears as `pip install img2svg` — typer/rich is interpreting `[amd]` as a markup tag and stripping the bracketed content. The source code is correct (line 310 of `src/img2svg/cli.py`); only the rendered display is wrong. This is a real user-facing issue for anyone copy-pasting the install command from `--help`, but it does not affect the multi-vendor-gpu feature's core behavior (the actual install path is in `install_backend.sh`, not in the CLI help).
 
 **Summary table:**
 
-| Category | Scenarios | Pass | Fail | Notes |
-|----------|-----------|------|------|-------|
-| 1. CLI smoke tests (info/version/help) | 4 | 4 | 0 | All exit 0, output as expected. |
-| 1. CLI conversion modes (labels/visual/annotated/trace) | 4 | 4 | 0 | All exit 0, SVG + sidecar created. |
-| 1. CLI error scenarios (missing file, bad mode) | 2 | 2 | 0 | Both exit 2 with friendly messages. |
-| 2. Python API (imports + convert) | 2 | 2 | 0 | Imports clean, `convert()` writes both artifacts. |
-| 3. E2E 3 fixtures x 4 modes | 12 | 12 | 0 | All SVGs > 100 bytes, all sidecars parse. |
-| 4. Edge cases (corrupt/.txt/no-clobber) | 4 | 3 | 1 | Corrupt + .txt handled; `--no-clobber` is a no-op. |
-| 5. GPU module introspection | 1 | 1 | 0 | 1 GPU, OS=Linux, torch=2.12.0+cu130. |
-| **TOTAL** | **29** | **28** | **1 (caveat)** | The 1 failure is a documented CLI behavior gap, not a crash. |
+| # | Scenario | Result | Notes |
+|---|----------|--------|-------|
+| 1 | `img2svg list-gpus` | PASS | NVIDIA RTX 5070 (Y) + AMD Radeon 890M (512 MB) |
+| 2 | `img2svg info` | PASS | `Backend: CUDA (torch 2.12.0+cu130, NVIDIA GeForce RTX 5070 Laptop GPU)` |
+| 3 | `convert` default (auto) | PASS | `backend_requested: auto`, `backend_resolved: cuda:0` |
+| 4 | `convert --device cpu` | PASS | `backend_requested: cpu`, `backend_resolved: cpu` |
+| 5 | `convert --device nonexistent` | PASS (expected fail) | Exit 2, clear validation error listing valid values |
+| 6 | `install_backend.sh --dry-run` | PASS | Detects NVIDIA+AMD, warns about 512MB iGPU, recommends `[nvidia]` |
+| 7 | `install_backend.sh --help` | PASS | Shows full usage, exit 0 |
+| 8 | `verify_backend.sh cpu` | PASS (expected fail) | Exit 1, "expected CPU-only detection, but found cuda" |
+| 9 | `verify_backend.sh nvidia` | PASS | Exit 0, "backend verified: nvidia" |
+| 10 | `verify_backend.sh amd` | PASS | Exit 0, accepts cuda as ROCm PyTorch |
+| 11 | `mkdocs build --strict` | PASS | Exit 0, build in 0.36s, only INFO about platforms/ not in nav |
+| 12 | `convert --help` (`--device` text) | PARTIAL | ROCm message present but `[amd]` stripped by rich markup interpretation |
+| **TOTAL** | | **11 PASS, 1 PARTIAL** | The 1 partial is a cosmetic help-text bug |
 
 ---
 
-## 1. CLI Smoke Tests
+## 1. Scenario Results
 
-### 1.1 `--version`
+### 1.1 `img2svg list-gpus`
 
-**Command:** `uv run python -m img2svg --version`
-**Exit code:** 0
-**Output:**
-
-```
-img2svg 0.1.0
-```
-
-**Verdict:** PASS. Matches the spec's expected value `img2svg 0.1.0`.
-
----
-
-### 1.2 `--help`
-
-**Command:** `uv run python -m img2svg --help`
-**Exit code:** 0
-**Output (abridged):**
-
-```
- Usage: python -m img2svg [OPTIONS] COMMAND [ARGS]...
- Convert raster images to clean, optimized SVG using YOLO segmentation and
- vtracer.
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --help          Show this message and exit.                                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ convert     Convert images (single file, directory, or glob) to SVG.         │
-│ list-gpus   List available GPUs and the recommended one (per                 │
-│             --gpu-strategy).                                                 │
-│ info        Print version, Python, OS, and detected compute devices.         │
-╰──────────────────────────────────────────────────────────────────────────────╯
-```
-
-**Verdict:** PASS. All three subcommands listed (convert, list-gpus, info). Rich-style rendering with box-drawing characters.
-
----
-
-### 1.3 `info` subcommand
-
-**Command:** `uv run python -m img2svg info`
-**Exit code:** 0
-**Output:**
-
-```
-img2svg 0.1.0
-Python:  3.10.20
-OS:      Linux
-Devices: cuda:0, cpu
-```
-
-**Verdict:** PASS. Version, Python version, OS string, and detected compute devices all present.
-
----
-
-### 1.4 `list-gpus` subcommand
-
-**Command:** `uv run python -m img2gpu list-gpus`
+**Command:** `uv run img2svg list-gpus`
 **Exit code:** 0
 **Output (abridged):**
 
@@ -98,366 +46,363 @@ Devices: cuda:0, cpu
 ┃       ┃        ┃               ┃    VRAM Total ┃     VRAM Free ┃             ┃
 ┃ Index ┃ Vendor ┃ Name          ┃          (MB) ┃          (MB) ┃ Recommended ┃
 ┡━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
-│     0 │ nvidia │ NVIDIA        │          8151 │          7677 │      Y      │
+│     0 │ nvidia │ NVIDIA        │          8151 │          7696 │      Y      │
 │       │        │ GeForce RTX   │               │               │             │
 │       │        │ 5070 Laptop   │               │               │             │
 │       │        │ GPU           │               │               │             │
+│     1 │ amd    │ AMD Radeon    │           512 │            29 │             │
+│       │        │ 890M Graphics │               │               │             │
 └───────┴────────┴───────────────┴───────────────┴───────────────┴─────────────┘
 ```
 
-**Verdict:** PASS. Rich table renders, GPU detected, recommended column marked `Y`. Note: the Name column auto-wraps "NVIDIA GeForce RTX 5070 Laptop GPU" across 4 lines (this is the T22-documented Rich behavior, not a bug).
+**Verdict:** **PASS**
+- NVIDIA RTX 5070 detected with `Recommended=Y`
+- AMD Radeon 890M (iGPU, 512 MB) detected without recommendation
+- Both vendors visible in the same table
+- Table renders cleanly with no broken cells
+- VRAM values are realistic (8151 total matches plan's expected ~8151; 512 matches the iGPU spec)
 
 ---
 
-### 1.5 `convert --mode labels`
+### 1.2 `img2svg info`
 
-**Command:** `uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa1.svg --mode labels`
+**Command:** `uv run img2svg info`
 **Exit code:** 0
-**Artifacts:**
-
-- `/tmp/qa1.svg` — 501 bytes
-- `/tmp/qa1.json` — 1120 bytes
-
-**Verdict:** PASS. Output:
-
-```
-INFO     convert: tests/fixtures/logo.png -> /tmp/qa1.svg (mode=Mode.LABELS)
-Converted /tmp/qa1.svg
-```
-
----
-
-### 1.6 `convert --mode visual`
-
-**Command:** `uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa2.svg --mode visual`
-**Exit code:** 0
-**Artifacts:** `/tmp/qa2.svg` (2132 bytes), `/tmp/qa2.json` (1117 bytes)
-
-**Verdict:** PASS. vtracer default preset path executed (note 4x size jump from labels mode — vtracer produces rich path data).
-
----
-
-### 1.7 `convert --mode annotated`
-
-**Command:** `uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa3.svg --mode annotated`
-**Exit code:** 0
-**Artifacts:** `/tmp/qa3.svg` (2132 bytes), `/tmp/qa3.json` (1122 bytes)
-
-**Verdict:** PASS. Same SVG byte count as visual mode (correct — annotated = visual base + detection overlays; for a logo with 0 YOLO detections, the overlays add nothing).
-
----
-
-### 1.8 `convert --mode trace`
-
-**Command:** `uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa4.svg --mode trace`
-**Exit code:** 0
-**Artifacts:** `/tmp/qa4.svg` (2132 bytes), `/tmp/qa4.json` (1115 bytes)
-
-**Verdict:** PASS. vtracer photo preset path executed.
-
----
-
-### 1.9 Missing input file
-
-**Command:** `uv run python -m img2svg nonexistent.png`
-**Exit code:** 2
 **Output:**
 
 ```
-file not found: nonexistent.png
+img2svg 0.1.0
+Python:  3.10.20
+OS:      Linux
+Backend: CUDA (torch 2.12.0+cu130, NVIDIA GeForce RTX 5070 Laptop GPU)
+Devices: cuda:0, cpu
 ```
 
-**Verdict:** PASS. Exit code 2 as expected; clean error message.
+**Verdict:** **PASS**
+- `Backend:` line present, exactly as the plan specified
+- Format: `CUDA (torch 2.12.0+cu130, NVIDIA GeForce RTX 5070 Laptop GPU)` matches the spec word-for-word
+- Uppercased type ("CUDA") from `.value.upper()` per T12's `_format_backend_line()` helper
+- `Devices: cuda:0, cpu` is the resolved device list
+- Python 3.10.20 reported correctly
+- OS detected as Linux
 
 ---
 
-### 1.10 Bogus mode value
+### 1.3 `convert` default (auto)
 
-**Command:** `uv run python -m img2svg tests/fixtures/logo.png --mode bogus`
+**Command:** `uv run img2svg tests/fixtures/logo.png -o /tmp/f3-auto.svg --mode labels`
+**Exit code:** 0
+**Stdout:**
+
+```
+INFO     convert: tests/fixtures/logo.png -> /tmp/f3-auto.svg (mode=Mode.LABELS)
+Converted /tmp/f3-auto.svg
+```
+
+**Files written:**
+- `/tmp/f3-auto.svg` (501 bytes)
+- `/tmp/f3-auto.json` (1186 bytes)
+
+**Sidecar fields:**
+
+```
+backend_requested: auto
+backend_resolved:  cuda:0
+```
+
+**Verdict:** **PASS**
+- Exit 0
+- Both SVG and sidecar JSON written
+- `backend_requested = "auto"` (user's default), `backend_resolved = "cuda:0"` (registry picked CUDA via priority chain)
+- No errors; pipeline ran end-to-end on real hardware
+- Sidecar contains the new `backend_requested`/`backend_resolved` fields per T10
+
+---
+
+### 1.4 `convert --device cpu`
+
+**Command:** `uv run img2svg tests/fixtures/logo.png -o /tmp/f3-cpu.svg --mode labels --device cpu`
+**Exit code:** 0
+**Files written:** `/tmp/f3-cpu.svg` (501 B), `/tmp/f3-cpu.json` (1180 B)
+
+**Sidecar fields:**
+
+```
+backend_requested: cpu
+backend_resolved:  cpu
+```
+
+**Verdict:** **PASS**
+- Exit 0
+- User's explicit `--device cpu` override flows through to the sidecar
+- `backend_requested = "cpu"` (user's explicit choice), `backend_resolved = "cpu"` (no GPU fallback)
+- Confirms the deprecation shim (T2) is wiring `--device` into `BackendSpec.requested` correctly
+- Even on a CUDA host, the user can force CPU; both artifacts still produced
+
+---
+
+### 1.5 `convert --device nonexistent` (expected error)
+
+**Command:** `uv run img2svg tests/fixtures/logo.png -o /tmp/f3-bad.svg --mode labels --device nonexistent`
 **Exit code:** 2
+**Stderr:**
+
+```
+invalid options: 1 validation error for ConversionOptions
+requested
+  Input should be 'auto', 'cuda', 'rocm', 'mps' or 'cpu'
+    For further information visit
+https://errors.pydantic.dev/2.13/v/literal_error
+```
+
+**Verdict:** **PASS**
+- Non-zero exit (2) as expected for an invalid argument
+- Clean Pydantic validation error — no Python traceback dump
+- Lists all 5 valid values explicitly: `auto`, `cuda`, `rocm`, `mps`, `cpu`
+- Links to pydantic docs for the error code
+- Confirms the `Literal[...]` type on `BackendSpec.requested` is enforced at the CLI boundary
+
+---
+
+### 1.6 `install_backend.sh --dry-run`
+
+**Command:** `bash scripts/install_backend.sh --dry-run`
+**Exit code:** 0
 **Output:**
 
 ```
-Usage: python -m img2svg convert [OPTIONS] INPUT
-Try 'python -m img2svg convert --help' for help.
-╭─ Error ──────────────────────────────────────────────────────────────────────╮
-│ Invalid value for '--mode': invalid mode 'bogus'. Valid modes: auto, labels, │
-│ visual, annotated, trace                                                     │
-╰─────────────────────────────────────────────────────────────────────────────╯
+
+img2svg backend install
+Host:  Linux (x86_64)
+NVIDIA:
+  c2:00.0 VGA compatible controller [0300]: NVIDIA Corporation GB206M [GeForce RTX 5070 Max-Q / Mobile] [10de:2d58] (rev a1)
+AMD:
+  c3:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Strix [Radeon 880M / 890M] [1002:150e] (rev c1)
+
+Detected: NVIDIA + AMD
+WARN: AMD iGPU also present (see above). The 512 MB iGPU cannot run
+WARN: YOLO11x and will be ignored; install img2svg[amd] only if you
+WARN: plan to use a smaller model on a discrete AMD GPU.
+
+Dry-run: would run:
+    pip install img2svg[nvidia]
+
+Pass --apply to install.
 ```
 
-**Verdict:** PASS. Exit 2, lists valid modes. Per the T21 issue resolution, this exit 2 fires at the Typer option callback level (not at the conversion body) — same exit code, different code path.
+**Verdict:** **PASS**
+- Detects NVIDIA (`GB206M [GeForce RTX 5070 Max-Q / Mobile]`, `10de:2d58`) and AMD (`Strix [Radeon 880M / 890M]`, `1002:150e`)
+- Reports `Detected: NVIDIA + AMD` (the hybrid-host case)
+- Warns about the 512 MB iGPU limitation with the exact text from the plan
+- Recommends `pip install img2svg[nvidia]` (prefers NVIDIA over AMD on hybrid hosts)
+- Default is dry-run; `--apply` opt-in as documented
+- Exit 0
 
 ---
 
-## 2. Python API Tests
+### 1.7 `install_backend.sh --help`
 
-### 2.1 Public API import surface
+**Command:** `bash scripts/install_backend.sh --help`
+**Exit code:** 0
+**Output:** Full 30+ line usage block printed (see raw transcript). Covers:
+- Usage line: `./scripts/install_backend.sh [--dry-run] [--apply]`, `--help`
+- Behavior notes (lspci vendor detection, OS detection via `uname -s`, dry-run default)
+- Detection priority (Linux: NVIDIA > AMD > cpu; Darwin: always apple)
+- Exit codes (0/1/2)
+- AMD ROCm wheel index note (`PIP_INDEX_URL=https://download.pytorch.org/whl/rocm6.2`)
 
-**Command:**
+**Verdict:** **PASS**
+- Shows full usage info from the script's own header (lines 2-40)
+- Exit 0 cleanly
+- Documents all flags and detection logic
+- Explicitly mentions the AMD ROCm wheel index caveat
+
+---
+
+### 1.8 `verify_backend.sh cpu` (expected FAIL on CUDA host)
+
+**Command:** `bash scripts/verify_backend.sh cpu`
+**Exit code:** 1
+**Output:**
+
+```
+Detected:  cuda
+Expected:  cpu
+[FAIL] expected CPU-only detection, but found cuda
+        (CPU is the registry's fallback, not a priority; the
+        cpu cell requires a host with no GPU visible to torch)
+```
+
+**Verdict:** **PASS** (failure is the expected outcome)
+- Exit 1 (the script's documented failure path)
+- Message exactly matches the brief's expected text: "expected CPU-only detection, but found cuda"
+- Adds the helpful parenthetical explaining *why* CPU is strict (it is the registry's fallback, not a priority)
+- Confirms the strict `cpu` rule: any GPU detection triggers a failure
+- This is the "right hardware?" gate working correctly for the Jenkins matrix
+
+---
+
+### 1.9 `verify_backend.sh nvidia` (expected PASS)
+
+**Command:** `bash scripts/verify_backend.sh nvidia`
+**Exit code:** 0
+**Output:**
+
+```
+Detected:  cuda
+Expected:  nvidia
+[OK] backend verified: nvidia
+```
+
+**Verdict:** **PASS**
+- Exit 0
+- The script maps `nvidia` -> `cuda` via its public-axis-name table
+- `Detected=cuda` matches the mapped `Expected=cuda` (Branch 3, general match)
+- "[OK] backend verified: nvidia" success line printed
+- Confirms the nvidia cell in the Jenkins matrix will pass on this host
+
+---
+
+### 1.10 `verify_backend.sh amd` (expected PASS via ROCm branch)
+
+**Command:** `bash scripts/verify_backend.sh amd`
+**Exit code:** 0
+**Output:**
+
+```
+Detected:  cuda
+Expected:  amd (accepting cuda as amd; ROCm PyTorch exposes CUDA API)
+[OK] backend verified: amd
+```
+
+**Verdict:** **PASS**
+- Exit 0
+- `Detected=cuda` accepted as `amd` via Branch 1 (the ROCm PyTorch equivalence rule)
+- The "(accepting cuda as amd; ROCm PyTorch exposes CUDA API)" parenthetical is shown
+- "[OK] backend verified: amd" success line printed
+- Confirms the script's ROCm-PyTorch-accepts-cuda logic is wired correctly
+- On a real ROCm host (where the registry would still emit "cuda" because of the priority chain), this script correctly reports the build as `amd`-equivalent
+
+---
+
+### 1.11 `mkdocs build --strict`
+
+**Command:** `uv run mkdocs build --strict`
+**Exit code:** 0
+**Output (tail):**
+
+```
+INFO    -  Cleaning site directory
+INFO    -  Building documentation to directory: /home/mlapointe/PyCharmMiscProject/site
+INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
+  - platforms/freebsd.md
+  - platforms/macos.md
+INFO    -  Documentation built in 0.36 seconds
+```
+
+**Verdict:** **PASS**
+- Exit 0 (strict mode succeeded)
+- Build time 0.36s
+- The only diagnostic output is an INFO about `platforms/freebsd.md` and `platforms/macos.md` not being in the nav — explicitly called out as acceptable in the task brief
+- A red-bordered block at the top of the output is a **Material for MkDocs theme-team marketing message** about MkDocs 2.0 (URL points to `https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/`). It is not a build WARNING/ERROR — it is theme-bundled content, not a build diagnostic.
+- No WARNING or ERROR lines from the build itself
+
+---
+
+### 1.12 `convert --help` (`--device` help text)
+
+**Command:** `uv run img2svg convert --help`
+**Exit code:** 0
+**Source code** (`src/img2svg/cli.py:305-311`):
 
 ```python
-from img2svg import convert, convert_batch, ConversionOptions, ConversionResult, Sidecar, Mode, ImageType, DeviceStrategy
-print("imports OK")
+device: str = typer.Option(
+    "auto",
+    "--device",
+    help=(
+        "Compute backend: auto (default), cpu, cuda, cuda:N, mps, or rocm. "
+        "AMD ROCm requires a ROCm PyTorch build (pip install img2svg[amd])."
+    ),
+),
 ```
 
-**Exit code:** 0
-**Output:** `imports OK`
+**Rendered output** (default 80-column terminal):
 
-**Verdict:** PASS. All 8 names in the F3 spec's import list are importable from the top-level `img2svg` package.
+```
+│ --device                TEXT   Compute backend: auto (default), cpu, cuda,   │
+│                                cuda:N, mps, or rocm. AMD ROCm requires a     │
+│                                ROCm PyTorch build (pip install img2svg).     │
+│                                [default: auto]                               │
+```
+
+**Verdict:** **PARTIAL PASS** (functional, but a rendering bug)
+
+- The ROCm install message is present in the help text
+- The source code correctly says `pip install img2svg[amd]` (line 310)
+- **BUT** the rendered help shows `pip install img2svg` — the `[amd]` portion is stripped
+- **Root cause:** typer/rich treats `[amd]` as a rich markup tag and silently removes the bracketed content from the rendered output. This is a known quirk of the rich library when `markup=True` (the default) is active.
+- **Impact:** A user copying the install command from `--help` would type `pip install img2svg` (without the `[amd]` extra), which installs the base wheel and silently falls back to CPU. The intent — that ROCm users need the `[amd]` extra to get a ROCm PyTorch build — is lost in the rendered output.
+- **Suggested fix:** escape the brackets in the help string. Replace:
+  ```
+  "AMD ROCm requires a ROCm PyTorch build (pip install img2svg[amd])."
+  ```
+  with:
+  ```
+  "AMD ROCm requires a ROCm PyTorch build (pip install img2svg\[amd\])."
+  ```
+  Or, set `rich_markup_mode=None` on the typer `Typer` instance. Or, rephrase to avoid brackets entirely: "(the 'amd' extra of img2svg)".
+- **Severity:** Cosmetic/help-text only. The functional code path that actually installs the `[amd]` extra (`install_backend.sh`) is unaffected. The CLI's `--device` validator (which uses the `Literal` type) is also unaffected. This bug is a real follow-up but does **not** block the multi-vendor-gpu feature.
 
 ---
 
-### 2.2 `convert()` invocation
+## 2. Cross-Cutting Observations
 
-**Command:**
+### 2.1 Backend priority chain is correct
 
-```python
-from img2svg import convert
-r = convert("tests/fixtures/logo.png", "/tmp/qa_api.svg")
-print(f"svg={r.svg_path.exists()}, sidecar={r.sidecar_path.exists()}")
-```
+`img2svg info` reports `Backend: CUDA` (not ROCm, not MPS, not CPU) on this host. The registry's priority `CUDA > ROCM > MPS > CPU` is honored — even though AMD hardware is physically present, the CUDA build of PyTorch sees NVIDIA first, and CUDA wins. The AMD iGPU is correctly downranked in the recommendation (no `Recommended=Y`).
 
-**Exit code:** 0
-**Output:** `svg=True, sidecar=True`
+### 2.2 `backend_resolved` matches the user request in all the expected cases
 
-**Verdict:** PASS. Both artifacts exist after the call. Sidecar is 1133 bytes; SVG is 2132 bytes.
+- `--device auto` -> `backend_resolved: cuda:0` (registry auto-picked the first available GPU)
+- `--device cpu` -> `backend_resolved: cpu` (explicit override honored)
+- The deprecation shim (T2) is correctly translating `--device` to `BackendSpec.requested` at the CLI boundary, and the registry's `resolve()` is mapping `BackendSpec` to the actual `DeviceBackend` instance.
 
----
+### 2.3 `verify_backend.sh` rules are tight and correct
 
-## 3. End-to-End Conversions (3 fixtures x 4 modes)
+The three CPU/nvidia/amd branches all behave per the script's documented rules:
+- `cpu` is strict (any GPU detection -> exit 1)
+- `nvidia` maps to `cuda` (the public axis name vs the registry enum value)
+- `amd` accepts `cuda` (because ROCm PyTorch wheels expose the CUDA API surface)
 
-**Setup:** 3 fixtures (`logo.png`, `diagram.png`, `photo.jpg` — note: `photo.jpg`, not `photo.png`; the spec said "photo.png" but the actual fixture is .jpg), 4 modes (labels, visual, annotated, trace) = 12 conversions.
+The `apple` branch was not exercised (this is a Linux host), but the script's case statement and fallback logic is symmetric to the others.
 
-**Sample command (mode=visual, fixture=logo.png):**
+### 2.4 The help-text bug is the only defect
 
-```bash
-uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa_e2e/logo_visual.svg --mode visual
-```
-
-**All 12 conversions completed with exit 0.**
-
-**Verification (Python script, parsed all 12 sidecars):**
-
-| File | Size (bytes) | JSON parses | Mode (sidecar) | Auto image type |
-|------|--------------|-------------|----------------|-----------------|
-| `diagram_annotated.svg` | 2,906 | OK | annotated | n/a (explicit mode) |
-| `diagram_labels.svg` | 504 | OK | labels | n/a |
-| `diagram_trace.svg` | 4,035 | OK | trace | n/a |
-| `diagram_visual.svg` | 2,906 | OK | visual | n/a |
-| `logo_annotated.svg` | 2,132 | OK | annotated | n/a |
-| `logo_labels.svg` | 501 | OK | labels | n/a |
-| `logo_trace.svg` | 2,132 | OK | trace | n/a |
-| `logo_visual.svg` | 2,132 | OK | visual | n/a |
-| `photo_annotated.svg` | 881,430 | OK | annotated | n/a |
-| `photo_labels.svg` | 502 | OK | labels | n/a |
-| `photo_trace.svg` | 1,198,941 | OK | trace | n/a |
-| `photo_visual.svg` | 881,430 | OK | visual | n/a |
-
-**All 12 SVGs > 100 bytes. All 12 sidecars parse as valid JSON.** Result: 12/12 PASS.
-
-**Verdict:** PASS. The `photo.jpg` fixture (real photo, 256x256) produces large SVGs (up to 1.2 MB for trace mode) — consistent with vtracer's high-fidelity photo preset behavior. The `labels` mode is consistently small (500-600 bytes) because labels mode produces no vtracer paths, only detection boxes/text — for fixtures with 0 YOLO detections, the output is essentially just the SVG header + background.
-
-**Sidecar metadata sample (logo, labels mode):**
-
-```json
-{
-  "version": "0.1.0",
-  "mode_used": "labels",
-  "mode_reasoning": "explicit override",
-  "model": "yolo11x.pt",
-  "device": "auto",
-  "image_type": "photo"
-}
-```
-
-**Note on `image_type: "photo"` for `logo.png`:** This is the T19-documented classifier behavior — the synthetic logo fixture has 5 dominant colors + low edge density, so the classifier falls into the PHOTO branch. Per the T19 plan resolution, this is "more aspirational than accurate" and is the expected behavior for this fixture. No regression.
+Of 12 scenarios, 11 fully pass and 1 partially passes (functionality works, but the rendered help is misleading). The bug is in the rich-markup stripping of `[amd]`, not in the source code itself.
 
 ---
 
-## 4. Edge Cases
+## 3. Suggested Follow-Ups (Non-Blocking)
 
-### 4.1 Corrupt image
+| # | Issue | Severity | File | Suggested Fix |
+|---|-------|----------|------|---------------|
+| F1 | `--device --help` strips `[amd]` from rendered output | Low (cosmetic) | `src/img2svg/cli.py:310` | Escape the brackets (`\[amd\]`) or rephrase |
 
-**Command:** `uv run python -m img2svg tests/fixtures/corrupt.bin -o /tmp/qa_corrupt.svg --mode labels`
-**Exit code:** 2
-**Output:**
-
-```
-INFO     convert: tests/fixtures/corrupt.bin -> /tmp/qa_corrupt.svg
-         (mode=Mode.LABELS)
-failed to decode image: 'tests/fixtures/corrupt.bin' (UnidentifiedImageError: 
-cannot identify image file 'tests/fixtures/corrupt.bin')
-```
-
-**Verdict:** PASS. The PIL `UnidentifiedImageError` is caught, re-raised as `CorruptImageError` (or equivalent) by `load_image`, then translated to exit 2 with a clean message. No traceback, no crash.
+No other issues observed. The multi-vendor-gpu feature is functionally complete and behaves as specified.
 
 ---
 
-### 4.2 Plain text file
+## 4. Files Produced by This QA
 
-**Command:** `uv run python -m img2svg /tmp/qa_text.txt -o /tmp/qa_text.svg --mode labels`
-**Exit code:** 2
-**Output:**
-
-```
-INFO     convert: /tmp/qa_text.txt -> /tmp/qa_text.svg (mode=Mode.LABELS)
-failed to decode image: '/tmp/qa_text.txt' (UnidentifiedImageError: cannot 
-identify image file '/tmp/qa_text.txt')
-```
-
-**Verdict:** PASS. Identical handling to 4.1. PIL cannot identify the file, the user gets a friendly exit 2.
-
-**Note on error class:** The spec said "expect UnsupportedFormatError or similar"; the actual error is `UnidentifiedImageError` from PIL, caught and re-raised by `load_image` as a `CorruptImageError`-class error. The behavior is graceful (exit 2, no crash), which is the spec's actual requirement.
+- `.sisyphus/evidence/f3-manual-qa.md` (this file) — structured report
+- `.sisyphus/evidence/f3-command-outputs.txt` — verbatim command transcripts for all 12 scenarios
 
 ---
 
-### 4.3 Default clobber behavior (overwrite)
+## 5. Final Verdict
 
-**Command sequence:**
+**APPROVE WITH CAVEAT**
 
-1. Convert once: `uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa_clobber.svg --mode labels` → exit 0, file created (501 bytes, mtime T1)
-2. Wait 2 seconds, convert again without `--no-clobber` → exit 0, "Converted" message
+The multi-vendor-gpu implementation passes 11 of 12 QA scenarios fully and the remaining scenario passes functionally but has a cosmetic help-text rendering bug. The core feature (multi-vendor GPU detection, `--device` flag, install script, verify script, sidecar metadata, docs build) is **production-ready**. The single defect is a follow-up that should be filed but does not block the plan's completion.
 
-**Verdict:** PASS. The default behavior overwrites existing files (this is the documented contract). The "Converted" message is printed; the file's mtime is updated.
-
----
-
-### 4.4 `--no-clobber` behavior
-
-**Command:** `uv run python -m img2svg tests/fixtures/logo.png -o /tmp/qa_clobber.svg --mode labels --no-clobber`
-**Exit code:** 0
-**Output:** "Converted /tmp/qa_clobber.svg" — same as the default-overwrite path.
-**Empirical mtime check:**
-
-- Before `--no-clobber` invocation: `Modify: 2026-06-10 03:38:29.859028586 -0500`
-- After `--no-clobber` invocation: `Modify: 2026-06-10 03:38:41.256275820 -0500`
-
-**Verdict:** **FAIL (bug).** The `--no-clobber` flag is accepted by the CLI, the value flows into `ConversionOptions.no_clobber`, but the conversion pipeline never checks the flag. The file IS being overwritten on every invocation, with the same "Converted" success message as the default path.
-
-**Source code evidence:**
-
-- `src/img2svg/cli.py:224` — `no_clobber=no_clobber` passed into `ConversionOptions(...)`.
-- `src/img2svg/cli.py:375` — `except OutputPathCollisionError as exc:` — the catch block for collision errors exists in the CLI.
-- `src/img2svg/api.py` — no references to `no_clobber` or `OutputPathCollision`.
-- `src/img2svg/pipeline.py` — no references to `no_clobber` or `OutputPathCollision`. Line 158 calls `svg.write(output_path)` unconditionally.
-- `src/img2svg/models.py:78` — `no_clobber: bool = False` is declared in `ConversionOptions` but never read.
-
-**Impact:** Low-to-moderate. The flag is documented and shown in `--help`, but the documented behavior (don't overwrite) is not implemented. Users who rely on `--no-clobber` to preserve outputs will be surprised by silent overwrites.
-
-**Recommended fix (out of F3 scope):** In `src/img2svg/pipeline.py` (the `Pipeline.run` method around line 158), add a pre-write check:
-
-```python
-if options.no_clobber and output_path.exists():
-    raise OutputPathCollisionError(...)
-```
-
-**Tests that would have caught this:** A test that calls `convert()` with `no_clobber=True` against a pre-existing output path and asserts that `OutputPathCollisionError` is raised. The T21 unit tests apparently don't include this case (the `OutputPathCollisionError` catch block at `cli.py:375` has no test that exercises it).
-
----
-
-## Appendix: Fix Verification (2026-06-10)
-
-The F3 caveat was fixed in commit `ad1a15d`. Verification:
-
-- **Test delta:** 319 → 321 fast tests passing (+2 new tests in `tests/test_pipeline.py`).
-- **Bug regression test:** `test_pipeline_no_clobber_raises_on_existing_output` — asserts `OutputPathCollisionError` is raised, file bytes + mtime unchanged, YOLO not called.
-- **Default-behavior test:** `test_pipeline_no_clobber_false_overwrites_existing_output` — asserts the default-overwrite path still works.
-- **Hands-on CLI confirmation:**
-  1. `img2svg ... --no-clobber` on pre-existing file → exit 2, "output path already exists" message, file preserved.
-  2. `img2svg ... --no-clobber` on new path → exit 0, file created.
-  3. Re-run on now-existing path → exit 2 (raises correctly).
-  4. Default (no flag) → exit 0, overwrites as before.
-- **Ruff/mypy:** No new errors introduced.
-- **Coverage:** 86% maintained.
-
-**Caveat is now closed.** CLI `--no-clobber` behaves as documented.
-
----
-
-## 5. GPU Detection
-
-**Command:**
-
-```python
-from img2svg.gpu import list_gpus, _detect_os, _torch_version
-print(list_gpus())
-print(_detect_os())
-print(_torch_version())
-```
-
-**Exit code:** 0
-**Output:**
-
-```
-[GPUInfo(index=0, vendor=<GpuVendor.NVIDIA: 'nvidia'>, name='NVIDIA GeForce RTX 5070 Laptop GPU', vram_total_mb=8151, vram_free_mb=7680, compute_capability=None, utilization_pct=0.0)]
-Linux
-2.12.0+cu130
-```
-
-**Verdict:** PASS. All three module-level helpers work:
-
-- `list_gpus()` — returns 1 NVIDIA GPU (RTX 5070 Laptop, 8151 MB total, 7680 MB free).
-- `_detect_os()` — returns `"Linux"` (matches `uname -s`).
-- `_torch_version()` — returns `"2.12.0+cu130"` (CUDA build, version 2.12.0).
-
-The spec said "RTX 5070 is the only GPU" and to verify NVIDIA is detected; both true.
-
----
-
-## 6. Findings
-
-### 6.1 What works
-
-- **CLI surface:** all 4 info commands (--version, --help, info, list-gpus) render correctly.
-- **All 4 render modes:** labels, visual, annotated, trace all execute end-to-end and produce SVG + sidecar.
-- **Error handling:** missing-file and bogus-mode both return exit 2 with clean messages; corrupt inputs and unsupported formats also return exit 2 with no traceback.
-- **Python API:** all 8 public names importable; `convert()` returns a result object with `svg_path` and `sidecar_path` that exist on disk.
-- **Auto-mode heuristic:** confirmed `PHOTO → ANNOTATED` mapping (per `presets.py:IMAGE_TYPE_TO_MODE`).
-- **Multi-mode matrix:** all 12 fixture x mode combinations (logo, diagram, photo across labels/visual/annotated/trace) succeed; all SVGs > 100 bytes; all sidecars are valid JSON.
-- **GPU detection:** NVIDIA RTX 5070 Laptop is enumerated with correct VRAM and vendor classification.
-- **YOLO model:** `yolo11x.pt` is the default model (matches T27/RFC) and the cached model in `~/.cache/img2svg/models/` is used (no re-download observed during testing).
-
-### 6.2 What doesn't work (or has caveats)
-
-- **`--no-clobber` is a no-op.** The flag is documented, accepted by the CLI, and stored in `ConversionOptions`, but `pipeline.run()` never checks it. The catch block for `OutputPathCollisionError` in `cli.py:375` is dead code in the current implementation. This is a real, reproducible bug — repeated invocations of the same convert command with `--no-clobber` will silently overwrite the previous output. Severity: medium (the documented contract is broken; users will be surprised). Fix: 1-2 lines in `pipeline.py` around line 158 + 1 new unit test.
-
-### 6.3 Inherited issues (pre-existing, out of F3 scope)
-
-- **1 pre-existing i18n test failure** in `tests/test_i18n.py::test_ngettext_returns_singular_in_c_locale` — noted in the task brief as acceptable. Not exercised by F3 scenarios.
-- **`logo.png` classifies as `photo`, not `logo`** — T19-documented. Not a bug; the classifier's heuristic considers color count + edge density and the fixture falls into the PHOTO branch. The auto-mode then maps PHOTO→ANNOTATED. Documented behavior.
-- **32 pre-existing ruff errors** — T31-documented. Not exercised by F3 scenarios.
-- **pydantic not pinned in `pyproject.toml`** — T31-documented. The test venv has pydantic installed (after T31's manual `uv pip install pydantic`), so F3 runs cleanly. A `uv sync` from a clean state would re-break until pydantic is added to deps.
-
----
-
-## 7. Recommendations
-
-1. **Implement `--no-clobber` enforcement** in `src/img2svg/pipeline.py` (`Pipeline.run` method, before `svg.write(output_path)`). Add a unit test in `tests/test_pipeline.py` that pre-creates the output, calls `convert(..., options=ConversionOptions(no_clobber=True))`, and asserts `OutputPathCollisionError`. This is a small, low-risk fix that closes the bug surfaced by F3.
-
-2. **Pin `pydantic>=2.0,<3` in `pyproject.toml` dependencies.** The T31 workaround was manual; a proper pin prevents the silent dependency removal on `uv sync`.
-
-3. **Document the photo fixture filename.** The F3 brief said `photo.png` but the actual fixture is `photo.jpg`. F3 worked around it by globbing, but future QA briefs should match the actual fixture names.
-
-4. **No code changes recommended for the renderers, the classifier, the SVG builder, the sidecar, or the GPU module.** All of these pass F3's scenarios without modification.
-
----
-
-## 8. Execution Evidence
-
-All output files from F3 are preserved in `/tmp/`:
-
-- `/tmp/qa1.svg`, `/tmp/qa1.json` — labels mode on logo.png
-- `/tmp/qa2.svg`, `/tmp/qa2.json` — visual mode on logo.png
-- `/tmp/qa3.svg`, `/tmp/qa3.json` — annotated mode on logo.png
-- `/tmp/qa4.svg`, `/tmp/qa4.json` — trace mode on logo.png
-- `/tmp/qa_api.svg`, `/tmp/qa_api.json` — Python API `convert()` invocation
-- `/tmp/qa_e2e/{logo,diagram,photo}_{labels,visual,annotated,trace}.{svg,json}` — full 3 x 4 matrix
-- `/tmp/qa_corrupt.svg` — not created (correctly aborted)
-- `/tmp/qa_text.svg` — not created (correctly aborted)
-- `/tmp/qa_clobber.svg` — overwrote despite `--no-clobber` (the bug)
-- `/tmp/qa_text.txt` — test text file
-
----
-
-**End of F3 report.**
+**Recommend:** Merge the multi-vendor-gpu work as-is. File the `[amd]` rich-markup bug as a separate cleanup ticket.

@@ -5,13 +5,309 @@
 # Working directory: /home/mlapointe/PyCharmMiscProject
 # Git HEAD: 43adb2d
 #
-# Format: each section includes the literal command, its exit code,
-# and the verbatim stdout/stderr captured at run time.
-# Tabs separate command from exit code from output.
+# Each section includes the literal command, its exit code, and the
+# verbatim stdout/stderr captured at run time.
 
 ================================================================================
 SCENARIO 1: img2svg list-gpus
 ================================================================================
-Command: uv run img2svg list-gpus
-Exit code: (see below)
+Command:  uv run img2svg list-gpus
+Exit code: 0
+Output:
+                                 Available GPUs
+┏━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃       ┃        ┃               ┃    VRAM Total ┃     VRAM Free ┃             ┃
+┃ Index ┃ Vendor ┃ Name          ┃          (MB) ┃          (MB) ┃ Recommended ┃
+┡━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│     0 │ nvidia │ NVIDIA        │          8151 │          7696 │      Y      │
+│       │        │ GeForce RTX   │               │               │             │
+│       │        │ 5070 Laptop   │               │               │             │
+│       │        │ GPU           │               │               │             │
+│     1 │ amd    │ AMD Radeon    │           512 │            29 │             │
+│       │        │ 890M Graphics │               │               │             │
+└───────┴────────┴───────────────┴───────────────┴───────────────┴─────────────┘
+
+Verdict: PASS
+- NVIDIA GeForce RTX 5070 Laptop GPU detected (8151 MB total, 7696 MB free), Recommended=Y
+- AMD Radeon 890M Graphics detected (512 MB total, 29 MB free), no Recommended
+- Both vendors visible, exit 0, table format renders cleanly
+
+================================================================================
+SCENARIO 2: img2svg info
+================================================================================
+Command:  uv run img2svg info
+Exit code: 0
+Output:
+img2svg 0.1.0
+Python:  3.10.20
+OS:      Linux
+Backend: CUDA (torch 2.12.0+cu130, NVIDIA GeForce RTX 5070 Laptop GPU)
+Devices: cuda:0, cpu
+
+Verdict: PASS
+- "Backend:" line present
+- Format matches the plan's spec exactly: "Backend: CUDA (torch 2.12.0+cu130, NVIDIA GeForce RTX 5070 Laptop GPU)"
+- Device list shows both cuda:0 and cpu
+- Exit 0
+
+================================================================================
+SCENARIO 3: img2svg convert (default auto)
+================================================================================
+Command:  uv run img2svg tests/fixtures/logo.png -o /tmp/f3-auto.svg --mode labels
+Exit code: 0
+Output (stdout):
+INFO     convert: tests/fixtures/logo.png -> /tmp/f3-auto.svg (mode=Mode.LABELS)
+Converted /tmp/f3-auto.svg
+
+Files created:
+  /tmp/f3-auto.svg  (501 bytes)
+  /tmp/f3-auto.json (1186 bytes)
+
+Sidecar backend fields (cat /tmp/f3-auto.json | python -c "..."):
+  backend_requested: auto
+  backend_resolved:  cuda:0
+
+Verdict: PASS
+- Exit 0
+- Both artifacts written (SVG + JSON sidecar)
+- backend_requested = "auto" (user's default), backend_resolved = "cuda:0" (registry picked CUDA)
+- No errors
+
+================================================================================
+SCENARIO 4: img2svg convert (--device cpu)
+================================================================================
+Command:  uv run img2svg tests/fixtures/logo.png -o /tmp/f3-cpu.svg --mode labels --device cpu
+Exit code: 0
+Output (stdout):
+INFO     convert: tests/fixtures/logo.png -> /tmp/f3-cpu.svg (mode=Mode.LABELS)
+Converted /tmp/f3-cpu.svg
+
+Files created:
+  /tmp/f3-cpu.svg  (501 bytes)
+  /tmp/f3-cpu.json (1180 bytes)
+
+Sidecar backend fields (cat /tmp/f3-cpu.json | python -c "..."):
+  backend_requested: cpu
+  backend_resolved:  cpu
+
+Verdict: PASS
+- Exit 0
+- Both artifacts written
+- backend_requested = "cpu", backend_resolved = "cpu"
+- Override correctly threaded through pipeline
+
+================================================================================
+SCENARIO 5: img2svg convert (--device invalid)
+================================================================================
+Command:  uv run img2svg tests/fixtures/logo.png -o /tmp/f3-bad.svg --mode labels --device nonexistent
+Exit code: 2
+Output (stderr):
+invalid options: 1 validation error for ConversionOptions
+requested
+  Input should be 'auto', 'cuda', 'rocm', 'mps' or 'cpu'
+    For further information visit
+https://errors.pydantic.dev/2.13/v/literal_error
+
+Verdict: PASS
+- Non-zero exit (2) as expected
+- Clear validation error listing the valid values: 'auto', 'cuda', 'rocm', 'mps', 'cpu'
+- Helpful: links to the pydantic error code docs
+- No traceback dump; the user sees a clean validation message
+
+================================================================================
+SCENARIO 6: install_backend.sh --dry-run
+================================================================================
+Command:  bash scripts/install_backend.sh --dry-run
+Exit code: 0
+Output:
+
+img2svg backend install
+Host:  Linux (x86_64)
+NVIDIA:
+  c2:00.0 VGA compatible controller [0300]: NVIDIA Corporation GB206M [GeForce RTX 5070 Max-Q / Mobile] [10de:2d58] (rev a1)
+AMD:
+  c3:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Strix [Radeon 880M / 890M] [1002:150e] (rev c1)
+
+Detected: NVIDIA + AMD
+WARN: AMD iGPU also present (see above). The 512 MB iGPU cannot run
+WARN: YOLO11x and will be ignored; install img2svg[amd] only if you
+WARN: plan to use a smaller model on a discrete AMD GPU.
+
+Dry-run: would run:
+    pip install img2svg[nvidia]
+
+Pass --apply to install.
+
+Verdict: PASS
+- Detects NVIDIA (RTX 5070 Max-Q / Mobile) and AMD (Radeon 880M / 890M iGPU)
+- Warns about the AMD iGPU 512MB limitation as expected
+- Recommends "pip install img2svg[nvidia]" (prefers NVIDIA over AMD on hybrid hosts)
+- Default is dry-run; "--apply" opt-in
+- Exit 0
+
+================================================================================
+SCENARIO 7: install_backend.sh --help
+================================================================================
+Command:  bash scripts/install_backend.sh --help
+Exit code: 0
+Output:
+# install_backend.sh - smart install of img2svg GPU/CPU backend extras.
+# Copyright (c) 2026, REVYTECH, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Usage:  ./scripts/install_backend.sh [--dry-run] [--apply]
+#         ./scripts/install_backend.sh --help
+#
+# Behavior:
+#   * Detects the host GPU via `lspci` (PCI vendor IDs 10de=NVIDIA,
+#     1002=AMD) and `uname -s` for Apple Silicon (Darwin). CloudBSD
+#     guideline: detect OS with `uname -s`, never `platform.system()`.
+#   * Defaults to --dry-run: prints the recommended pip command without
+#     installing anything.
+#   * --apply: actually runs the install, then runs a verification step
+#     that imports the backend registry and prints the detected type.
+#   * On Linux, if no `lspci` is on PATH, falls back to "cpu".
+#   * On Darwin, always recommends the [apple] extra regardless of
+#     lspci output (lspci is rare on macOS).
+#   * On Linux, prefers NVIDIA over AMD when both are present. The
+#     512 MB iGPU typical of Strix Halo / RDNA 3.5 cannot run YOLO11x
+#     in FP16; the warning makes this visible to the user.
+#
+# Detection priority (Linux):
+#   1. NVIDIA display-class device -> img2svg[nvidia]
+#   2. AMD    display-class device -> img2svg[amd]   (with 512MB warning)
+#   3. nothing                      -> img2svg[cpu]
+#
+# Detection priority (macOS / Darwin):
+#   always -> img2svg[apple]
+#
+# Exit codes:
+#   0  success (dry-run OR apply, including the verify step)
+#   1  install failed (--apply only) or unexpected detection result
+#   2  invalid CLI arguments
+#
+# Note on AMD ROCm wheel index: PyTorch ROCm wheels are NOT on PyPI;
+# they live on https://download.pytorch.org/whl/rocmX.Y. To install
+# the [amd] extra against the ROCm index, set PIP_INDEX_URL (pip) or
+# UV_INDEX_URL (uv) before running. Example:
+#     PIP_INDEX_URL=https://download.pytorch.org/whl/rocm6.2 \
+#         pip install img2svg[amd]
+# We intentionally do NOT hardcode an index-url in pyproject.toml —
+# uv does not honor per-extra index URLs in pyproject.toml.
+
+Verdict: PASS
+- Shows full usage info from the script's own header
+- Exits 0 cleanly
+- Documents all flags (--dry-run, --apply, --help) and detection logic
+- Documents the AMD ROCm wheel index caveat (PyTorch index URL)
+
+================================================================================
+SCENARIO 8: verify_backend.sh cpu (should FAIL on CUDA host)
+================================================================================
+Command:  bash scripts/verify_backend.sh cpu
+Exit code: 1
+Output (stdout+stderr):
+Detected:  cuda
+Expected:  cpu
+[FAIL] expected CPU-only detection, but found cuda
+        (CPU is the registry's fallback, not a priority; the
+        cpu cell requires a host with no GPU visible to torch)
+
+Verdict: PASS
+- Exit 1 as expected (the script's failure path)
+- Message exactly matches the brief's expected text: "expected CPU-only detection, but found cuda"
+- Adds helpful explanation about why CPU is the fallback
+- Confirms the strict cpu rule: any GPU detection = failure
+
+================================================================================
+SCENARIO 9: verify_backend.sh nvidia (should PASS)
+================================================================================
+Command:  bash scripts/verify_backend.sh nvidia
+Exit code: 0
+Output:
+Detected:  cuda
+Expected:  nvidia
+[OK] backend verified: nvidia
+
+Verdict: PASS
+- Exit 0 as expected
+- Detected=cuda matches Expected=nvidia (the script maps "nvidia" -> "cuda" via the public axis name)
+- "[OK] backend verified: nvidia" success line present
+- Strict equality path (Branch 3 in script) works
+
+================================================================================
+SCENARIO 10: verify_backend.sh amd (should PASS, accepts cuda)
+================================================================================
+Command:  bash scripts/verify_backend.sh amd
+Exit code: 0
+Output:
+Detected:  cuda
+Expected:  amd (accepting cuda as amd; ROCm PyTorch exposes CUDA API)
+[OK] backend verified: amd
+
+Verdict: PASS
+- Exit 0 as expected
+- Detected=cuda matched via Branch 1 (amd accepts cuda as ROCm PyTorch equivalence)
+- "[OK] backend verified: amd" success line present
+- The "(accepting cuda as amd; ROCm PyTorch exposes CUDA API)" parenthetical is shown
+- Confirms the script's ROCm PyTorch acceptance rule
+
+================================================================================
+SCENARIO 11: mkdocs build --strict
+================================================================================
+Command:  uv run mkdocs build --strict
+Exit code: 0
+Output (tail):
+INFO    -  Cleaning site directory
+INFO    -  Building documentation to directory: /home/mlapointe/PyCharmMiscProject/site
+INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
+  - platforms/freebsd.md
+  - platforms/macos.md
+INFO    -  Documentation built in 0.36 seconds
+
+Verdict: PASS
+- Exit 0 (strict mode succeeded)
+- Build time 0.36s
+- The only diagnostic output is an INFO about platforms/freebsd.md and platforms/macos.md not being in the nav — acceptable per task brief ("INFO messages about platforms/ not in nav are acceptable; no WARNING/ERROR")
+- The red-bordered block at the top is a Material for MkDocs theme-team marketing message about MkDocs 2.0, not a build error. It is not flagged as a WARNING/ERROR by the strict build.
+- No WARNING or ERROR lines from the build itself
+
+================================================================================
+SCENARIO 12: img2svg convert --help (--device help text)
+================================================================================
+Command:  uv run img2svg convert --help
+Exit code: 0
+Output (--device option, default terminal width):
+│ --device                TEXT   Compute backend: auto (default), cpu, cuda,   │
+│                                cuda:N, mps, or rocm. AMD ROCm requires a     │
+│                                ROCm PyTorch build (pip install img2svg).     │
+
+With COLUMNS=200 (wider terminal):
+│ --device                TEXT   Compute backend: auto (default), cpu, cuda, cuda:N, mps, or rocm. AMD ROCm requires a ROCm PyTorch build (pip install img2svg). [default: auto]                       │
+
+Source code (src/img2svg/cli.py:305-311):
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help=(
+            "Compute backend: auto (default), cpu, cuda, cuda:N, mps, or rocm. "
+            "AMD ROCm requires a ROCm PyTorch build (pip install img2svg[amd])."
+        ),
+    )
+
+Verdict: PARTIAL PASS (functional, but a rendering bug)
+- The ROCm install message is present in the help text
+- The source code correctly says "pip install img2svg[amd]" (line 310)
+- BUT: the rendered help shows "pip install img2svg" — the [amd] portion is stripped
+- Root cause: typer/rich treats "[amd]" as a rich markup tag and removes it from the rendered output
+- Impact: a user copying the help text and trying to install ROCm would install the wrong extra (the base "img2svg" instead of "img2svg[amd]")
+- This is a real user-facing bug, but it is in the rendering layer, not the source. The functional behavior of the CLI is unaffected.
+
+Suggested fix: escape the brackets in the help string. Replace:
+    "AMD ROCm requires a ROCm PyTorch build (pip install img2svg[amd])."
+with:
+    "AMD ROCm requires a ROCm PyTorch build (pip install img2svg\[amd\])."
+or use the typer/rich `markup=False` option, or rewrite without brackets (e.g. "(the 'amd' extra of img2svg)"). 
+
+This bug is real but does NOT block the multi-vendor-gpu feature itself — the code path that actually installs the [amd] extra (the install_backend.sh script) is unaffected. The impact is a cosmetic/help-text issue that should be filed as a follow-up.
 

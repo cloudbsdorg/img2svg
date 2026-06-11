@@ -967,10 +967,10 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
-- [ ] F2. **Code Quality Review** — `unspecified-high`
-- [ ] F3. **Real Manual QA** — `unspecified-high`
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F1. **Plan Compliance Audit** — `oracle` (APPROVE, evidence: `.sisyphus/evidence/f1-plan-compliance.md`)
+- [x] F2. **Code Quality Review** — `unspecified-high` (APPROVE, advisory fixes applied, evidence: `.sisyphus/evidence/f2-code-quality.md`)
+- [x] F3. **Real Manual QA** — `unspecified-high` (APPROVE WITH CAVEAT, cosmetic `[amd]` fix applied, evidence: `.sisyphus/evidence/f3-manual-qa.md`)
+- [x] F4. **Scope Fidelity Check** — `deep` (APPROVE, evidence: `.sisyphus/evidence/f4-scope-fidelity.md`)
 
 ---
 
