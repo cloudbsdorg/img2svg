@@ -320,7 +320,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/models.py`, `tests/test_models.py`
   - Pre-commit: `uv run pytest tests/test_models.py -q`
 
-- [ ] 3. **CPUBackend implementation**
+- [x] 3. **CPUBackend implementation**
 
   **What to do**:
   - Create `src/img2svg/backends/cpu.py` with `class CPUBackend:` (no Protocol, just implementation).
@@ -363,7 +363,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/backends/cpu.py`, `tests/test_backends/test_cpu.py`
   - Pre-commit: `uv run pytest tests/test_backends/test_cpu.py -q`
 
-- [ ] 4. **Refactor `device.py` to use BackendRegistry stub**
+- [x] 4. **Refactor `device.py` to use BackendRegistry stub**
 
   **What to do**:
   - Refactor `src/img2svg/device.py` so the public functions delegate to a (placeholder) registry.
@@ -624,7 +624,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/backends/registry.py`, `tests/test_backends/test_registry.py`
   - Pre-commit: `uv run pytest tests/test_backends/test_registry.py -q`
 
-- [ ] 9. **Refactor `detector.py` to use BackendSpec**
+- [x] 9. **Refactor `detector.py` to use BackendSpec**
 
   **What to do**:
   - In `src/img2svg/detector.py`:
@@ -670,7 +670,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/detector.py`, `tests/test_detector.py`
   - Pre-commit: `uv run pytest tests/test_detector.py -q`
 
-- [ ] 10. **Refactor `pipeline.py` (cache key + sidecar)**
+- [x] 10. **Refactor `pipeline.py` (cache key + sidecar)**
 
   **What to do**:
   - In `src/img2svg/pipeline.py`:
@@ -713,7 +713,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/pipeline.py`, `tests/test_pipeline.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py -q`
 
-- [ ] 11. **Refactor `gpu.py` (`_torch_fallback` vendor detection)**
+- [x] 11. **Refactor `gpu.py` (`_torch_fallback` vendor detection)**
 
   **What to do**:
   - In `src/img2svg/gpu.py`:
@@ -755,7 +755,7 @@ Parallel Speedup: ~50% faster than sequential (4 backends in parallel)
   - Files: `src/img2svg/gpu.py`, `tests/test_gpu.py`
   - Pre-commit: `uv run pytest tests/test_gpu.py -q`
 
-- [ ] 12. **Refactor `cli.py` (--device help + info output)**
+- [x] 12. **Refactor `cli.py` (--device help + info output)**
 
   **What to do**:
   - In `src/img2svg/cli.py`:

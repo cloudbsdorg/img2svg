@@ -2,10 +2,14 @@
   "active_plan": "/home/mlapointe/PyCharmMiscProject/.sisyphus/plans/multi-vendor-gpu.md",
   "started_at": "2026-06-11T01:27:14.376Z",
   "session_ids": [
-    "ses_15060960fffedotFt4laGplFZy"
+    "ses_15060960fffedotFt4laGplFZy",
+    "ses_14b7959c8ffe9k61KcS7676OUu",
+    "ses_14b790817ffeKxpOAMp5ctgN0Q"
   ],
   "session_origins": {
-    "ses_15060960fffedotFt4laGplFZy": "direct"
+    "ses_15060960fffedotFt4laGplFZy": "direct",
+    "ses_14b7959c8ffe9k61KcS7676OUu": "appended",
+    "ses_14b790817ffeKxpOAMp5ctgN0Q": "appended"
   },
   "plan_name": "multi-vendor-gpu",
   "agent": "atlas",
@@ -27,6 +31,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-11T02:28:14.828Z"
+    },
+    "todo:13": {
+      "task_key": "todo:13",
+      "task_label": "13",
+      "task_title": "**Smart install script + pyproject extras**",
+      "session_id": "ses_14b790817ffeKxpOAMp5ctgN0Q",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-06-11T02:33:24.897Z"
     }
   }
 }
