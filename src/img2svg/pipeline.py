@@ -23,6 +23,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from PIL import Image as _PILImage
+
 from img2svg.classifier import classify
 from img2svg.detector import (
     compute_mask_area,
@@ -44,6 +46,7 @@ from img2svg.models import (
     Sidecar,
 )
 from img2svg.patterns import analyze_global
+from img2svg.preprocessing import PREPROCESSING_PRESETS, PreprocessingPipeline
 from img2svg.presets import select_mode
 from img2svg.renderers.annotated import AnnotatedRenderer
 from img2svg.renderers.base import Renderer
@@ -51,6 +54,7 @@ from img2svg.renderers.detailed import DetailedRenderer
 from img2svg.renderers.edge import EdgeRenderer
 from img2svg.renderers.labels import LabelsRenderer
 from img2svg.renderers.poster import PosterRenderer
+from img2svg.renderers.segmented import SegmentedRenderer
 from img2svg.renderers.trace import TraceRenderer
 from img2svg.renderers.visual import VisualRenderer
 from img2svg.renderers.watercolor import WatercolorRenderer
@@ -79,6 +83,7 @@ RENDERER_REGISTRY: dict[Mode, type[Renderer]] = {
     Mode.DETAILED: DetailedRenderer,
     Mode.EDGE: EdgeRenderer,
     Mode.WATERCOLOR: WatercolorRenderer,
+    Mode.SEGMENTED: SegmentedRenderer,
 }
 
 
@@ -93,6 +98,91 @@ def _format_backend_requested(spec: BackendSpec) -> str:
     if spec.index is not None:
         return f"{spec.requested}:{spec.index}"
     return spec.requested
+
+
+# Map a user-facing short alias (e.g. ``"bilateral"`` from ``--preprocess``)
+# to the full preprocessing function name plus its default kwargs. The short
+# aliases match what the CLI lists in ``--preprocess``'s help text. Including
+# the unaliased full names (e.g. ``"denoise_bilateral"``) keeps the mapping
+# robust to programmatic callers that already use the full names.
+_PREPROCESS_ALIASES: dict[str, tuple[str, dict[str, object]]] = {
+    "bilateral": ("denoise_bilateral", {"d": 5, "sigma": 50}),
+    "denoise_bilateral": ("denoise_bilateral", {"d": 5, "sigma": 50}),
+    "nlmeans": ("denoise_nlmeans", {"h": 6}),
+    "denoise_nlmeans": ("denoise_nlmeans", {"h": 6}),
+    "median": ("denoise_median", {"k": 3}),
+    "denoise_median": ("denoise_median", {"k": 3}),
+    "unsharp": ("sharpen_unsharp", {"sigma": 2.0, "amount": 0.5}),
+    "sharpen_unsharp": ("sharpen_unsharp", {"sigma": 2.0, "amount": 0.5}),
+    "posterize": ("posterize", {"bits": 4}),
+    "canny": ("detect_edges_canny", {"low": 80, "high": 180}),
+    "detect_edges_canny": ("detect_edges_canny", {"low": 80, "high": 180}),
+    "clahe": ("apply_clahe_yuv", {"clip": 2.0, "tile": (8, 8)}),
+    "apply_clahe_yuv": ("apply_clahe_yuv", {"clip": 2.0, "tile": (8, 8)}),
+}
+_PREPROCESS_SHORT_NAMES: tuple[str, ...] = (
+    "bilateral",
+    "nlmeans",
+    "median",
+    "unsharp",
+    "posterize",
+    "canny",
+    "clahe",
+)
+
+# Modes whose auto-preprocessing default is the ``light`` photo preset.
+# Preprocessing on line-art / logos / diagrams tends to soften edges that
+# vtracer depends on, so we only enable it for the explicitly photo-aware
+# renderers.
+_PHOTO_MODES: frozenset[Mode] = frozenset({Mode.DETAILED, Mode.WATERCOLOR, Mode.SEGMENTED})
+
+
+def _format_preprocessing_label(name: str, kwargs: dict[str, object]) -> str:
+    """Render a filter step as ``"alias(k=v, k=v)"`` for the sidecar.
+
+    Uses the short alias when one is registered so the sidecar output
+    matches the user's CLI form (``"bilateral(d=5, sigma=50)"``) rather
+    than the verbose function name (``"denoise_bilateral(d=5, sigma=50)"``).
+    """
+    short = name
+    for alias, (full, _) in _PREPROCESS_ALIASES.items():
+        if full == name and alias != full:
+            short = alias
+            break
+    if not kwargs:
+        return short
+    parts = ", ".join(f"{k}={v}" for k, v in kwargs.items())
+    return f"{short}({parts})"
+
+
+def _resolve_preprocessing_steps(
+    options: ConversionOptions, mode_used: Mode
+) -> list[tuple[str, dict[str, object]]]:
+    """Pick the list of ``(filter_name, kwargs)`` steps to apply.
+
+    Decision tree (from T17 spec):
+      1. ``options.no_preprocess`` → skip (overrides everything).
+      2. ``options.preprocess`` non-empty → resolve each alias to its
+         full function name and default kwargs.
+      3. ``mode_used`` in the photo-mode set → use the ``light`` preset.
+      4. Otherwise → skip (logo / diagram / etc. don't need it).
+    """
+    if options.no_preprocess:
+        return []
+    if options.preprocess:
+        steps: list[tuple[str, dict[str, object]]] = []
+        for alias in options.preprocess:
+            if alias not in _PREPROCESS_ALIASES:
+                raise ValueError(
+                    f"Unknown preprocessing filter '{alias}'. "
+                    f"Available: {list(_PREPROCESS_SHORT_NAMES)}"
+                )
+            full_name, default_kwargs = _PREPROCESS_ALIASES[alias]
+            steps.append((full_name, dict(default_kwargs)))
+        return steps
+    if mode_used in _PHOTO_MODES:
+        return list(PREPROCESSING_PRESETS["light"])
+    return []
 
 
 class Pipeline:
@@ -157,6 +247,29 @@ class Pipeline:
         #     path already exists and the user has asked not to overwrite.
         if options.no_clobber and output_path.exists():
             raise OutputPathCollisionError(str(output_path))
+
+        # 1b. Preprocessing (T17). Determine the effective mode first so the
+        #     mode-driven default (photo modes get the ``light`` preset) can
+        #     be applied. When ``options.mode`` is set explicitly, trust it
+        #     and skip the classifier round-trip; otherwise do a quick
+        #     ``classify`` so AUTO resolves correctly.
+        t0 = time.perf_counter()
+        if options.mode == Mode.AUTO:
+            _quick_image_type, _ = classify(loaded.np_array)
+            _quick_mode_used, _ = select_mode(_quick_image_type, options.mode)
+        else:
+            _quick_mode_used = options.mode
+        preprocessing_steps = _resolve_preprocessing_steps(options, _quick_mode_used)
+        sidecar_preprocessing: list[str] = []
+        if preprocessing_steps:
+            _preprocessor = PreprocessingPipeline(preprocessing_steps)
+            _preprocessed_array = _preprocessor.apply(loaded.np_array)
+            loaded.pil_image = _PILImage.fromarray(_preprocessed_array)
+            sidecar_preprocessing = [
+                _format_preprocessing_label(name, kwargs)
+                for name, kwargs in preprocessing_steps
+            ]
+        timings["preprocess"] = time.perf_counter() - t0
 
         # 2. Global geometric analysis
         t0 = time.perf_counter()
@@ -259,7 +372,7 @@ class Pipeline:
             detections=detections,
             geometric=analysis_global,
             timings=timings,
-            preprocessing=list(options.preprocess),
+            preprocessing=sidecar_preprocessing,
             regions=region_infos,
             model_variant=model_variant,
         )
