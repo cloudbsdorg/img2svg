@@ -239,9 +239,8 @@ def _print_gpu_table(gpus: list, recommended: object | None) -> None:
     table.add_column("VRAM Free (MB)", justify="right")
     table.add_column("Recommended", justify="center")
 
-    rec_index = recommended.index if recommended is not None else None
     for g in gpus:
-        is_rec = "Y" if rec_index == g.index else ""
+        is_rec = "Y" if recommended is g else ""
         table.add_row(
             str(g.index),
             g.vendor.value if isinstance(g.vendor, GpuVendor) else str(g.vendor),

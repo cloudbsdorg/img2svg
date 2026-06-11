@@ -288,3 +288,115 @@
 - **Test count: 319 → 321 (+2 new tests)**: Both new tests pass; 1 pre-existing i18n failure remains (documented since T16). Full suite: 321 passed, 1 failed, 8 deselected.
 - **3-4 line fix in `pipeline.py` + 47-line test addition**: Matches the 1-2 line code change spec from the F3 evidence. The larger test count is justified by the negative-case test and the strict mtime+bytes+detect-not-called assertions.
 
+## T33: lspci-based GPU detection + merge (2026-06-10)
+
+- **The original T22 design incorrectly assumed "AMD ROCm via PyTorch CUDA builds" covered everything**: It didn't. The plan's confidence in `torch.cuda.is_available()` for AMD was wrong. On Linux + ROCm, a system might NOT have a ROCm PyTorch build installed, OR `rocm-smi` might not be on PATH, while the AMD iGPU is still visible to lspci. So the GPU enumeration missed the AMD Radeon 880M in the user's actual hardware. T33 fixes this implicitly by adding a third detection source (lspci) that's vendor-tool-agnostic.
+
+- **`lspci -nn` is the universal fallback for Linux display controllers**: It's in the `pciutils` package (preinstalled on virtually every Linux distribution, including the dev's box). It reports the raw PCI topology with `[vendor:device]` IDs in the output, and the device description in the same line. The downside: no runtime metrics (no VRAM size, no utilization, no compute capability). For AMD APUs that share system RAM, this is honest — we report `vram_total_mb=0` because lspci genuinely doesn't know.
+
+- **lspci line format on this system** (reference, raw output):
+  ```
+  c2:00.0 VGA compatible controller [0300]: NVIDIA Corporation GB206M [GeForce RTX 5070 Max-Q / Mobile] [10de:2d58] (rev a1)
+  c3:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Strix [Radeon 880M / 890M] [1002:150e] (rev c1)
+  c3:00.1 Audio device [0403]: Advanced Micro Devices, Inc. [AMD/ATI] Radeon High Definition Audio Controller [1002:1640]
+  ```
+  The audio device line is a sibling function on the same PCI device (`c3:00.1` vs `c3:00.0`). It has the AMD vendor ID but class code `[0403]`. Without filtering on class code, `_parse_lspci` would return BOTH as "GPUs", which is wrong. **Class-code filter** `[\s*(?:0300|0302|0380)\s*]` (VGA, 3D, Display) drops the audio sibling.
+
+- **Marketing name extraction with regex inside brackets**: The lspci line for AMD has `Strix [Radeon 880M / 890M]` — the silicon code is "Strix" and the marketing name is in the inner brackets. The regex `\[([^\[\]]+)\]` extracts the inner bracket content, which is the marketing name. For NVIDIA, `GB206M [GeForce RTX 5070 Max-Q / Mobile]` — the silicon code is "GB206M" and the marketing name is in the inner brackets. Same regex works. Prefixing with `"AMD "` or `"NVIDIA "` gives a clean user-visible name like `"AMD Radeon 880M / 890M"` or `"NVIDIA GeForce RTX 5070 Max-Q / Mobile"`.
+
+- **Name normalization for dedup beyond case-insensitive**: The spec says "deduplicated by `(vendor, name)`" with case-insensitive matching. But the user's actual hardware exposed a real-world gap: `nvidia-smi` reports the NVIDIA GPU as `"NVIDIA GeForce RTX 5070 Laptop GPU"` and `lspci` reports it as `"NVIDIA GeForce RTX 5070 Max-Q / Mobile"`. Both are the same physical GPU with different marketing descriptors for the laptop variant. A pure lowercase literal-name match doesn't dedup these. The fix: add a normalization step that strips known variant descriptors (`Laptop GPU`, `Desktop GPU`, `Max-Q`, `Max-Q / Mobile`, `Mobile`, `Desktop`) before the dedup key. The dedup key becomes `(vendor, lower(stripped_name))`. This keeps the spec's `(vendor, name)` contract while making it work in practice.
+
+- **Priority order in merge is implemented as a stable `dict.setdefault` loop**: Earlier sources win on conflict (nvidia-smi > rocm-smi > lspci). The dict insertion order is preserved, so when `sorted(..., key=index)` is called, entries with equal indices fall back to source priority. This is why the `test_list_gpus_merges_nvidia_and_rocm` test expects `gpus[0].vendor == NVIDIA` even when both sources have `index=0` — the sort is stable and respects insertion order.
+
+- **`lspci` indices are sequential, not PCI-derived**: `_parse_lspci` assigns `index=0, 1, 2, ...` in line order, NOT from the PCI device number (`c2:00.0` etc.). This is a pragmatic choice: lspci output order is not stable across reboots or kernel changes, so PCI-derived indices would be misleading. The sequential `0..N-1` mirrors what nvidia-smi and rocm-smi report, and the `print_gpu_recommendation` table sorts by index anyway. Real-world output: nvidia-smi reports index=0 (the RTX 5070), lspci reports index=0 (the Radeon 880M) — they both end up at index=0 in the merged list, but the sort puts nvidia first per priority.
+
+- **`_parse_lspci` returns VRAM=0, util=None, cc=None honestly**: lspci genuinely does not report these (no runtime metrics). For AMD APUs that share system RAM, this is the only honest answer. The plan's MUST NOT says "Do NOT mark AMD iGPU as `vendor=AMD` with VRAM > 0 — it shares system RAM" — confirmed by reporting zero, not by guessing.
+
+- **Mock pattern for module-level subprocess calls**: Patch `img2svg.gpu.subprocess.check_output` (the consumer's namespace, NOT the source-of-truth `subprocess.check_output`). This is the same mock-namespace rule as T17/T19/T20/T22. For testing the parse function directly, mock both `shutil.which` and `subprocess.check_output` since both are imported at module load. `monkeypatch.setattr(gpu_mod.shutil, "which", ...)` works because `gpu_mod.shutil` is a reference to the stdlib `shutil` module; setting an attribute on it monkey-patches the lookup site. (Same trick works for any `from X import Y` then `Y()` pattern.)
+
+- **Mock pattern for testing the merge logic**: Don't run real lspci/nvidia-smi. Patch `img2svg.gpu._parse_nvidia_smi`, `_parse_rocm_smi`, `_parse_lspci` directly with `lambda: [...]` returning pre-built `GPUInfo` lists. The merge function is pure (no I/O), so the tests run in milliseconds. This is much faster and more deterministic than running real subprocesses.
+
+- **`MagicMock(side_effect=AssertionError(...))` for "must not be called" tests**: The `test_parse_lspci_missing_binary` test patches `check_output` with a `MagicMock` whose `side_effect` raises if invoked. If the code under test accidentally calls subprocess when `shutil.which` returns None, the test fails with a clear message ("lspci invoked when missing") rather than a confusing AttributeError. The `side_effect=AssertionError(msg)` pattern is cleaner than `mock.assert_not_called()` post-hoc checks because it fails at the call site.
+
+- **`monkeypatch: object` type annotation in test signatures**: pytest's `monkeypatch` fixture is typed as `pytest.MonkeyPatch` in modern pytest stubs, but I used the looser `object` annotation to avoid needing to import pytest types in every test signature. The fixture still works at runtime because pytest's `conftest.py`-style monkeypatching is duck-typed. (Same pattern works for `capsys`, `tmp_path`, etc.) The test bodies use `monkeypatch.setattr(...)` without static type-checker complaints.
+
+- **`lspci -d VENDOR:` filter vs. post-parse filter**: Considered using `lspci -d 1002: -d 10de:` to filter to AMD/NVIDIA only at the lspci level, but that requires running lspci twice (once per vendor). A post-parse filter on the full `lspci -nn` output is faster and lets us add the class-code filter in the same pass. Single subprocess call, single pass.
+
+- **`_dedup_normalize_re` is intentionally not exhaustive**: The regex strips only the well-known variant descriptors (`Laptop GPU`, `Max-Q / Mobile`, `Mobile`, `Desktop`). It does NOT try to handle every possible marketing variant. Future variants (e.g., a new "Super" or "Ti" suffix) might not dedup correctly. This is a trade-off: a wider regex catches more cases but increases false-positive dedups (e.g., "RTX 4070 Ti" and "RTX 4070" would incorrectly dedup). The current regex errs on the side of false negatives (showing both entries) rather than false positives (incorrectly merging different GPUs).
+
+- **12 new tests added (321 → 333)**: 6 direct `_parse_lspci` tests (AMD iGPU, NVIDIA, audio filter, missing binary, subprocess error, no display controllers) + 6 `list_gpus` merge tests (nvidia+lspci, nvidia+rocm, dedup-prefer-nvidia-smi, case-insensitive dedup, variant-descriptor dedup, torch fallback when all empty). All pass in 1.97s. The 1 pre-existing i18n failure remains unchanged.
+
+- **`uv run python -m img2svg list-gpus` on the actual dev box now shows BOTH GPUs**:
+  - Index 0: `NVIDIA GeForce RTX 5070 Laptop GPU` (from nvidia-smi, 8151 MB VRAM, 7696 MB free, recommended Y)
+  - Index 1: `AMD Radeon 880M / 890M` (from lspci, 0 MB VRAM since it shares system RAM)
+  - The lspci duplicate of the NVIDIA GPU is correctly deduped away by the variant-descriptor normalization.
+
+- **Verification: ruff + mypy on changed files are clean**:
+  - `uv run ruff check src/img2svg/gpu.py tests/test_gpu.py`: All checks passed!
+  - `uv run mypy src/img2svg/gpu.py`: 1 pre-existing `Unused "type: ignore" comment` at line 281 (was line 178 in the original file before my changes). Verified pre-existing via `git stash && uv run mypy`. My changes did not introduce this error.
+
+
+## T34: rocm-smi flag fix + rocminfo helper (2026-06-10)
+
+- **The original `--showidname` flag is rocm-smi version-dependent**: The previous T22/T33 code used `rocm-smi --showidname --showmeminfo vram --csv` which works in SOME rocm-smi versions but fails (returns non-CSV or errors) in others. The user's installed version doesn't support `--showidname`. The fix is to use three separate subcommands that are universally supported: `--showproductname` (text), `--showmeminfo vram --csv` (CSV), and `--showmemuse` (text).
+
+- **rocm-smi text/CSV dual-format support**: `--showmeminfo vram --csv` returns CSV in some versions and plain text in others. The robust pattern is to try CSV parsing first; if it returns empty, fall back to text parsing of the same fields. Both parsers extract `device` / `GPU[N]` index + VRAM bytes and convert to MB.
+
+- **Text VRAM parser regex gotcha**: The line "VRAM Total Used Memory (B)" contains the substring "Total Memory" AND the substring "Used Memory" — naive regex like `(?:Total Memory|Used Memory)` would NOT match it. Must use `(?:Total(?: Used)? Memory|Used Memory)` to match all three forms: "Total Memory", "Total Used Memory", "Used Memory". Caught by `test_parse_rocm_smi_parses_text_vram_fallback`.
+
+- **rocminfo is a richer source than lspci for AMD device names**: rocminfo reports "AMD Radeon 890M Graphics" (clean marketing name) while lspci reports "Strix [Radeon 880M / 890M]" (silicon code with multiple marketing names). For users with the new Strix Halo APU, rocminfo gives a single canonical name; lspci gives the silicon code.
+
+- **rocminfo filter ordering matters**: The positive regex `\b(radeon|instinct|navi|vega|...)\b` matches "Radeon" in BOTH "AMD Ryzen AI 9 HX 370 w/ Radeon 890M" (APU brand, should be REJECTED) AND "AMD Radeon 890M Graphics" (real GPU, should be INCLUDED). The fix is a negative regex `\b(ryzen\s+ai|aie(?:-?ml)?|npu|cpu)\b` checked BEFORE the positive regex. Order matters: if you check the positive filter first, the APU brand sneaks through. Comment on the filter regex explains this ordering requirement.
+
+- **Vendor-level skip for lspci entries**: lspci names are imprecise (e.g. "Radeon 880M / 890M" for a GPU that rocm-smi/rocminfo report as "Radeon 890M Graphics"). Per-entry dedup by `(vendor, normalized_name)` doesn't catch this because the names differ. The pragmatic fix: if any higher-priority source (nvidia-smi/rocm-smi/rocminfo) reports a GPU of vendor V, lspci's entries for vendor V are skipped. This makes the user see the GPU exactly once with the best name and runtime metrics. Downside: if a user has 2 AMD GPUs and rocm-smi only sees 1, lspci's second entry is also skipped. Edge case for a future task.
+
+- **Pre-existing "Y" recommended-marker bug**: `print_gpu_recommendation` and `cli._print_gpu_table` used `rec_index == gpu.index` for the recommended marker. With multiple GPUs sharing the same index (both nvidia-smi and rocm-smi/rocminfo start at index 0), this incorrectly marks multiple rows as "Y". The fix is to use object identity: `recommended is gpu`. Both the gpu.py full implementation and the cli.py stub needed the same fix.
+
+- **The cli.py stub has a parallel implementation**: T22's `print_gpu_recommendation(strategy)` is a rich Rich table, but `cli._print_gpu_table(gpus, recommended)` is a 2-arg stub that calls the same Rich API differently. T22's learning said "the stub in cli.py will be wired to call the new function in a future task" — that future task is now. Until that wiring happens, BOTH functions need to be kept in sync (the recommended-marker bug was in both, and had to be fixed in both).
+
+- **Test plumbing for new source**: The 5 existing T33-era `list_gpus` merge tests didn't mock `_parse_rocminfo`. With rocminfo installed in the test environment (it IS installed on the dev box), the real function is called and returns 1+ entries, breaking the expected totals. Fix: add `monkeypatch.setattr(gpu_mod, "_parse_rocminfo", lambda: [])` to each existing test. This is the same plumbing pattern as T33 (mock all sources to control the merge).
+
+- **12 new tests added (333 → 345)**: 5 for `_parse_rocm_smi` (3 subcommands combined, text VRAM fallback, missing binary, subprocess error, name-only), 4 for `_parse_rocminfo` (extract GPU names, filter APU/NPU, missing binary, subprocess error), 3 for `list_gpus` merge with rocm-smi + rocminfo. All pass. The 1 pre-existing i18n failure (`test_ngettext_returns_singular_in_c_locale`) is unchanged.
+
+- **Real `img2svg list-gpus` on the dev box now shows BOTH GPUs cleanly**:
+  - Index 0: NVIDIA GeForce RTX 5070 Laptop GPU (8151 MB total, 7696 MB free, Recommended Y)
+  - Index 0: AMD Radeon 890M Graphics (512 MB total, 21-25 MB free, NOT 0)
+  - The lspci entry ("AMD Radeon 880M / 890M") is correctly suppressed by the vendor-level skip.
+  - The recommended marker is on the NVIDIA only (object-identity fix).
+
+- **Refactor avoided `dict | None` types**: Initial implementation of `_parse_rocm_smi_vram_text` used `dict[int, tuple[int, tuple[int, int] | None]]` and had to use `type: ignore[misc]` and `type: ignore[arg-type]` comments to make mypy accept the `total is None` checks. Refactored to use two separate dicts (`totals: dict[int, int]` and `used_values: dict[int, int]`) and a final dict comprehension that only includes indices present in both — this is mypy-clean without type ignores.
+
+- **Verification: ruff + mypy on changed files unchanged from baseline**:
+  - `uv run ruff check src/img2svg/gpu.py src/img2svg/cli.py tests/test_gpu.py`: 4 pre-existing errors in cli.py (B008 x2, SIM102, B904 — all Typer patterns), 0 NEW errors from my changes. Initial commit had 2 new (F401 unused Any, F841 unused rec_index, I001 unsorted imports) — all fixed.
+  - `uv run mypy src/img2svg/gpu.py`: 1 pre-existing `Unused "type: ignore" comment` at line 532 (the `os.uname().sysname  # type: ignore[attr-defined]` for Windows portability). Verified pre-existing via `git stash`. My changes did not introduce any new mypy errors.
+
+## T35: Fix duplicate "Index 0" in list-gpus output (2026-06-10)
+
+- **The merge preserves per-source device indices, causing duplicate "Index 0" in the table**: After T33 + T34, the merge logic (`merged.setdefault(_dedup_key(gpu), gpu)`) faithfully preserves each source's `index` field. nvidia-smi reports its first GPU as `index=0`; rocm-smi/rocminfo/lspci also report their first GPU as `index=0`. When the merged list is rendered as a Rich table, both rows show "Index 0", which is confusing. The fix is to reassign sequential indices (0, 1, 2, ...) AFTER the merge, so the table reflects the row's position in the merged list, not the source's device numbering.
+
+- **Sort by source-assigned index, then reassign**: The reassignment must happen AFTER `sorted(merged.values(), key=lambda g: g.index)`. This way the sort uses the source priorities (nvidia-smi entries sort first because they're inserted first into the `merged` dict, and stable sort preserves insertion order on equal keys), and the reassigned indices match the visible row order. If you reassign first and sort second, you'd lose the source-priority ordering information.
+
+- **Pydantic v2 `model_copy(update=...)` is the right pattern**: `gpu.model_copy(update={"index": i})` returns a new `GPUInfo` with the index field replaced. Pydantic v2 models are immutable-by-convention in this codebase, so mutating in place would violate the codebase's patterns. The `update` kwarg creates a copy with the override applied, leaving the original GPUInfo untouched.
+
+- **3 tests needed index-reassignment assertions added**: `test_list_gpus_merges_nvidia_and_lspci`, `test_list_gpus_merges_nvidia_and_rocm`, and `test_list_gpus_dedup_rocm_and_rocminfo_same_name` all use 2+ GPUs from different sources, all with `index=0`. After the fix, the first GPU should have `index=0` and the second `index=1`. Added `assert gpus[0].index == 0` and `assert gpus[1].index == 1` to each. No new tests were added — the existing test structure already covered the 2-GPU merge case, just with the wrong expected index for the second GPU.
+
+- **Tests with 1 GPU are unaffected**: Single-GPU tests (`test_list_gpus_dedup_prefers_nvidia_smi`, `test_list_gpus_dedup_case_insensitive`, `test_list_gpus_dedup_strips_variant_descriptors`, `test_list_gpus_merges_rocm_and_rocminfo`, `test_list_gpus_rocminfo_only_when_rocm_smi_missing`) don't need updating — the reassigned index is still 0 for a single GPU. Only multi-GPU merge tests need the index=0/index=1 pair assertion.
+
+- **`test_list_gpus_falls_back_to_torch_when_all_empty` is unaffected**: The torch fallback path is unchanged — it returns whatever `_torch_fallback()` returns. The reassignment only applies to the merged-vendor-tools path.
+
+- **`recommend_gpu` is unchanged**: `recommend_gpu` uses `g.index` for tie-breaking. After the fix, `g.index` is the position in the merged list, not the source's device index. For a single source with one GPU, the result is the same (both are 0). For multiple sources, the position-based index is still a valid tie-breaker (NVIDIA at position 0 beats AMD at position 1 if VRAM ties). No behavior change in practice.
+
+- **`print_gpu_recommendation` and `cli._print_gpu_table` are unchanged**: Both use object identity (`recommended is gpu`) for the "Y" marker (T34's fix), not `g.index`. So the recommended-marker logic doesn't depend on the index reassignment.
+
+- **Test count delta: 0 (no new tests, 3 existing tests got 2 new assertions each)**: The fix is a 7-line code change in `list_gpus()` + 6 new assertion lines across 3 existing tests. No new test functions added.
+
+- **Real `img2svg list-gpus` on the dev box now shows BOTH GPUs with unique indices**:
+  - Index 0: NVIDIA GeForce RTX 5070 Laptop GPU (8151 MB total, 7696 MB free, Recommended Y)
+  - Index 1: AMD Radeon 890M Graphics (512 MB total, ~21 MB free)
+  - The lspci entry ("AMD Radeon 880M / 890M") is correctly suppressed by the vendor-level skip from T34.
+  - No more duplicate "Index 0".
+
+- **Verification: pytest + ruff + mypy on changed files clean**:
+  - `uv run pytest -m "not slow" -q --tb=short`: 345 passed, 1 pre-existing i18n failure (`test_ngettext_returns_singular_in_c_locale`, unchanged since T16), 8 deselected (slow). No regressions.
+  - `uv run ruff check src/img2svg/gpu.py tests/test_gpu.py`: All checks passed! 0 new errors.
+  - `uv run mypy src/img2svg/gpu.py`: Same 1 pre-existing `Unused "type: ignore" comment` at line 532. 0 new errors.
