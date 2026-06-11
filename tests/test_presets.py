@@ -19,6 +19,26 @@ def test_image_type_to_mode_covers_all_types() -> None:
         assert it in IMAGE_TYPE_TO_MODE
 
 
+def test_image_type_to_mode_never_picks_explicit_only_modes() -> None:
+    """AUTO must never resolve to LABELS, ANNOTATED, or SEGMENTED.
+
+    Those modes are explicit-only — users opt in by passing the mode flag.
+    Regression guard for the user constraint recorded in the photo-quality
+    plan (T10).
+    """
+    forbidden = {Mode.LABELS, Mode.ANNOTATED, Mode.SEGMENTED}
+    for image_type, mode in IMAGE_TYPE_TO_MODE.items():
+        assert mode not in forbidden, (
+            f"AUTO must not resolve {image_type!r} to {mode!r}; "
+            f"LABELS/ANNOTATED/SEGMENTED are explicit-only"
+        )
+
+
+def test_image_type_to_mode_photo_uses_detailed() -> None:
+    """PHOTO in AUTO must use DETAILED (aggressive pre-process + hi-fi trace)."""
+    assert IMAGE_TYPE_TO_MODE[ImageType.PHOTO] == Mode.DETAILED
+
+
 def test_mode_to_preset_covers_non_auto_modes() -> None:
     for m in Mode:
         if m == Mode.AUTO:
@@ -39,7 +59,7 @@ def test_select_mode_explicit_override_wins() -> None:
 
 def test_select_mode_auto_uses_image_type_table() -> None:
     chosen, reasoning = select_mode(ImageType.PHOTO, Mode.AUTO)
-    assert chosen == Mode.ANNOTATED
+    assert chosen == Mode.DETAILED
     assert "auto" in reasoning.lower()
     assert "photo" in reasoning.lower()
 

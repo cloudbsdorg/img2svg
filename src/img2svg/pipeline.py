@@ -40,9 +40,13 @@ from img2svg.patterns import analyze_global
 from img2svg.presets import select_mode
 from img2svg.renderers.annotated import AnnotatedRenderer
 from img2svg.renderers.base import Renderer
+from img2svg.renderers.detailed import DetailedRenderer
+from img2svg.renderers.edge import EdgeRenderer
 from img2svg.renderers.labels import LabelsRenderer
+from img2svg.renderers.poster import PosterRenderer
 from img2svg.renderers.trace import TraceRenderer
 from img2svg.renderers.visual import VisualRenderer
+from img2svg.renderers.watercolor import WatercolorRenderer
 from img2svg.svg_builder import SVGDocument
 
 if TYPE_CHECKING:
@@ -56,12 +60,17 @@ _VERSION: str = "0.1.0"
 
 # Map a resolved `Mode` to the corresponding renderer class. `Mode.AUTO` is
 # intentionally absent — the pipeline must resolve AUTO via `select_mode()`
-# before looking up a renderer.
+# before looking up a renderer. `Mode.SEGMENTED` is also absent — its
+# `SegmentedRenderer` lands in T16.
 RENDERER_REGISTRY: dict[Mode, type[Renderer]] = {
     Mode.LABELS: LabelsRenderer,
     Mode.VISUAL: VisualRenderer,
     Mode.ANNOTATED: AnnotatedRenderer,
     Mode.TRACE: TraceRenderer,
+    Mode.POSTER: PosterRenderer,
+    Mode.DETAILED: DetailedRenderer,
+    Mode.EDGE: EdgeRenderer,
+    Mode.WATERCOLOR: WatercolorRenderer,
 }
 
 

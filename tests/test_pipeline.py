@@ -170,8 +170,8 @@ def test_pipeline_auto_mode_resolves_to_concrete(tmp_path: Path, logo_path: Path
     ):
         result = Pipeline(ConversionOptions(mode=Mode.AUTO)).run(logo_path, out_svg)
 
-    # Forced LOGO classification → IMAGE_TYPE_TO_MODE[LOGO] = Mode.LABELS
-    assert result.sidecar.mode_used == Mode.LABELS
+    # Forced LOGO classification → IMAGE_TYPE_TO_MODE[LOGO] = Mode.VISUAL
+    assert result.sidecar.mode_used == Mode.VISUAL
     assert "auto:" in result.sidecar.mode_reasoning
 
 
