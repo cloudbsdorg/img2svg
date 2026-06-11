@@ -201,10 +201,53 @@ You should see the version, OS string, and a list of detected compute devices. I
 
 The pipeline uses two YOLO model families, both downloaded on first use and cached under `$XDG_CACHE_HOME/img2svg/models/`:
 
-- **Detection** — `yolo11x.pt` (default, ~50 MB). Configurable via `--model`. Smaller variants: `yolo11n.pt` (~5 MB), `yolo11s.pt` (~20 MB), `yolo11m.pt` (~40 MB), `yolo11l.pt` (~50 MB).
+- **Detection** — `yolo11x.pt` (default, ~114 MB). Configurable via `--model`. Smaller variants: `yolo11n.pt` (~5 MB), `yolo11s.pt` (~20 MB), `yolo11m.pt` (~40 MB), `yolo11l.pt` (~50 MB).
 - **Segmentation** — `yolo11s-seg.pt` (default, ~20 MB). Configurable via `--seg-model`. Smaller and larger variants: `yolo11n-seg` (~5 MB), `yolo11m-seg` (~40 MB), `yolo11l-seg` (~50 MB), `yolo11x-seg` (~100 MB).
 
 The segmentation models are used by `--mode segmented` to produce a multi-layer editable SVG with one group per detected object. The detection models power the bounding-box overlays in `--mode labels` and `--mode annotated`.
+
+### Disk-space requirements
+
+The two default models take about 135 MB combined. The full set of 10 YOLO11 variants (5 detectors + 5 segmentors) is roughly 550 MB. Plan accordingly when deploying to air-gapped systems or low-storage CI runners.
+
+### Pre-downloading the weights
+
+`make install` and `uv add img2svg` both download the model weights lazily on first use. To skip the wait and make the first `img2svg convert` instant, pre-download the weights into the XDG cache:
+
+```bash
+# Default set (yolo11x.pt + yolo11s-seg.pt, ~135 MB)
+make install-models
+# or
+img2svg-download-models
+
+# All 10 YOLO11 variants (~550 MB)
+make install-models MODEL_SET=all
+# or
+img2svg-download-models --all
+
+# Specific models only
+make install-models MODELS=yolo11n.pt,yolo11s-seg.pt
+
+# Re-download a model even if it's already in the cache
+img2svg-download-models --models yolo11x.pt --force
+```
+
+The download is **idempotent**: already-cached models are skipped, so `make install-models` is safe to run on every deploy. `make install` automatically calls `make install-models` after the package is installed; pass `SKIP_MODELS=1` to defer the download:
+
+```bash
+make install SKIP_MODELS=1
+make install-models  # run later
+```
+
+### Consolidating stray weights
+
+Older img2svg versions (and raw ultralytics) put the downloaded `.pt` file in the current working directory or a `weights/` subdir next to your source. The current version always uses the XDG cache. To move any stray files you've accumulated into the XDG cache:
+
+```bash
+make cleanup-models
+```
+
+This searches `./`, `~/Pictures`, `~/Downloads`, and `./weights/` for `*.pt` files and either moves them into `~/.cache/img2svg/models/` (if no model with that name is cached) or removes the stray duplicate (if the cache already has a copy).
 
 VRAM guidance:
 

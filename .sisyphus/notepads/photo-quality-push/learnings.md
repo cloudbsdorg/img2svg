@@ -1558,3 +1558,191 @@ Wrong peer_id silently returns 0 results and triggers false-positive REJECT.
 - 615 unit tests cover the wired integration points and edge cases
 - 0% on new SegmentedRenderer because integration test (real YOLO inference)
   would require network/model download — not appropriate for fast suite
+
+### trace_region Channel Coercion Fix (2026-06-11)
+- **Bug**: `detector.py::trace_region` failed with `TypeError: Cannot handle this data type: (1, 1, 5), |u1` on RGBA input because `np.dstack([crop_img, crop_mask])` produced a 5-channel array (4 RGBA + 1 mask) and `PIL.Image.fromarray` rejects that.
+- **Root cause**: The function's docstring said "H x W x 3 uint8 RGB image" but the code did NOT enforce it. The pipeline passes `self.image.np_array` from `LoadedImage`, which preserves the source's channel count.
+- **Fix location**: `src/img2svg/detector.py::trace_region` — coerce `crop_img` to exactly 3 channels BEFORE `np.dstack`; coerce `mask` to 2D BEFORE `get_tight_bbox` (ultralytics quirk).
+- **Channels covered**:
+  - `ndim == 2` (H, W) → expand via `np.repeat(img[..., None], 3, axis=-1)`
+  - `shape[-1] == 1` (H, W, 1) → expand via `np.repeat(img, 3, axis=-1)`
+  - `shape[-1] == 4` (RGBA) → drop via `img[..., :3]`
+  - `shape[-1] == 3` (RGB) → pass through
+  - 3D mask with trailing 1 → squeeze via `mask[..., 0]`
+- **Mask coercion timing**: MUST happen before `get_tight_bbox` call, not after `crop_mask` derivation, because `get_tight_bbox` itself expects 2D and will throw `ValueError: too many values to unpack` otherwise.
+- **Established pattern**: matches the `_kmeans_dominant_colors` pattern in `patterns.py:31-34` (`if image.shape[-1] == 4: rgb_image = image[..., :3]`).
+- **Test pattern**: `tests/test_segmentation.py` uses `_FakeVtracer` + `_install_fake_vtracer` monkeypatch fixture. Saved PNG bytes are read back via `Image.open(BytesIO(...)).convert("RGBA")` for content assertions.
+- **Regression test critical assertion**: `int(saved[..., 3].min()) == 1` (NOT 128) — proves the source image's alpha channel value was dropped, not leaked into the vtracer alpha channel.
+- **E2E verify**: `img2svg convert ~/Pictures/tybig.png -o /tmp/tybig-segmented.svg --mode segmented` → 1MB SVG with `<svg:g id="background">` + `<svg:g id="obj_person_0">`. Note: output uses `svg:` namespace prefix on elements (lxml `nsmap`), so grep for `<g id=...` returns 0 — must grep for `id="background"` directly or `<svg:g`.
+
+## T20: XDG model cache + `make install-models` (learned 2026-06-11)
+
+### Goal
+Move the YOLO model weights out of cwd into the XDG cache dir
+(`$XDG_CACHE_HOME/img2svg/models/`, default `~/.cache/img2svg/models/`),
+add a `make install-models` pre-download target, and auto-call it from
+`make install` so the package is "ready to use" out of the box.
+
+### Ultralytics internals that matter
+
+- `ultralytics.YOLO(model)` calls `ultralytics.utils.checks.check_file(model, download_dir=SETTINGS["weights_dir"])`
+- `check_file` short-circuits to `Path(model).exists()` BEFORE
+  downloading. If the user has a stray `yolo11x.pt` in cwd, ultralytics
+  uses that file (no download), and the SETTINGS override is bypassed
+  for that call. The defensive `pre_download_model` MUST therefore
+  search multiple candidate locations (cwd, SETTINGS-original
+  `weights_dir`, `weights/` subdir of cwd) and move any hit into the
+  cache.
+- `SETTINGS["weights_dir"]` is a `SettingsManager` (mutable dict) and
+  is PERSISTED to `~/.config/Ultralytics/settings.json` on every
+  change. Tests that mutate it pollute the user's actual config —
+  always reset to the default in test cleanup or in production after
+  the download call.
+- `SETTINGS["weights_dir"]` defaults to `"weights"` (relative to cwd),
+  which is the source of the original bug: ultralytics creates
+  `cwd/weights/yolo11x.pt` on first use, polluting the user's
+  project directory.
+
+### Implementation pattern
+
+```python
+from ultralytics.utils import SETTINGS
+from ultralytics import YOLO
+
+original = SETTINGS.get("weights_dir", "weights")
+try:
+    SETTINGS["weights_dir"] = str(cache_path.parent)
+    model = YOLO(model_name)
+    del model  # free ~2-4 GB
+finally:
+    SETTINGS["weights_dir"] = original
+```
+
+The detector now calls `paths.model_cache_path(name)` first and passes
+the **absolute path** to `YOLO(str(model_path))` instead of the bare
+name. This is the bug-avoidance: passing a bare name lets ultralytics
+fall back to its cwd-relative download; passing the absolute path
+forces a load-from-disk path.
+
+### CLI normalization gotcha
+
+`ConversionOptions.seg_model` defaults to `"yolo11s-seg"` (no `.pt`
+suffix) and the CLI `_seg_model_callback` validates against the
+stem-only set `{"yolo11n-seg", "yolo11s-seg", ...}`. The detector
+default for `model` is `"yolo11x.pt"` (with suffix). `pre_download_model`
+MUST accept both forms and normalize to `*.pt` for cache consistency
+— otherwise the cache contains both `yolo11s-seg` and `yolo11s-seg.pt`
+duplicates. One-line fix:
+
+```python
+if not model_name.endswith(".pt"):
+    model_name = f"{model_name}.pt"
+```
+
+### Test pattern for module-level imports
+
+When the production code does `from img2svg.model_download import pre_download_model`,
+monkeypatching the function in the source module doesn't affect
+callers that have already imported the binding. To make the
+`@pytest.fixture(autouse=True)` pattern work, patch BOTH namespaces:
+
+```python
+monkeypatch.setattr("img2svg.model_download.pre_download_model", stub)
+monkeypatch.setattr(detector, "pre_download_model", stub)
+```
+
+The `from-import` creates a second binding in the detector's namespace
+that the test has to override separately.
+
+### Test fixture pattern: dual `cache_dir` + `model_cache_path` patch
+
+`model_download.py` uses BOTH `paths.cache_dir()` and
+`paths.model_cache_path(name)`. The test fixture must patch BOTH or
+the helpers disagree on the cache root and the test passes/fails
+spuriously. Pattern:
+
+```python
+@pytest.fixture
+def fake_cache(monkeypatch, tmp_path):
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    models = cache_root / "models"
+    models.mkdir()
+    monkeypatch.setattr(
+        "img2svg.model_download.paths.model_cache_path",
+        lambda name: models / name,
+    )
+    monkeypatch.setattr(
+        "img2svg.model_download.paths.cache_dir",
+        lambda: cache_root,
+    )
+    return models
+```
+
+### Makefile portability rules applied
+
+- All variables use `=` (recursive), never `:=` or `?=`.
+- `[ ... ]` not `[[ ... ]]`.
+- `printf` not `echo -e`.
+- `command -v` not `which`.
+- `$$` to escape `$` inside recipes.
+- `make -n <target>` self-test to verify the new targets parse cleanly
+  on both GNU and BSD make.
+
+### Makefile loop pattern for comma-separated lists
+
+`make install-models` accepts `MODELS=a,b,c`. The shell-loop pattern
+is to save `IFS`, set `IFS=','`, iterate, and restore on each
+iteration (because nested `if` blocks mutate `IFS` too):
+
+```makefile
+OLD_IFS="$$IFS"; IFS=','
+for MODEL in $$LIST; do
+    IFS="$$OLD_IFS"  # restore inside the loop body
+    ...
+    IFS=','  # re-set for the next iteration
+done
+IFS="$$OLD_IFS"
+```
+
+### Cleanup semantics: deduplicate, don't overwrite
+
+When a stray `.pt` exists in cwd AND the cache has the same model,
+the cwd file is a duplicate. The cleanup moves OR REMOVES the cwd
+copy (depending on whether the cache has the model). Never
+overwrite the cache — the cache is the canonical location, and the
+cwd copy is now redundant.
+
+### E2E verification
+
+- `cd /tmp && img2svg convert ~/Pictures/tybig.png -o /tmp/foo.svg`
+  (detailed mode) → success, no strays
+- `cd /tmp && img2svg convert ~/Pictures/tybig.png -o /tmp/foo.svg
+  --mode segmented` → success, no strays
+- `make install-models` → idempotent (skips already-cached models)
+- `make cleanup-models` → dedupes strays in cwd, Pictures, Downloads
+
+### Files added/modified
+
+- ADD `src/img2svg/model_download.py` (the pre-download module)
+- ADD `src/img2svg/download_cli.py` (console-script entry point:
+  `img2svg-download-models`)
+- ADD `scripts/download_models.py` (Makefile-facing CLI; same behavior
+  as the console script but doesn't depend on package install)
+- ADD `tests/test_model_download.py` (16 dedicated tests)
+- MOD `src/img2svg/detector.py` (call `pre_download_model`, pass
+  absolute path to `YOLO()`)
+- MOD `src/img2svg/__init__.py` — N/A (model_download is internal)
+- MOD `pyproject.toml` (register `img2svg-download-models` console
+  script)
+- MOD `Makefile` (add `install-models` + `cleanup-models` targets,
+  wire `install` to call `install-models` with `SKIP_MODELS=1`
+  escape hatch, update `self-test` to parse-check the new targets)
+- MOD `README.md` (YOLO model weights section, Configuration
+  table updates)
+- MOD `docs/installation.md` (YOLO model availability section
+  expanded with disk-space, pre-download, and consolidation guidance)
+- MOD `tests/test_detector.py` (autouse fixture stubbing
+  `pre_download_model` so existing tests don't trigger real downloads)
+
+### Test count: 619 → 635 (+16 new), 1 pre-existing i18n failure

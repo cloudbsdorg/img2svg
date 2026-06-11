@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest import mock
 
@@ -63,6 +64,31 @@ class _FakeBackend:
 
     def to_ultralytics_string(self, i: int) -> str:
         return self._ultralytics
+
+
+@pytest.fixture(autouse=True)
+def _stub_pre_download(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the real YOLO download in detector tests.
+
+    The detector now calls :func:`pre_download_model` before constructing
+    the ``ultralytics.YOLO`` object, so the file must exist on disk for
+    the test to proceed. We patch ``pre_download_model`` in the
+    ``img2svg.model_download`` namespace (the function is re-exported
+    into ``detector`` at import time) to return a deterministic stub
+    path. The tests in this module are about detector behaviour, not
+    about the download mechanism — that has its own dedicated tests.
+    """
+    monkeypatch.setattr(
+        "img2svg.model_download.pre_download_model",
+        lambda model_name, *, force=False: Path(f"/tmp/img2svg-stub/{model_name}"),
+    )
+    # detector imports `pre_download_model` into its own namespace, so
+    # the import-level binding must also be patched.
+    monkeypatch.setattr(
+        detector, "pre_download_model", lambda model_name, *, force=False: Path(
+            f"/tmp/img2svg-stub/{model_name}"
+        )
+    )
 
 
 def test_get_detector_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -73,12 +73,17 @@ Not sure? The bundled script probes the host and prints the right install comman
 
 ```bash
 pip install img2svg
+# Optional: pre-download the YOLO model weights (~135 MB) so the
+# first `img2svg convert` is instant. Idempotent — safe to re-run.
+img2svg-download-models
+# or: make install-models
 ```
 
 ### uv
 
 ```bash
 uv add img2svg
+uv run img2svg-download-models
 ```
 
 ### From source
@@ -88,7 +93,47 @@ git clone https://github.com/cloudbsdorg/img2svg.git
 cd img2svg
 uv sync --all-extras
 uv run img2svg --version
+# `make install` runs `make install-models` automatically, so the
+# default YOLO weights (~135 MB) land in the XDG cache before the
+# first `img2svg convert`. Pass SKIP_MODELS=1 to defer.
+make install
 ```
+
+### YOLO model weights
+
+The first `img2svg convert` call on a fresh install downloads the
+default YOLO weights (about 135 MB) from the ultralytics release
+page. To skip the wait and make the first call instant, pre-download
+the weights into the XDG cache:
+
+```bash
+# Default set (yolo11x.pt + yolo11s-seg.pt, ~135 MB)
+make install-models
+# or
+img2svg-download-models
+
+# All 10 YOLO11 variants (~550 MB) for offline / multi-model use
+make install-models MODEL_SET=all
+# or
+img2svg-download-models --all
+
+# Specific models only
+make install-models MODELS=yolo11n.pt,yolo11s-seg.pt
+# or
+img2svg-download-models --models yolo11n.pt,yolo11s-seg.pt
+```
+
+Models are stored under `$XDG_CACHE_HOME/img2svg/models/`
+(default `~/.cache/img2svg/models/`). Override with the standard
+`XDG_CACHE_HOME` environment variable.
+
+The download is **idempotent**: already-cached models are skipped, so
+`make install-models` is safe to run on every deploy. Use
+`FORCE=1` (Makefile) or `--force` (CLI) to re-download.
+
+If you have stray `.pt` files lying around in your cwd or `$HOME/Pictures`
+from an older img2svg version, run `make cleanup-models` once to
+consolidate them into the XDG cache.
 
 ### Detailed instructions
 
@@ -240,9 +285,20 @@ img2svg follows the [XDG Base Directory Specification](https://specifications.fr
 | Config directory | `~/.config/img2svg/` | `$XDG_CONFIG_HOME` |
 | Data directory | `~/.local/share/img2svg/` | `$XDG_DATA_HOME` |
 | Cache directory (incl. YOLO model cache) | `~/.cache/img2svg/` | `$XDG_CACHE_HOME` |
+| YOLO model cache | `~/.cache/img2svg/models/` | `$XDG_CACHE_HOME` (parent) |
 | System config (FreeBSD/CloudBSD) | `/usr/local/etc/cloudbsd/img2svg` | n/a |
 
 User configuration is read from `<config_dir>/config.toml` if present. An empty or missing file is not an error.
+
+### YOLO model cache
+
+YOLO weights live under the XDG cache directory at
+`$XDG_CACHE_HOME/img2svg/models/`. The two default models
+(`yolo11x.pt` for detection, `yolo11s-seg.pt` for segmentation) take
+about 135 MB combined; the full set of 10 YOLO11 variants is about
+550 MB. Use `make install-models` (or `img2svg-download-models`) to
+pre-populate the cache, and `make cleanup-models` to consolidate
+stray `.pt` files from other directories. See [YOLO model weights](#yolo-model-weights) above.
 
 ## Platform Support
 

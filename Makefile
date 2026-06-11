@@ -49,6 +49,7 @@ IMG2SVG_BIN  = $(shell command -v img2svg 2>/dev/null || echo "")
 
 .PHONY: help info install install-dry-run install-system \
         install-cpu install-nvidia install-amd install-apple \
+        install-models cleanup-models \
         uninstall purge verify manpage check-freebsd \
         self-test test lint format build docs clean \
         _install_extra
@@ -68,6 +69,7 @@ help: ## Show this help menu
 	@printf "\n"
 	@printf "Install variants: install (user-level, uv tool) | install-system (system-wide, sudo)\n"
 	@printf "Install extras: cpu, nvidia, amd, apple\n"
+	@printf "Pre-download: install-models (idempotent, ~135 MB default / ~550 MB all)\n"
 	@printf "FreeBSD note:  [nvidia]/[amd]/[apple] all fall back to [cpu].\n"
 	@printf "\n"
 	@printf "Targets:\n"
@@ -166,7 +168,7 @@ install: ## Install img2svg (auto-detect platform + GPU backend)
 	            ;; \
 	    esac; \
 	    printf "Detected extra: [cpu|nvidia|amd|apple] -> %s\n" "$$EXTRA"; \
-	    if [ -n "$(UV)" ]; then \
+	if [ -n "$(UV)" ]; then \
 	        $(UV) pip install --system "img2svg[$$EXTRA]"; \
 	    elif [ -n "$(PIP)" ]; then \
 	        $(PIP) install "img2svg[$$EXTRA]"; \
@@ -174,6 +176,12 @@ install: ## Install img2svg (auto-detect platform + GPU backend)
 	        printf "ERROR: no package manager found (need uv or pip on PATH)\n" >&2; \
 	        exit 1; \
 	    fi; \
+	fi
+	@if [ "$(SKIP_MODELS)" = "1" ]; then \
+	    printf "Skipping model pre-download (SKIP_MODELS=1).\n"; \
+	    printf "Run 'make install-models' later to fetch the YOLO weights.\n"; \
+	else \
+	    $(MAKE) install-models; \
 	fi
 
 install-dry-run: ## Show what 'make install' would do without doing it
@@ -197,6 +205,116 @@ install-dry-run: ## Show what 'make install' would do without doing it
 	    printf "scripts/install_backend.sh not found; cannot produce install plan.\n" >&2; \
 	    exit 1; \
 	fi
+
+# === install-models =========================================================
+# Pre-download the YOLO model weights into the XDG cache directory
+# ($XDG_CACHE_HOME/img2svg/models/, default ~/.cache/img2svg/models/).
+# The package works without this step (it downloads on first use), but
+# pre-downloading makes the first `img2svg convert` call instant and
+# removes a 5-114 MB download from the critical path.
+#
+# Variables:
+#   MODELS=<comma-separated>  -- explicit list (default: yolo11x.pt,yolo11s-seg.pt)
+#   MODEL_SET=all            -- download all 10 YOLO11 variants (~550 MB)
+#   FORCE=1                  -- re-download even if cached
+#
+# Idempotent: skips models already in the cache.
+#
+# The XDG cache directory is computed in shell (not via `paths.py`) so
+# this target works before the package is installed (e.g. during
+# `make install`). After install, `paths.model_cache_path()` is the
+# canonical helper.
+
+DEFAULT_MODELS_LIST = yolo11x.pt,yolo11s-seg.pt
+ALL_MODELS_LIST = yolo11n.pt,yolo11s.pt,yolo11m.pt,yolo11l.pt,yolo11x.pt,yolo11n-seg.pt,yolo11s-seg.pt,yolo11m-seg.pt,yolo11l-seg.pt,yolo11x-seg.pt
+
+install-models: ## Pre-download YOLO model weights to ~/.cache/img2svg/models/ (MODELS=, MODEL_SET=all, FORCE=1)
+	@CACHE_BASE="$${CACHE_HOME:-$$HOME/.cache}"; \
+	CACHE_MODELS="$$CACHE_BASE/img2svg/models"; \
+	mkdir -p "$$CACHE_MODELS"; \
+	if [ "$(MODEL_SET)" = "all" ]; then \
+	    REQUESTED="$(ALL_MODELS_LIST)"; \
+	elif [ -n "$(MODELS)" ]; then \
+	    REQUESTED="$(MODELS)"; \
+	else \
+	    REQUESTED="$(DEFAULT_MODELS_LIST)"; \
+	fi; \
+	printf "Pre-downloading YOLO models to %s\n" "$$CACHE_MODELS"; \
+	printf "Requested: %s\n" "$$REQUESTED"; \
+	SKIPPED=0; DOWNLOADED=0; FAILED=0; \
+	OLD_IFS="$$IFS"; IFS=','; \
+	for MODEL in $$REQUESTED; do \
+	    IFS="$$OLD_IFS"; \
+	    MODEL=$$(printf '%s' "$$MODEL" | tr -d ' '); \
+	    if [ -z "$$MODEL" ]; then continue; fi; \
+	    TARGET="$$CACHE_MODELS/$$MODEL"; \
+	    if [ -f "$$TARGET" ] && [ "$(FORCE)" != "1" ]; then \
+	        printf "  skip  %s (already cached, %s)\n" "$$MODEL" "$$(du -h "$$TARGET" 2>/dev/null | cut -f1)"; \
+	        SKIPPED=$$((SKIPPED + 1)); \
+	        IFS=','; \
+	        continue; \
+	    fi; \
+	    printf "  get   %s ...\n" "$$MODEL"; \
+	    if [ -n "$(UV)" ]; then \
+	        $(UV) run python scripts/download_models.py --models "$$MODEL" --force >/dev/null 2>&1 && DOWNLOADED=$$((DOWNLOADED + 1)) || { FAILED=$$((FAILED + 1)); printf "  FAIL  %s\n" "$$MODEL" >&2; }; \
+	    elif [ -n "$(PYTHON)" ]; then \
+	        "$(PYTHON)" scripts/download_models.py --models "$$MODEL" --force >/dev/null 2>&1 && DOWNLOADED=$$((DOWNLOADED + 1)) || { FAILED=$$((FAILED + 1)); printf "  FAIL  %s\n" "$$MODEL" >&2; }; \
+	    else \
+	        printf "ERROR: no Python runtime found (need uv or python3 on PATH)\n" >&2; \
+	        exit 1; \
+	    fi; \
+	    IFS=','; \
+	done; \
+	IFS="$$OLD_IFS"; \
+	TOTAL=$$(ls -1 "$$CACHE_MODELS" 2>/dev/null | wc -l); \
+	SIZE=$$(du -sh "$$CACHE_MODELS" 2>/dev/null | cut -f1); \
+	printf "Done. %d downloaded, %d skipped, %d failed. Cache: %d files, %s total.\n" \
+	    "$$DOWNLOADED" "$$SKIPPED" "$$FAILED" "$$TOTAL" "$$SIZE"; \
+	if [ "$$FAILED" -gt 0 ]; then \
+	    printf "ERROR: %d model(s) failed to download. Check your internet connection.\n" "$$FAILED" >&2; \
+	    exit 1; \
+	fi
+
+# === cleanup-models ========================================================
+# One-time cleanup: move stray .pt files from a handful of common "I
+# ran img2svg from here" cwd locations into the XDG cache. Idempotent
+# and BSD-portable (no [[, no echo -e, no which, no :=). Searches:
+#   - the current working directory
+#   - the cwd's weights/ subdir
+#   - $HOME/Pictures (the most common accidental cwd)
+#   - $HOME/Downloads (second most common)
+# If the cache already has a file with the same basename, the cwd
+# duplicate is REMOVED (the cache is the canonical home; keeping both
+# is a recipe for confusion and wasted disk). Files in the cache are
+# NEVER moved out (this is a one-way consolidation).
+
+cleanup-models: ## Move stray .pt files from cwd/Pictures/Downloads into the XDG model cache
+	@CACHE_BASE="$${XDG_CACHE_HOME:-$$HOME/.cache}"; \
+	CACHE_MODELS="$$CACHE_BASE/img2svg/models"; \
+	mkdir -p "$$CACHE_MODELS"; \
+	SEARCH_DIRS=".$$IFS.$$HOME/Pictures.$$IFS.$$HOME/Downloads.$$IFS.$$PWD/weights"; \
+	OLD_IFS="$$IFS"; IFS='.'; \
+	MOVED=0; DEDUPED=0; \
+	for DIR in $$SEARCH_DIRS; do \
+	    IFS="$$OLD_IFS"; \
+	    if [ ! -d "$$DIR" ]; then continue; fi; \
+	    for PTFILE in "$$DIR"/*.pt; do \
+	        if [ ! -f "$$PTFILE" ]; then continue; fi; \
+	        BASENAME=$$(basename "$$PTFILE"); \
+	        TARGET="$$CACHE_MODELS/$$BASENAME"; \
+	        if [ "$$PTFILE" = "$$TARGET" ]; then continue; fi; \
+	        if [ -f "$$TARGET" ]; then \
+	            printf "  dedup  %s (cache already has %s)\n" "$$PTFILE" "$$BASENAME"; \
+	            rm -f "$$PTFILE" && DEDUPED=$$((DEDUPED + 1)) || printf "  WARN  could not remove %s\n" "$$PTFILE" >&2; \
+	        else \
+	            printf "  move  %s -> %s\n" "$$PTFILE" "$$TARGET"; \
+	            mv "$$PTFILE" "$$TARGET" && MOVED=$$((MOVED + 1)) || printf "  WARN  could not move %s\n" "$$PTFILE" >&2; \
+	        fi; \
+	    done; \
+	    IFS='.'; \
+	done; \
+	IFS="$$OLD_IFS"; \
+	printf "Cleanup done. %d moved, %d redundant duplicates removed.\n" "$$MOVED" "$$DEDUPED"
 
 # === install-system =========================================================
 # Symlink the per-user uv tool install into /usr/local/bin so img2svg is
@@ -434,6 +552,18 @@ self-test: ## Verify Makefile syntax + key variables
 	    printf "OK:   make -n help parses cleanly\n"; \
 	else \
 	    printf "FAIL: make -n help failed to parse\n" >&2; \
+	    FAIL=1; \
+	fi; \
+	if make -n install-models >/dev/null 2>&1; then \
+	    printf "OK:   make -n install-models parses cleanly\n"; \
+	else \
+	    printf "FAIL: make -n install-models failed to parse\n" >&2; \
+	    FAIL=1; \
+	fi; \
+	if make -n cleanup-models >/dev/null 2>&1; then \
+	    printf "OK:   make -n cleanup-models parses cleanly\n"; \
+	else \
+	    printf "FAIL: make -n cleanup-models failed to parse\n" >&2; \
 	    FAIL=1; \
 	fi; \
 	printf "OK:   make binary = %s\n" "$$(command -v make 2>/dev/null) ($$(make --version 2>/dev/null | head -1))"; \

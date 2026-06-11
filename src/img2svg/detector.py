@@ -29,11 +29,11 @@ import numpy as np
 from lxml import etree
 from PIL import Image
 
-from img2svg import paths
 from img2svg.backends.protocol import BackendType, DeviceBackend
 from img2svg.backends.registry import REGISTRY
 from img2svg.errors import DeviceUnavailableError, ModelLoadError
 from img2svg.logging import get_logger
+from img2svg.model_download import pre_download_model
 from img2svg.models import BackendSpec, BoundingBox, Detection
 from img2svg.svg_builder import SVG_NS
 from img2svg.vectorizer import VtracerVectorizer
@@ -107,12 +107,16 @@ def get_segmentor(
 
 
 def _ensure_model_downloaded(model_name: str) -> Path:
-    """Make sure the model is in the XDG cache dir. ultralytics auto-downloads on first YOLO() call.
+    """Make sure the model is in the XDG cache dir.
 
-    We do NOT proactively download — we let ultralytics handle it on YOLO()
-    instantiation. This function just returns the expected cache path.
+    Delegates to :func:`img2svg.model_download.pre_download_model`, which
+    is idempotent: if the file is already cached, this is a no-op; otherwise
+    the model is fetched from the ultralytics release page and stored in
+    the XDG cache directory. The returned absolute path is what ultralytics
+    sees on the next ``YOLO()`` call, so the model is always loaded from
+    cache rather than re-downloaded to cwd.
     """
-    return paths.model_cache_path(model_name)
+    return pre_download_model(model_name)
 
 
 class YOLODetector:
@@ -167,11 +171,13 @@ class YOLODetector:
         # ``IndexError`` on an out-of-range index; the registry does
         # not pre-validate the index.
         self.device = self._resolved_backend.to_ultralytics_string(self._backend_spec.index or 0)
-        _ensure_model_downloaded(self._model_name)
+        # Resolve to the XDG cache path and pass the absolute path to YOLO
+        # so it loads from disk instead of downloading to cwd's `weights/`.
+        model_path = _ensure_model_downloaded(self._model_name)
         try:
             from ultralytics import YOLO  # type: ignore[attr-defined]
 
-            self._model = YOLO(self._model_name)
+            self._model = YOLO(str(model_path))
         except Exception as e:
             raise ModelLoadError(self._model_name, original=e) from e
 
@@ -325,11 +331,13 @@ class YOLOSegmentor:
         # ``IndexError`` on an out-of-range index; the registry does
         # not pre-validate the index.
         self.device = self._resolved_backend.to_ultralytics_string(self._backend_spec.index or 0)
-        _ensure_model_downloaded(self._model_name)
+        # Resolve to the XDG cache path and pass the absolute path to YOLO
+        # so it loads from disk instead of downloading to cwd's `weights/`.
+        model_path = _ensure_model_downloaded(self._model_name)
         try:
             from ultralytics import YOLO  # type: ignore[attr-defined]
 
-            self._model = YOLO(self._model_name)
+            self._model = YOLO(str(model_path))
         except Exception as e:
             raise ModelLoadError(self._model_name, original=e) from e
 
