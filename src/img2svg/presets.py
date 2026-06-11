@@ -24,6 +24,11 @@ MODE_TO_PRESET: dict[Mode, Preset] = {
     Mode.VISUAL: "default",
     Mode.ANNOTATED: "default",
     Mode.TRACE: "photo",
+    Mode.POSTER: "poster",
+    Mode.DETAILED: "photo_hifi",
+    Mode.EDGE: "bw_edge",
+    Mode.WATERCOLOR: "watercolor",
+    Mode.SEGMENTED: "default",
 }
 
 

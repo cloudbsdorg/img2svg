@@ -28,6 +28,11 @@ class Mode(StrEnum):
     VISUAL = "visual"
     ANNOTATED = "annotated"
     TRACE = "trace"
+    DETAILED = "detailed"
+    EDGE = "edge"
+    POSTER = "poster"
+    SEGMENTED = "segmented"
+    WATERCOLOR = "watercolor"
 
 
 class ImageType(StrEnum):
