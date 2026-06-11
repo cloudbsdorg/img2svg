@@ -1,0 +1,16 @@
+=== T22 Pytest Output (final, 2026-06-11) ===
+$ uv run pytest -m "not slow" -q
+... 609 passed, 1 failed, 8 deselected in 5.03s
+
+FAILURES:
+  tests/test_i18n.py::test_ngettext_returns_singular_in_c_locale
+    (pre-existing acceptable per multi-vendor-gpu plan; not caused by T22)
+
+=== T22-specific files ===
+$ uv run pytest tests/test_vectorizer.py::test_presets_dict_has_eight_entries tests/test_docs.py::test_usage_documents_every_cli_flag tests/test_cli.py tests/test_metadata.py tests/test_manpage.py tests/test_examples.py -q
+... 56 passed in 2.96s
+
+=== Lint ===
+$ uv run ruff check tests/test_vectorizer.py tests/test_docs.py tests/test_cli.py tests/test_metadata.py tests/test_manpage.py tests/test_examples.py src/img2svg/cli.py
+... 6 errors (3 B008, 1 SIM102, 1 B904, 1 B017) — all pre-existing
+... 0 new errors introduced by T22

@@ -19,6 +19,7 @@ REQUIRED_DOCS: tuple[str, ...] = (
     "usage.md",
     "api.md",
     "modes.md",
+    "photo-modes.md",
     "gpu.md",
     "configuration.md",
     "troubleshooting.md",

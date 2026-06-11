@@ -57,7 +57,12 @@ One of:
 .BR labels ,
 .BR visual ,
 .BR annotated ,
-.BR trace .
+.BR trace ,
+.BR poster ,
+.BR detailed ,
+.BR edge ,
+.BR watercolor ,
+.BR segmented .
 Defaults to
 .BR auto .
 See
@@ -108,12 +113,139 @@ Do not overwrite an existing output file.
 If the target \fI.svg\fR already exists, the input is skipped and
 the batch continues with the next file.
 .TP
+\fB\-\-preprocess\fR \fIFILTER\fR
+Preprocessing filter to apply before tracing.
+May be repeated to chain multiple filters in order.
+One of:
+.BR bilateral
+(edge-preserving denoise),
+.BR nlmeans
+(non-local means denoise),
+.BR median
+(median denoise),
+.BR unsharp
+(unsharp mask sharpening).
+Overridden by
+.BR \-\-no\-preprocess .
+.TP
+\fB\-\-denoise\fR \fIFILTER\fR
+Convenience shortcut for a single denoise filter.
+One of:
+.BR bilateral ,
+.BR nlmeans ,
+.BR median ,
+or empty to disable.
+Equivalent to
+.B \-\-preprocess \fIFILTER\fR
+when non-empty.
+.TP
+\fB\-\-sharpen\fR \fIFILTER\fR
+Convenience shortcut for a single sharpen filter.
+One of:
+.BR unsharp ,
+or empty to disable.
+.TP
+\fB\-\-max\-colors\fR \fIINT\fR
+Maximum number of distinct colors in the output
+.RB ( 0
+means no cap, the default).
+Valid range:
+.BR 2 \- 256
+when non-zero.
+.TP
+\fB\-\-quality\fR \fIINT\fR
+JPEG-style quality hint stored in the sidecar for reproducibility
+.RB ( 1 \- 100 ,
+default
+.BR 90 ).
+Does not affect the SVG output.
+.TP
+\fB\-\-no\-preprocess\fR
+Disable all preprocessing, overriding any
+.B \-\-preprocess ,
+.B \-\-denoise ,
+or
+.B \-\-sharpen
+choices.
+.TP
+\fB\-\-seg\-model\fR \fINAME\fR
+YOLO segmentation model variant.
+One of:
+.BR yolo11n\-seg ,
+.BR yolo11s\-seg ,
+.BR yolo11m\-seg ,
+.BR yolo11l\-seg ,
+.BR yolo11x\-seg .
+Defaults to
+.BR yolo11s\-seg .
+Used by
+.B \-\-mode segmented
+and by any other segmentation-aware pipeline stage.
+.TP
+\fB\-\-no\-seg\fR
+Disable segmentation even when the active mode would normally
+invoke the segmentor.
+The
+.B segmented
+mode falls back to a single whole-image trace (same as
+.BR visual )
+when this flag is set.
+.TP
+\fB\-\-max\-svg\-size\fR \fIMB\fR
+Hard upper bound on the rendered SVG's on-disk size in MB.
+If the output exceeds this cap, the file is deleted and the run
+fails.
+Valid range:
+.BR 1 \- 1024 .
+Defaults to
+.BR 50 .
+.TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Suppress non-essential output (progress bars, status lines).
 Errors are still printed to stderr.
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Enable debug-level logging to stderr.
+.TP
+\fB\-\-preprocess\fR \fIFILTER\fR
+Preprocessing filter to apply before tracing.
+May be repeated.
+Filters: bilateral, nlmeans, median, unsharp.
+Overridden by
+.B \-\-no\-preprocess
+\&.
+.TP
+\fB\-\-denoise\fR \fIFILTER\fR
+Denoise filter: bilateral, nlmeans, median, or empty to disable.
+.TP
+\fB\-\-sharpen\fR \fIFILTER\fR
+Sharpen filter: unsharp, or empty to disable.
+.TP
+\fB\-\-max\-colors\fR \fIINT\fR
+Max distinct colors in the output (0 = no cap, 2-256).
+.TP
+\fB\-\-quality\fR \fIINT\fR
+JPEG quality hint stored in the sidecar (1-100).
+.TP
+\fB\-\-no\-preprocess\fR
+Disable all preprocessing, overriding any
+.B \-\-preprocess
+choices.
+.TP
+\fB\-\-seg\-model\fR \fINAME\fR
+YOLO segmentation model variant.
+One of: yolo11n-seg, yolo11s-seg, yolo11m-seg, yolo11l-seg, yolo11x-seg.
+Used by the
+.B segmented
+mode.
+.TP
+\fB\-\-no\-seg\fR
+Disable segmentation even when the active mode would normally use it.
+.TP
+\fB\-\-max\-svg\-size\fR \fIINT\fR
+Hard upper bound on the rendered SVG's on-disk size in MB.
+If the output exceeds this cap, the file is deleted and the run fails.
+Range: 1-1024. Default: 50.
 .TP
 \fB\-\-version\fR
 Print the
@@ -154,6 +286,29 @@ diagrams and screenshots):
 img2svg diagram.png \-o diagram.svg \-\-mode labels
 .EE
 .PP
+Use the high-fidelity photo trace (the
+.B auto
+default for photos):
+.PP
+.EX
+img2svg photo.jpg \-o photo.svg \-\-mode detailed
+.EE
+.PP
+Chain a denoise and a sharpen filter before tracing:
+.PP
+.EX
+img2svg photo.jpg \-o photo.svg \-\-mode detailed \-\-denoise bilateral \-\-sharpen unsharp
+.EE
+.PP
+Produce a multi-layer editable SVG with one group per detected
+object (uses the default
+.B yolo11s\-seg
+segmentation model):
+.PP
+.EX
+img2svg group.jpg \-o group.svg \-\-mode segmented \-\-seg\-model yolo11s\-seg
+.EE
+.PP
 Pin a specific CUDA device:
 .PP
 .EX
@@ -177,12 +332,14 @@ img2svg info
 .B auto
 Inspect the input with a heuristic classifier (alpha, edge density,
 color count) and pick a mode automatically.
-Logos and line art become
-.BR labels ;
-photographs become
+Logos, diagrams, screenshots, and line art become
 .BR visual ;
-diagrams and screenshots become
-.BR annotated .
+photographs become
+.BR detailed .
+.BR labels
+and
+.BR annotated
+are explicit-only and never picked automatically.
 .TP
 .B labels
 Render only the YOLO detections: bounding boxes with class labels
@@ -208,6 +365,138 @@ Run
 .B vtracer
 with the binary (binary=1) / line-art preset: thinner outlines, no
 color clusters, optimized for black-and-white line art and icons.
+.TP
+.B poster
+Run
+.B vtracer
+with the
+.B poster
+preset: flat color regions, lower color precision, suitable for
+screen-print and marketing-poster aesthetics.
+.TP
+.B detailed
+Run
+.B vtracer
+with the
+.B photo_hifi
+preset: high color precision, tight layer difference, more
+iterations, and a higher path precision than
+.BR visual .
+The
+.B auto
+default for photographs.
+.TP
+.B edge
+Run
+.B vtracer
+in polygon mode with binary color and a high corner threshold.
+Produces line-art output. Pairs well with
+.B \-\-preprocess median
+on scanned line art or product silhouettes.
+.TP
+.B watercolor
+Run
+.B vtracer
+with the
+.B watercolor
+preset: soft painterly output with a low corner threshold, larger
+splines, and a high
+.BR filter_speckle .
+.TP
+.B segmented
+Run YOLO instance segmentation on the input. Each detected object
+is traced with
+.B vtracer "'s" \fBphoto_hifi\fR
+preset and emitted as its own
+.B <g>
+group
+.RB ( \fBid="obj_\fIclass\fR_\fIidx\fB"\fR )
+in the output SVG. The background is traced separately and emitted
+as
+.BR <g id="background" data-role="background"> .
+Requires
+.B \-\-seg\-model
+and benefits from a CUDA or MPS device for the YOLO inference.
+See the
+.B PHOTO MODES
+section below for the deep dive.
+
+.SH "PHOTO MODES"
+The five photo modes
+.RB ( \fBposter\fR ,
+.BR detailed ,
+.BR edge ,
+.BR watercolor ,
+.BR segmented )
+share a common pipeline. By default the image is fed to the
+renderer as-is. The optional preprocessing chain runs first when
+enabled.
+.PP
+\fBPreprocessing.\fR
+.B \-\-preprocess
+takes a filter name
+.RB ( bilateral ,
+.BR nlmeans ,
+.BR median ,
+.BR unsharp )
+and may be repeated to chain multiple filters. The
+.B \-\-denoise
+and
+.B \-\-sharpen
+flags are convenience shortcuts for the most common single-filter
+chains. All preprocessing is disabled by
+.B \-\-no\-preprocess ,
+which overrides any positive choices.
+.PP
+\fBSegmentation.\fR
+.B \-\-mode segmented
+invokes a YOLO segmentation model
+(selected by
+.B \-\-seg\-model
+and defaulting to
+.BR yolo11s\-seg )
+to detect objects. Each object's mask is traced with
+.B vtracer "'s" \fBphoto_hifi\fR
+preset, and the result is grouped by class in the output SVG.
+.B \-\-no\-seg
+disables segmentation even when
+.B segmented
+mode is active; the renderer falls back to a single whole-image
+trace (same as
+.BR visual ).
+The available models are
+.BR yolo11n\-seg ,
+.BR yolo11s\-seg ,
+.BR yolo11m\-seg ,
+.BR yolo11l\-seg ,
+and
+.BR yolo11x\-seg .
+Smaller models are faster; larger models are more accurate.
+.BR yolo11x\-seg
+requires a discrete GPU with at least 6 GB of VRAM.
+.PP
+\fBColor cap.\fR
+.B \-\-max\-colors
+caps the number of distinct colors in the output SVG. The range
+is
+.B 0
+(no cap, the default) to
+.BR 256 .
+Use a small value like
+.B 8
+to force a posterized look.
+.PP
+\fBOutput size cap.\fR
+.B \-\-max\-svg\-size
+sets a hard upper bound (in MB) on the rendered SVG's on-disk size.
+If the output exceeds the cap, the file is deleted and the run
+fails. The range is
+.B 1
+to
+.B 1024
+MB; the default is
+.BR 50 .
+Useful for catching runaway traces on large images.
 
 .SH "GPU SUPPORT"
 By default (\fB\-\-device auto\fR)

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg:svg xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <svg:title>logo.png (mode=watercolor)</svg:title>
+  <svg:style>text { font-family: sans-serif; } .detection { fill: none; stroke: black; stroke-width: 2; }</svg:style>
+  <svg:g id="vtracer-output">
+    <svg:path d="M0 0 C66 0 132 0 200 0 C200 66 200 132 200 200 C134 200 68 200 0 200 C0 134 0 68 0 0 Z " fill="#FFFFFF" transform="translate(0,0)"/>
+    <svg:path d="M0 0 C16 12 26 29 29 49 C30 69 25 88 12 103 C0 117 -16 127 -36 128 C-56 128 -74 123 -89 109 C-103 96 -111 79 -112 60 C-112 39 -105 21 -90 6 C-65 -17 -28 -19 0 0 Z " fill="#E04040" transform="translate(141,42)"/>
+    <svg:path d="M0 0 C26 0 53 0 81 0 C81 26 81 53 81 81 C54 81 27 81 0 81 C0 54 0 27 0 0 Z " fill="#4040D0" transform="translate(60,60)"/>
+  </svg:g>
+</svg:svg>

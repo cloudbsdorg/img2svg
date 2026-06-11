@@ -1,0 +1,9 @@
+Valid yolo11n-seg: exit=2 (expect 2 - file not found, NOT BadParameter)
+  output: file not found: /tmp/x.png
+
+Invalid yolo99-seg: exit=2 (expect 2 - BadParameter)
+  output: Usage: img2svg convert [OPTIONS] INPUT
+Try 'img2svg convert --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Invalid value for '--seg-model': invalid seg-model 'yolo99-seg'. Valid       │
+│ models: yolo11l-seg, yolo11m-seg, yolo11n-seg, yolo11s-seg

@@ -1,0 +1,33 @@
+{
+  "scenario": "YOLOSegmentor with mocked YOLO returns SegmentationResult",
+  "result": "PASS",
+  "checks": {
+    "orig_shape": [
+      100,
+      100
+    ],
+    "type": "SegmentationResult",
+    "n_boxes": 1,
+    "n_masks": 1,
+    "n_polygons": 1,
+    "mask_dtype": "uint8",
+    "mask_shape": [
+      100,
+      100
+    ],
+    "polygon_dtype": "float32",
+    "polygon_shape": [
+      4,
+      2
+    ],
+    "yolo_call_kwargs": {
+      "conf": "0.25",
+      "iou": "0.6",
+      "imgsz": "1024",
+      "device": "cpu",
+      "retina_masks": "True",
+      "half": "False",
+      "verbose": "False"
+    }
+  }
+}

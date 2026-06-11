@@ -6,9 +6,38 @@ All notable changes to `img2svg` are documented here. The format follows [Keep a
 
 ### Added
 
-- Full MkDocs documentation under `docs/`, published at `https://cloudbsdorg.github.io/img2svg/`.
-- Man page (`man/img2svg.1`) in roff/groff format.
-- `img2svg list-gpus` subcommand with Rich-rendered table and recommendation highlight.
+- **Five new output modes** for photographs and complex raster sources:
+  - `poster` — flat, stylized color regions (vtracer `poster` preset).
+  - `detailed` — high-fidelity photo trace (vtracer `photo_hifi` preset). The new `auto` default for `photo` image types.
+  - `edge` — line-art output (vtracer `bw_edge` preset in polygon mode).
+  - `watercolor` — soft painterly output (vtracer `watercolor` preset).
+  - `segmented` — multi-layer editable SVG with one `<g>` per YOLO-detected object.
+- **Optional OpenCV preprocessing pipeline** that runs before the renderer. Chain denoise, sharpen, posterize, and edge detection filters via the new `--preprocess`, `--denoise`, and `--sharpen` flags.
+- **YOLO instance segmentation** with a dedicated `YOLOSegmentor`. Five model variants: `yolo11n-seg`, `yolo11s-seg` (default), `yolo11m-seg`, `yolo11l-seg`, `yolo11x-seg`. Auto-falls-back to a smaller model on out-of-memory errors.
+- **Eight new CLI flags**:
+  - `--preprocess` (repeatable) for chaining preprocessing filters.
+  - `--denoise` as a single-filter shortcut (`bilateral`, `nlmeans`, `median`).
+  - `--sharpen` as a single-filter shortcut (`unsharp`).
+  - `--max-colors` to cap the output palette (0-256).
+  - `--quality` as a JPEG-style quality hint stored in the sidecar.
+  - `--no-preprocess` to disable all preprocessing.
+  - `--seg-model` to pick the YOLO segmentation variant.
+  - `--no-seg` to disable segmentation even when the active mode would use it.
+  - `--max-svg-size` to cap the rendered SVG size in MB (1-1024, default 50).
+- **Per-region metadata** in the sidecar JSON via the new `regions` field. Each region carries class, confidence, bounding box, mask area, and polygon vertices.
+- **Preprocessing trace** in the sidecar JSON via the new `preprocessing` field (list of filter names that ran, in order).
+- **Model variant** in the sidecar JSON via the new `model_variant` field (e.g. `yolo11s-seg`).
+- **RegionInfo** and **SegmentationResult** types in the Python API.
+- **Photo modes documentation** at `docs/photo-modes.md`, with mode-by-mode deep dives, the preprocessing chain reference, and the segmentation workflow.
+
+### Changed
+
+- The `auto` mode no longer resolves to `labels` or `annotated`. The new mapping is:
+  - `photo` → `detailed` (aggressive default).
+  - `logo`, `diagram`, `screenshot`, `line_art`, `unknown` → `visual`.
+- The `palette_size` field on `ConversionOptions` was replaced with `max_colors` (with proper vtracer wiring) and a new `quality` field.
+- The pipeline grows from 12 steps to 14 steps to accommodate the new preprocessing and segmentation stages. See [Architecture](architecture.md) for the updated flowchart.
+- The `timings` dict in the sidecar may now include `preprocess` and `segment` entries.
 
 ## [0.1.0] — 2026-06-10
 

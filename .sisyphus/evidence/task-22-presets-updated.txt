@@ -1,0 +1,12 @@
+=== T22 Verification: test_presets_dict_has_eight_entries ===
+
+Before (T2/T10 era, failing):
+  AssertionError: assert set(PRESETS.keys()) == {"default", "bw", "logo", "poster", "photo"}
+  Extra items in the left side: "photo_hifi", "bw_edge", "watercolor"
+
+After (T22, passing):
+  $ uv run pytest tests/test_vectorizer.py -q
+  ... 8 passed in 0.75s
+
+The renamed test `test_presets_dict_has_eight_entries` now asserts the full 8-entry set:
+  {"default", "bw", "logo", "poster", "photo", "photo_hifi", "bw_edge", "watercolor"}

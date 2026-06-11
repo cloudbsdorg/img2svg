@@ -14,8 +14,17 @@ from img2svg.errors import VectorizationError
 from img2svg.vectorizer import PRESETS, VtracerVectorizer
 
 
-def test_presets_dict_has_five_entries() -> None:
-    assert set(PRESETS.keys()) == {"default", "bw", "logo", "poster", "photo"}
+def test_presets_dict_has_eight_entries() -> None:
+    assert set(PRESETS.keys()) == {
+        "default",
+        "bw",
+        "logo",
+        "poster",
+        "photo",
+        "photo_hifi",
+        "bw_edge",
+        "watercolor",
+    }
 
 
 def test_each_preset_has_required_keys() -> None:

@@ -1,0 +1,90 @@
+{
+  "version": "0.1.0",
+  "input_path": "/home/mlapointe/Documents/rtlogo-1.png",
+  "input_hash": "4197f3dc1a37b3487c7caeeda7dee27e1352e60074212f37c29262e6665e56dc",
+  "output_path": "/tmp/qa24/qa-photo-watercolor.svg",
+  "output_size": 9841,
+  "mode_used": "watercolor",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "cuda:0",
+  "backend_requested": "auto",
+  "backend_resolved": "cuda:0",
+  "image_type": "photo",
+  "detections": [
+    {
+      "class_id": 76,
+      "class_name": "scissors",
+      "confidence": 0.7160373330116272,
+      "bbox": {
+        "x1": 2.7894115447998047,
+        "y1": 2.010684013366699,
+        "x2": 93.4255142211914,
+        "y2": 147.053955078125
+      }
+    },
+    {
+      "class_id": 76,
+      "class_name": "scissors",
+      "confidence": 0.5713798403739929,
+      "bbox": {
+        "x1": 2.577524185180664,
+        "y1": 1.794877052307129,
+        "x2": 142.0222930908203,
+        "y2": 147.06507873535156
+      }
+    }
+  ],
+  "geometric": {
+    "dominant_colors": [
+      [
+        250,
+        255,
+        254
+      ],
+      [
+        47,
+        195,
+        144
+      ],
+      [
+        43,
+        148,
+        202
+      ],
+      [
+        47,
+        173,
+        220
+      ],
+      [
+        24,
+        153,
+        132
+      ]
+    ],
+    "edge_density": 0.03990867579908676,
+    "contour_count": 1,
+    "has_alpha": true
+  },
+  "timings": {
+    "load": 0.0036972449997847434,
+    "preprocess": 0.002375396999923396,
+    "analyze": 0.06083960799878696,
+    "classify": 0.00010162999933527317,
+    "select_mode": 2.3749998945277184e-6,
+    "detect": 1.6302979519987275,
+    "segment": 3.827000909950584e-6,
+    "render": 0.00921381999978621,
+    "vectorize": 0.0,
+    "write": 0.00009987699922930915,
+    "total": 1.7067162889998144
+  },
+  "timestamp": "2026-06-11T10:05:32.596746+00:00",
+  "preprocessing": [
+    "bilateral(d=5, sigma=50)",
+    "unsharp(sigma=2.0, amount=0.5)"
+  ],
+  "regions": [],
+  "model_variant": ""
+}

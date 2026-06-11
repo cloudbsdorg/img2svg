@@ -54,6 +54,15 @@
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
       "updated_at": "2026-06-11T10:01:01.240Z"
+    },
+    "todo:21": {
+      "task_key": "todo:21",
+      "task_label": "21",
+      "task_title": "Create new test files: `test_preprocessing.py`, `test_segmentation.py`, `test_renderers.py`",
+      "session_id": "ses_149ca3541ffeUDX1lO0Tv64Cpe",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-06-11T10:27:18.281Z"
     }
   }
 }

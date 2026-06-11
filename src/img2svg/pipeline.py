@@ -76,8 +76,9 @@ MAX_SVG_SIZE_MB: int = 50
 
 # Map a resolved `Mode` to the corresponding renderer class. `Mode.AUTO` is
 # intentionally absent — the pipeline must resolve AUTO via `select_mode()`
-# before looking up a renderer. `Mode.SEGMENTED` is also absent — its
-# `SegmentedRenderer` lands in T16.
+# before looking up a renderer. `Mode.SEGMENTED` entry exists but the
+# renderer is only used when ``segmentation_result`` is non-empty (else
+# pipeline.py falls back to VisualRenderer; see step 8 fallback gate below).
 RENDERER_REGISTRY: dict[Mode, type[Renderer]] = {
     Mode.LABELS: LabelsRenderer,
     Mode.VISUAL: VisualRenderer,
@@ -360,6 +361,11 @@ class Pipeline:
         else:
             renderer_cls = RENDERER_REGISTRY[mode_used]
         renderer = renderer_cls(svg, loaded, detections, analysis_global)
+        # Inject the YOLO segmentation result so SegmentedRenderer can emit
+        # the per-region multi-layer SVG instead of falling back to a
+        # single vtracer-output group. Other renderers ignore this call.
+        if isinstance(renderer, SegmentedRenderer) and segmentation_result is not None:
+            renderer.set_segmentation(segmentation_result)
         # `vectorize` is a subset of `render` — the render() call duration,
         # which for SEGMENTED mode is the sum of per-region vtracer calls.
         t_render_start = time.perf_counter()

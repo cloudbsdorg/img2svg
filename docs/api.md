@@ -12,6 +12,8 @@ The `img2svg` package exposes a small, stable Python API. Most callers will only
 | `ConversionResult`  | `img2svg.models.ConversionResult`  |
 | `Sidecar`           | `img2svg.models.Sidecar`   |
 | `Detection`         | `img2svg.models.Detection` |
+| `RegionInfo`        | `img2svg.models.RegionInfo` |
+| `SegmentationResult`| `img2svg.detector.SegmentationResult` |
 | `GPUInfo`           | `img2svg.models.GPUInfo`   |
 | `BackendSpec`       | `img2svg.models.BackendSpec` |
 | `Mode`              | `img2svg.enums.Mode`       |
@@ -141,7 +143,7 @@ for r in results:
 
 | Field           | Type             | Default        | Notes                                    |
 |-----------------|------------------|----------------|------------------------------------------|
-| `mode`          | `Mode`           | `Mode.AUTO`    | `auto`, `labels`, `visual`, `annotated`, `trace`. |
+| `mode`          | `Mode`           | `Mode.AUTO`    | `auto`, `labels`, `visual`, `annotated`, `trace`, `poster`, `detailed`, `edge`, `watercolor`, `segmented`. |
 | `model`         | `str`            | `"yolo11x.pt"` | YOLO weights file.                      |
 | `device`        | `str`            | `"auto"`       | **Deprecated.** Use `backend` instead.   |
 | `backend`       | `BackendSpec`    | `BackendSpec()` | The new structured selector. See [BackendSpec](#backendspec). |
@@ -150,9 +152,19 @@ for r in results:
 | `gpu_strategy`  | `DeviceStrategy` | `POWER`        | `auto`, `power`, `availability`.        |
 | `no_clobber`    | `bool`           | `False`        | Refuse to overwrite existing outputs.    |
 | `force_overwrite` | `bool`         | `False`        | Force-overwrite even with `no_clobber`.  |
-| `palette_size`  | `int`            | `8`            | Number of colors for vectorization, 2-64.|
+| `preprocess`    | `list[str]`      | `[]`           | Preprocessing filter names. May be a chain. |
+| `denoise`       | `str`            | `""`           | `bilateral`, `nlmeans`, `median`, or empty. |
+| `sharpen`       | `str`            | `""`           | `unsharp` or empty.                     |
+| `max_colors`    | `int`            | `0`            | Color cap, 0-256 (0 = no cap).          |
+| `quality`       | `int`            | `90`           | JPEG-style quality hint, 1-100. Stored in sidecar. |
+| `no_preprocess` | `bool`           | `False`        | Disable all preprocessing, overriding any positive choices. |
+| `seg_model`     | `str`            | `"yolo11s-seg"`| YOLO segmentation model variant. One of `yolo11n-seg`, `yolo11s-seg`, `yolo11m-seg`, `yolo11l-seg`, `yolo11x-seg`. |
+| `no_seg`        | `bool`           | `False`        | Disable segmentation even when the mode would use it. |
+| `max_svg_size_mb` | `int`          | `50`           | Hard upper bound on SVG size in MB, 1-1024. If exceeded, the file is deleted and an error is raised. |
 
-The validators on `conf`, `iou`, and `palette_size` reject out-of-range values at construction time. The CLI does the same checks via option-level callbacks for friendlier error messages.
+The validators on `conf`, `iou`, `max_colors`, `quality`, and `max_svg_size_mb` reject out-of-range values at construction time. The CLI does the same checks via option-level callbacks for friendlier error messages.
+
+See [Photo modes](photo-modes.md) for the deep dive on the new photo modes, the preprocessing chain, and the segmentation workflow.
 
 ### The `backend=` parameter (replaces `device=`)
 
@@ -253,6 +265,44 @@ The return type of `convert()`. Pydantic v2 `BaseModel` with these fields:
 - `detections: list[Detection]` — YOLO detections in emission order.
 - `errors: list[str]` — non-empty if the conversion failed.
 
+## RegionInfo
+
+Per-region metadata carried in the sidecar for `segmented` mode runs. A `RegionInfo` exists for every detected object whose mask has at least one non-zero pixel. Empty masks are dropped before the sidecar is written.
+
+| Field         | Type                          | Notes                                                    |
+|---------------|-------------------------------|----------------------------------------------------------|
+| `class_id`    | `int`                         | COCO class index from the YOLO model.                    |
+| `class_name`  | `str`                         | Human-readable class label (e.g. `person`, `dog`).       |
+| `confidence`  | `float`                       | Detection confidence, 0.0 to 1.0.                        |
+| `bbox`        | `BoundingBox`                 | Tight bounding box around the mask, in image pixels.     |
+| `area_pixels` | `int`                         | Number of pixels in the mask. Always `>= 0`.             |
+| `polygon`     | `list[tuple[float, float]]`   | Mask as a list of `(x, y)` vertices. Empty when no mask. |
+| `mask_path`   | `str \| None`                 | Reserved for future use; always `None` in the current release. |
+
+`RegionInfo` is a Pydantic v2 `BaseModel`. The list of regions is in `sidecar.regions` (see [Sidecar](#sidecar)) and is empty for non-segmented modes.
+
+```python
+from img2svg.models import Sidecar, RegionInfo
+
+sidecar = Sidecar.model_validate_json(open("photo.json").read())
+for region in sidecar.regions:
+    print(f"{region.class_name} @ {region.area_pixels} px (conf {region.confidence:.2f})")
+```
+
+## SegmentationResult
+
+The structured output of `YOLOSegmentor.segment()`. Lives in `img2svg.detector`, not in `img2svg.models`, because it's a YOLO-specific result type that the pipeline threads into `SegmentedRenderer` without leaking YOLO types to the public surface.
+
+| Field         | Type                              | Notes                                              |
+|---------------|-----------------------------------|----------------------------------------------------|
+| `masks`       | `list[np.ndarray]`                | One `(H, W)` uint8 array per detection, in `{0, 1}`. |
+| `boxes`       | `list[Detection]`                 | The same detections the regular YOLO detector returns, in the same order. |
+| `polygons`    | `list[list[tuple[float, float]]]` | Mask contours as `(x, y)` vertices.                |
+
+The pipeline populates `sidecar.regions` with one `RegionInfo` per non-empty mask. Empty masks (no pixel above zero) are dropped. The `SegmentationResult` itself is not persisted to the sidecar; only the `RegionInfo` summary is.
+
+## Sidecar
+
 ## Sidecar
 
 The JSON metadata written next to every SVG. The fields are stable and machine-readable; tooling can rely on them.
@@ -271,7 +321,10 @@ The JSON metadata written next to every SVG. The fields are stable and machine-r
 - `image_type: ImageType` — `logo`, `photo`, `diagram`, `screenshot`, `line_art`, or `unknown`.
 - `detections: list[Detection]` — same as `ConversionResult.detections`.
 - `geometric: GeometricAnalysis | None` — dominant colors, edge density, contour count, alpha.
-- `timings: dict[str, float]` — per-step timings in seconds (`load`, `classify`, `detect`, `render`, `total`, ...).
+- `preprocessing: list[str]` — names of preprocessing filters that ran, in order. Empty when preprocessing was off.
+- `regions: list[RegionInfo]` — per-region metadata for `segmented` mode. Empty for non-segmented modes. See [RegionInfo](#regioninfo).
+- `model_variant: str` — the segmentation model variant in use (e.g. `yolo11s-seg`). Empty string when no segmentation was performed.
+- `timings: dict[str, float]` — per-step timings in seconds (`load`, `classify`, `preprocess`, `segment`, `detect`, `render`, `total`, ...).
 - `timestamp: str` — ISO 8601 timestamp of when the conversion ran.
 
 The `backend_requested` / `backend_resolved` pair is the structured successor to the legacy `device` field. New code should read the new pair; the legacy `device` field is preserved for backward compatibility with consumers that already parse the sidecar.
@@ -280,13 +333,16 @@ The `backend_requested` / `backend_resolved` pair is the structured successor to
 {
   "version": "0.2.0",
   "input_hash": "a1b2c3...",
-  "mode_used": "labels",
+  "mode_used": "detailed",
   "model": "yolo11x.pt",
   "device": "cuda:0",
   "backend_requested": "cuda",
   "backend_resolved": "cuda:0",
-  "image_type": "diagram",
-  "timings": {"load": 0.05, "classify": 0.12, "detect": 1.43, "render": 0.08, "total": 1.68},
+  "image_type": "photo",
+  "preprocessing": ["denoise_bilateral", "sharpen_unsharp"],
+  "regions": [],
+  "model_variant": "",
+  "timings": {"load": 0.05, "classify": 0.12, "preprocess": 0.18, "detect": 1.43, "render": 0.08, "total": 1.86},
   "timestamp": "2026-06-10T14:22:08.123456+00:00"
 }
 ```

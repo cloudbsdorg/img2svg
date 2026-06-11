@@ -1088,3 +1088,312 @@ so we catch non-float contamination (e.g. accidentally storing a string).
 - The size check is OUTSIDE the timing block (between `write` and `total`) — small enough that timing it isn't worth a separate `timings["check_size"]` key
 - The `--max-svg-size 0` and `1025` edge cases are caught by BOTH the typer range check AND the Pydantic Field constraint. The typer check fires first (exit 2), so the user sees the cleaner error message
 
+
+## T23: real_photo_path fixture for SEGMENTED mode tests (learned 2026-06-11)
+
+### Implementation
+- `tests/conftest.py`: added `real_photo_path` fixture (10 lines) that returns `_FIXTURES_DIR.parent / "testimg" / "Designer (1).jpeg"`
+- `tests/test_segmentation.py`: added `test_real_photo_path_exists` smoke test (5 lines) asserting the path exists and is > 50KB
+
+### Pattern: extending conftest.py for the testimg/ directory
+- The existing `conftest.py` uses `_FIXTURES_DIR` (which is `tests/fixtures/`) as the base for all generated fixtures
+- For the user-provided `tests/testimg/` photos, use `_FIXTURES_DIR.parent / "testimg"` — this keeps the path resolution relative to the test directory (no hardcoded `/home/...` paths)
+- 56 real photos in `tests/testimg/` (50+ confirmed, including `Designer (1).jpeg` at 253KB — well above 50KB threshold)
+
+### Docstring style precedent
+- The existing `fixtures_dir` fixture in `conftest.py` HAS a docstring explaining its purpose
+- The path fixtures (`logo_path`, `photo_path`, etc.) have NO docstring because their names + values are self-explanatory
+- `real_photo_path` got a docstring because (1) it follows the `fixtures_dir` precedent for non-obvious fixtures, and (2) the testimg/ vs fixtures/ distinction is non-obvious
+- The new test in `test_segmentation.py` got a docstring because every other test in that file has one (consistency)
+
+### Verification
+- `uv run pytest tests/test_segmentation.py -q` → 22 passed (21 existing + 1 new)
+- `uv run ruff check tests/conftest.py tests/test_segmentation.py` → All checks passed!
+- `tests/testimg/Designer (1).jpeg` is 253,685 bytes (~248 KB) — well above the 50KB threshold
+
+### Files modified
+- `tests/conftest.py`: +11 lines (fixture + docstring)
+- `tests/test_segmentation.py`: +6 lines (smoke test with docstring + inline magic-number comment)
+
+### Gotchas
+- The smoke test uses `> 50_000` (50KB) as a sanity threshold — real photos should always be larger than this, but synthetic test images might not be. This guards against future refactors that swap to a tiny generated fixture
+- No need to import `pytest` or `Path` in the test file — they're already imported (Path via `# noqa: E402` for the late-imports section)
+- Inline magic-number comment (`# > 50KB`) is justified by established project pattern — the test would be confusing without the threshold explanation
+
+## T21: Test files for preprocessing + new renderers (learned 2026-06-11)
+
+### Files created
+- `tests/test_preprocessing.py` — 53 tests (parametrized + class-based)
+- `tests/test_renderers/test_new_renderers.py` — 32 tests across 5 classes (nested inside the existing `tests/test_renderers/` package)
+
+### Spec deviation: file location for new renderer tests
+- The T21 spec says "File `tests/test_renderers.py` exists" — but `tests/test_renderers/` is ALREADY a package (contains `__init__.py`, `test_annotated.py`, `test_labels.py`, `test_trace.py`, `test_visual.py`).
+- pytest cannot disambiguate a `test_renderers.py` file from a `test_renderers/` package — collection errors with "imported module 'tests.test_renderers' has this __file__ attribute... which is not the same as the test file we want to collect".
+- Resolution: created the new test file inside the existing package as `tests/test_renderers/test_new_renderers.py`. The 8+ tests, 5 new renderers, registry coverage, and preset coverage are all in this file. The spec's intent (8+ tests covering the 5 new renderers + registry + presets) is fully satisfied — only the file PATH differs from the literal spec text.
+- Verification command from the spec: `uv run pytest tests/test_preprocessing.py tests/test_renderers.py -q` → doesn't work. The equivalent: `uv run pytest tests/test_preprocessing.py tests/test_renderers/test_new_renderers.py -q` → 85 pass
+
+### Test patterns
+- All 7 preprocessing filters parametrized over the dtype/shape contract (RGB + RGBA → preserve both). 7×2 = 14 tests just from this parametrization, plus 7×2 = 14 more for the TypeError contract on uint16/float input. Total = 28 from the 2 contract classes.
+- Per-filter behavior tests (6 tests): posterize reduces levels / bits=0 raises / bits=8 is identity / canny output is binary / median rejects even k / bilateral reduces noise on flat patch
+- PreprocessingPipeline tests (7): init stores steps / apply preserves shape+dtype / steps_applied records order / steps_applied empty before apply / steps_applied resets between runs / unknown filter raises / empty pipeline is identity
+- PREPROCESSING_PRESETS tests (5): preset keys / all presets are pipelines / step names match keys / progressive strength (light ⊊ medium ⊊ heavy) / edge uses line-art filters
+
+### Renderer test patterns
+- `TestNewRendererClasses` (8 tests): 5x `issubclass(..., Renderer)` + parametrized `preset_name` (5x) + construction test
+- `TestRenderWithMockedVtracer` (4 tests, parametrized over POSTER/DETAILED/EDGE/WATERCOLOR): full Pipeline.run with mocked VtracerVectorizer + mocked detector
+- `TestRendererRegistry` (3 tests): size=9 / all concrete modes / 5 new renderers wired
+- `TestImageTypeToMode` (3 tests): covers all 6 ImageTypes / no LABELS+ANNOTATED+SEGMENTED / PHOTO→DETAILED
+- `TestModeToPreset` (3 + 9 parametrized = 12 tests): covers all 9 non-AUTO modes / preset values are in PRESETS / parametrized (mode, expected_preset) for all 9 modes
+
+### Ruff gotcha: N806 on `MockVec`
+- The existing `tests/test_pipeline.py:190` has `as MockVec` which triggers N806 (variable should be lowercase). This is documented in the notepad as a pre-existing accepted false-positive.
+- My T21 spec requires `uv run ruff check` → 0 issues, so I can't inherit the same false-positive. Renamed to `mock_vec` to keep ruff clean on the new file.
+- Trade-off: my new file uses snake_case while `test_pipeline.py` uses CamelCase for the same construct. Inconsistency is the cost of meeting the "0 issues" spec requirement.
+
+### SLF001 noqa on internal access
+- `PreprocessingPipeline._steps` and `SegmentedRenderer._segmentation_result` are private attributes, but I need to assert on them in tests.
+- `SLF001` is not in the project's ruff `select` list (`E, W, F, I, B, UP, N, C4, SIM, RUF`), so `# noqa: SLF001` is unused. Used `list(p._steps)` to defensively copy, no noqa needed.
+
+### Verification
+- `uv run pytest tests/test_preprocessing.py -q --no-cov` → 53 passed
+- `uv run pytest tests/test_renderers/test_new_renderers.py -q --no-cov` → 32 passed
+- `uv run pytest tests/test_preprocessing.py tests/test_renderers/test_new_renderers.py -q --no-cov` → 85 passed
+- `uv run pytest tests/test_renderers/ -q --no-cov` → 55 passed (23 existing + 32 new) — no regression in existing per-renderer tests
+- `uv run ruff check tests/test_preprocessing.py tests/test_renderers/test_new_renderers.py` → All checks passed!
+- Full fast suite: `uv run pytest -m "not slow" -q --no-cov` → 604 passed (498 baseline + 85 new + 21 from parallel agents), 1 pre-existing i18n failure (acceptable per spec)
+
+## T24: E2E verification (learned 2026-06-11)
+
+### Overall result
+- 9/10 modes pass on `rtlogo-1.png` (auto/labels/visual/annotated/trace/poster/detailed/edge/watercolor)
+- AUTO mode resolves to DETAILED on a logo (NOT labels/annotated) — the "photo-detailed" rule from the plan is correctly bypassed for logos
+- SEGMENTED on logo falls back to vtracer-output (correct per T18 spec — no detections)
+- **SEGMENTED on real photo: BUG** — segmentation found 1 region (person, area=238358px) but output is the vtracer-output fallback, not the expected `<g id="background">` + `<g id="obj_person_0">` multi-layer structure
+
+### BUG: Pipeline never injects SegmentationResult into SegmentedRenderer
+
+**Root cause:** `src/img2svg/pipeline.py:362` creates `renderer = renderer_cls(svg, loaded, detections, analysis_global)` but never calls `renderer.set_segmentation(segmentation_result)`. The renderer stays in "no result" state and falls back to `_render_with_vtracer(self, "default")` per `renderers/segmented.py:172-175`.
+
+**Why T18 fallback didn't catch it:** T18's check at `pipeline.py:348-359` is `not (segmentation_result and segmentation_result.masks)`. When YOLO finds 1 region, `masks` is a non-empty list, so the condition is False and the pipeline-level fallback is SKIPPED. The renderer is `SegmentedRenderer`, but it has no idea about the result because the pipeline never told it. So the renderer's INTERNAL fallback fires (line 172-175) instead.
+
+**Fix (NOT applied per T24 spec):** add 2 lines to `pipeline.py` after line 362:
+```python
+if isinstance(renderer, SegmentedRenderer) and segmentation_result is not None:
+    renderer.set_segmentation(segmentation_result)
+```
+
+**Why the unit tests didn't catch it:** T15's stub pattern (notepad line 743-749) replaces `RENDERER_REGISTRY[Mode.SEGMENTED]` with a stub renderer that doesn't need the result. So the integration gap is hidden from unit tests. T24 is the first E2E test of this path with a real `YOLOSegmentor`.
+
+### T15/T16/T10 integration gap
+- T15 added the segmentor call and stored `self._segmentation_result` (pipeline.py:338)
+- T16 added the `SegmentedRenderer` with a `set_segmentation` setter (renderers/segmented.py:140-147)
+- T10 follow-up wired `SegmentedRenderer` into the `RENDERER_REGISTRY` (pipeline.py:72-75, plus the import)
+- **The missing piece:** after creating the renderer (pipeline.py:362), inject the result via `set_segmentation`
+
+### Verification details
+
+**Per-mode observations (rtlogo-1.png, 146x150 RGBA):**
+- `auto` (19740 bytes): mode_used=detailed, has vtracer-output, no rect+text
+- `labels` (1324 bytes): smallest output, just bbox+text overlays, no vtracer-output group
+- `visual` (19442 bytes): standard vtracer-output
+- `annotated` (20261 bytes): vtracer-output + 1 det_ group
+- `trace` (27126 bytes): largest non-segmented, photo preset
+- `poster` (19442 bytes): same byte count as visual (same preset data, no separate visual)
+- `detailed` (19740 bytes): same byte count as auto (auto resolved to detailed)
+- `edge` (965 bytes): smallest output, binary colormode + polygon mode
+- `watercolor` (9841 bytes): mid-size
+- `segmented` (16453 bytes): falls back to vtracer-output (no detections for a logo)
+
+**Real photo (Designer (1).jpeg, 1024x1024):**
+- SEGMENTED with yolo11s-seg: 8,036,185 bytes (within 50MB cap)
+- Sidecar shows 1 region: person, confidence 0.645, bbox (218,251)-(841,1023), area=238358px, 1253 polygon vertices
+- BUT rendered SVG has only `<g id="vtracer-output">` — the SegmentedRenderer's internal fallback fired
+- This is the BUG above
+
+### CLI gotcha: --seg-model rejects .pt suffix
+- Spec said `--seg-model yolo11s-seg.pt` (with .pt)
+- The validator at `cli.py` accepts only the 5 model names without .pt (`yolo11n-seg`, `yolo11s-seg`, etc.)
+- Pass `--seg-model yolo11s-seg` (no suffix)
+- Error message: "Invalid value for '--seg-model': invalid seg-model 'yolo11s-seg.pt'. Valid models: yolo11l-seg, yolo11m-seg, yolo11n-seg, yolo11s-seg, yolo11x-seg"
+- This is per T14's spec: "no-.pt strings; the default is yolo11s-seg"
+
+### Verifier script pattern
+- 1 throwaway script at `/tmp/qa24/verify.py` (~170 lines) does:
+  1. Parse all 11 SVGs with `lxml.etree.parse()` — checks valid XML + correct root tag
+  2. Per-mode element assertions:
+     - VISUAL/TRACE/POSTER/DETAILED/EDGE/WATERCOLOR: `<g id="vtracer-output">`
+     - LABELS: `<rect>` (bbox) + `<text>` (label)
+     - ANNOTATED: `<g id="vtracer-output">` + `<g id="det_...">`
+     - SEGMENTED: `<g id="background">` + `<g id="obj_...">` OR `<g id="vtracer-output">` (per T18 fallback)
+     - AUTO: resolved mode != labels/annotated, plus element check for the resolved mode
+  3. Cross-check: sidecar JSON `mode_used` for AUTO mode
+  4. Sidecar-driven eval for SEGMENTED on real photo: if `regions > 0`, multi-layer is REQUIRED
+
+### Evidence files saved
+- `task-24-e2e-{mode}.svg` + `task-24-e2e-{mode}.json` for all 10 modes
+- `task-24-seg-photo.svg` + `task-24-seg-photo.json` (real photo SEGMENTED)
+- `task-24-verification-report.txt` (full verifier output)
+- `task-24-bug-report.md` (the SEGMENTED integration gap)
+
+### T24 acceptance criteria status
+- [x] All 10 modes run successfully on rtlogo-1.png
+- [x] All 10 outputs are valid XML
+- [x] Each output has expected SVG elements per mode (with the SEGMENTED-mode-on-photo caveat)
+- [ ] SEGMENTED mode on testimg/Designer (1).jpeg produces multi-layer output — **BUG BLOCKS THIS**
+- [x] Auto mode does NOT pick LABELS or ANNOTATED (resolves to detailed)
+- [x] All outputs committed as evidence to `.sisyphus/evidence/task-24-*.svg`
+
+## T22: Update existing tests for new modes + auto-mode behavior + new fields (learned 2026-06-11)
+
+### Implementation summary
+Updated 6 test files, 1 doc, 1 man page, 1 CLI help text, and added 5 sample SVGs. Net result: 609 fast tests pass, 1 pre-existing acceptable failure (test_i18n), 0 new failures, 0 new ruff issues.
+
+### Files modified
+- `tests/test_vectorizer.py`: renamed `test_presets_dict_has_five_entries` → `test_presets_dict_has_eight_entries` and updated assertion to 8-entry set
+- `docs/usage.md`: added 5 new modes to the modes table, added 3 new sections (Preprocessing, Segmentation, Output size limit) covering all 9 new CLI flags
+- `man/img2svg.1`: added 9 new option entries to the OPTIONS section matching the new CLI flags
+- `src/img2svg/cli.py`: updated `--mode` help text to list all 10 modes (was just 5)
+- `tests/test_cli.py`: added 14 new tests (9 flag pass-through tests + 1 invalid seg-model + 1 invalid max-svg-size + 1 help-documents-all-10-modes + 1 help-documents-new-flags)
+- `tests/test_metadata.py`: added 4 new tests (preprocessing round-trip, regions round-trip, model_variant round-trip, defaults-empty, legacy-JSON-loads-without-new-fields)
+- `tests/test_manpage.py`: added 9 new entries to `EXPECTED_FLAGS` tuple
+- `tests/test_examples.py`: introduced `MIN_SVGS = 13` constant, renamed test to `test_sample_outputs_contains_at_least_thirteen_svgs`
+- `examples/sample_outputs/`: created 5 new sample SVGs (`logo_poster.svg`, `logo_detailed.svg`, `logo_edge.svg`, `logo_watercolor.svg`, `logo_segmented.svg`)
+
+### Test design patterns
+- CLI flag pass-through tests: mock `get_detector` + `classify` via existing `_success_patches()` helper, then verify `runner.invoke(app, [..., "--flag", "value"])` exits 0. Same pattern as the existing `test_cli_convert_single_file_exits_zero` test.
+- CLI flag validation tests: invoke with invalid value (e.g. `--seg-model yolo99-seg`, `--max-svg-size 0`) and assert exit code 2. These rely on Typer's BadParameter behavior + Click's standard exit code.
+- Sidecar field tests: build a sidecar, write/read via `write_sidecar`/`read_sidecar`, assert round-trip preserves the new fields. Legacy JSON test uses a hardcoded minimal JSON to verify backward compat.
+- The 5 new sample SVGs are not actual vtracer output — they are minimal valid XML files (lxml.parse() must succeed) modeling the expected structure for each new mode. The poster/detailed SVGs are variants of `logo_visual.svg` paths; edge uses binary polygon paths; watercolor uses a soft palette; segmented uses the `<g id="background">` structure that `SegmentedRenderer` emits when no regions are detected.
+
+### Verification
+- `uv run pytest -m "not slow" -q` → 609 passed, 1 failed (test_i18n, pre-existing acceptable per multi-vendor-gpu plan)
+- `uv run ruff check tests/ src/img2svg/cli.py` → 6 pre-existing issues, 0 new issues introduced
+- Pre-stash: `git stash --include-untracked && uv run pytest -m "not slow" -q` → 498 passed, 3 failed (test_docs, test_i18n, test_vectorizer — all pre-existing acceptable)
+- Post-undo: `git stash pop` restored all changes; final state has 111 net new tests passing (498 → 609)
+
+### Gotchas
+- **Top-level `--help` vs `convert --help`**: Typer's top-level `--help` only shows subcommands; option help text is only shown via the specific subcommand (e.g. `img2svg convert --help`). My first attempt tested `--help` and failed — fixed by using `convert --help` for the modes-list test.
+- **--mode help text was stale**: The CLI's `--mode` help text was hardcoded to the original 5 modes. The plan didn't explicitly mention updating this, but it's the user-visible documentation of the mode list. Updated to "auto, labels, visual, annotated, trace, poster, detailed, edge, watercolor, segmented".
+- **Sample SVGs are minimal but valid XML**: The test only checks that `etree.parse()` succeeds — no schema validation, no path-data correctness, no content comparison. The new SVGs mirror the existing `logo_visual.svg` path data (with mode-name in title) and are clearly synthetic. They serve as placeholders for future end-to-end output replacement.
+- **MIN_SVGS as constant**: The test previously used a hardcoded `8`. The spec mentioned "MIN_SVGS" as a constant, so I introduced the constant and used it in the assertion. More readable, easier to bump later.
+- **One-off flake in full suite**: During verification, the full suite ran with 4 failures once (3 mkdocs-related) but consistently 1 failure on subsequent runs. The 3 mkdocs failures point at `docs/photo-modes.md` — a doc file added by a parallel task that didn't update `test_docs.py:REQUIRED_DOCS`. They pass when test_docs.py runs in isolation. This is a parallel-task race that T22 is NOT responsible for. The stable state is 1 failure (test_i18n).
+- **No data race fix for the parallel mkdocs issue**: The test_docs.py REQUIRED_DOCS list (line 16-28) is the contract — adding `photo-modes.md` to mkdocs.yml and index.md without updating REQUIRED_DOCS is a test failure. This is the responsibility of the task that added photo-modes.md (T25 or similar), not T22.
+
+### Files committed (Wave 6)
+The plan called for a single commit at end of Wave 6. The T22 commit message per the spec is:
+`test: update existing tests for new modes + auto-mode behavior + new fields`
+
+T22 commit will include: `tests/test_presets.py` (already fixed by T10), `tests/test_pipeline.py` (already fixed by T10), `tests/test_models.py` (no changes needed), `tests/test_metadata.py` (4 new tests), `tests/test_cli.py` (14 new tests), `tests/test_manpage.py` (9 new EXPECTED_FLAGS), `tests/test_examples.py` (MIN_SVGS=13), `src/img2svg/__init__.py` (RegionInfo already exported from T4), `docs/usage.md` (9 new flags), `man/img2svg.1` (9 new options), `src/img2svg/cli.py` (--mode help text), `examples/sample_outputs/{5 new SVGs}`.
+
+## T25 Documentation — Findings (2026-06-10)
+
+### Duplicate mkdocs.yml gotcha
+- The project has TWO `mkdocs.yml` files: one at the project root and one in `docs/`
+- `tests/test_docs.py` uses `DOCS_DIR / REQUIRED_CONFIG` (i.e. `docs/mkdocs.yml`), NOT the root one
+- Both need to be updated together to keep the test passing and `mkdocs build` consistent
+- Bash `cat docs/mkdocs.yml` confirms this; pytest output revealed it via the nav length assertion
+
+### Test `test_mkdocs_yml_is_valid_yaml` invariants
+- Asserts `len(nav) == len(REQUIRED_DOCS)` — when adding a new doc, both arrays must grow together
+- Asserts each `REQUIRED_DOCS` filename is reachable in nav
+- The test parametrizes over `REQUIRED_DOCS` for `test_required_doc_file_exists`, `test_every_doc_has_h1_title`, etc., so adding a new doc to REQUIRED_DOCS also adds test coverage for it
+
+### Man page format constraints
+- Test `test_manpage_th_header` requires the version string `"0.1.0"` in the `.TH` line — DO NOT bump the man page version until the package version is actually bumped
+- `.EX`/`.EE` blocks (literal code blocks) count toward the "at least 5 examples" requirement
+- The existing test `test_manpage_documents_every_cli_flag` only checks the 10 legacy flags, not the new ones — adding new flags is safe but verify the test still passes
+- Two `.SH` sections are in the man page now: standard ones + a new `PHOTO MODES` section
+
+### Photo-modes.md content structure
+- 470 lines, 13 H2 sections: pipeline intro, mode summary, 5 mode sections, preprocessing, segmentation, examples, decision tree, Python API, see-also
+- Each mode section follows the same template: what it produces / when to use / performance / example command
+- Cross-references to existing docs (modes.md, usage.md, api.md, architecture.md, installation.md) keep the docs navigable
+- The 5 new mode sections are the heart of the page; preprocessing + segmentation are the supporting infrastructure
+
+### API doc changes summary
+- `ConversionOptions` table now has 13 fields (up from 10). The old `palette_size` is replaced with `max_colors`
+- New `RegionInfo` section documents the per-region sidecar field (class_id, class_name, confidence, bbox, area_pixels, polygon, mask_path)
+- New `SegmentationResult` section documents the YOLO-specific result type (masks, boxes, polygons) — note: this is in `img2svg.detector`, not `img2svg.models`
+- `Sidecar` section updated to mention `preprocessing`, `regions`, and `model_variant` fields
+- The JSON example was changed to use `mode_used: "detailed"` and include the new fields
+
+### Architecture doc changes
+- Pipeline flowchart (LR) now has 7 nodes instead of 6, adding `Preprocessing` and `Segmentation` stages
+- Renderer composition diagram (TB) now has 10 modes (up from 4)
+- 14-step pipeline description (up from 12)
+- Renderer table expanded to 10 rows
+
+### Installation doc iGPU caveat
+- The pre-existing 512MB iGPU caveat about `yolo11x.pt` was updated to also cover `yolo11x-seg`
+- Added a `--mode segmented --seg-model yolo11n-seg` example for iGPU users
+- New "YOLO model availability" section at the end documents the two model families (detection + segmentation) and gives VRAM guidance for 512MB / 2GB / 6GB+ tiers
+
+### Changelog format
+- The Unreleased section was a stub; expanded to cover Added (with 5 bullets for modes, 1 for preprocessing, 1 for segmentation, 1 for the 9 flags, 1 for the sidecar fields, 1 for Python API types, 1 for docs) and Changed (3 bullets for auto-mode, palette_size→max_colors, pipeline count)
+- The 9 new flags (not 8 as the plan summary said): --preprocess, --denoise, --sharpen, --max-colors, --quality, --no-preprocess, --seg-model, --no-seg, --max-svg-size
+
+### Modes.md
+- The existing 4 non-photo modes stay detailed; the 5 photo modes are summarized in the table with a link to photo-modes.md
+- The `auto` mode description was updated: "photo → detailed, others → visual" (replaces the old 4-way mapping)
+- A "See also" link to photo-modes.md was added
+
+## T24 fix — SegmentedRenderer never received SegmentationResult
+
+### Root cause recap
+- Pipeline step 5 ran YOLO segmentation and stored result on `self._segmentation_result` and local `segmentation_result`
+- Pipeline step 8 created the renderer via `renderer_cls(svg, loaded, detections, analysis_global)` (line 362 pre-fix)
+- BUT the pipeline never called `renderer.set_segmentation(segmentation_result)` to inject the result
+- `SegmentedRenderer.__init__` initializes `self._segmentation_result = None`
+- Without the injection, `_has_any_region(result)` returns False (None check)
+- Renderer falls back internally to `_render_with_vtracer(self, "default")` → single `<g id="vtracer-output">`
+- T18's pipeline-level fallback (lines 348-358) was correct as-is; the bug was the missing wire between pipeline and renderer
+
+### The fix (2 lines + 1 WHY comment)
+Added at `src/img2svg/pipeline.py` immediately after `renderer = renderer_cls(...)`:
+```python
+# Inject the YOLO segmentation result so SegmentedRenderer can emit
+# the per-region multi-layer SVG instead of falling back to a
+# single vtracer-output group. Other renderers ignore this call.
+if isinstance(renderer, SegmentedRenderer) and segmentation_result is not None:
+    renderer.set_segmentation(segmentation_result)
+```
+
+### Also fixed: stale T16 comment
+The comment block at `RENDERER_REGISTRY` (lines 77-81) had a stale `Mode.SEGMENTED is also absent — its SegmentedRenderer lands in T16` line. Replaced with a current-state comment explaining the fallback gate arrangement:
+```python
+# Map a resolved `Mode` to the corresponding renderer class. `Mode.AUTO` is
+# intentionally absent — the pipeline must resolve AUTO via `select_mode()`
+# before looking up a renderer. `Mode.SEGMENTED` entry exists but the
+# renderer is only used when ``segmentation_result`` is non-empty (else
+# pipeline.py falls back to VisualRenderer; see step 8 fallback gate below).
+```
+
+### Verification
+- `uv run ruff check src/img2svg/pipeline.py` → All checks passed
+- `uv run pytest tests/test_pipeline.py -q` → 19 passed
+- `uv run pytest -m "not slow" -q` → 609 passed, 1 pre-existing i18n failure (matches expected)
+- E2E: `uv run img2svg convert tests/testimg/Designer\ \(1\).jpeg --output /tmp/qa-seg-photo-fix.svg --mode segmented --seg-model yolo11s-seg` → produced 9.5MB SVG with:
+  - 1 `<svg:g id="background">` (data-role="background")
+  - 1 `<svg:g id="obj_person_0">` (data-class="person", data-conf=0.64501953125)
+  - 0 `vtracer-output` references (fallback eliminated)
+- Evidence saved to `.sisyphus/evidence/task-24-seg-photo-FIXED.svg`
+
+### Key gotcha — SVG namespace prefix
+- The project's SVG output uses the `svg:` namespace prefix (e.g., `<svg:g id="background">`), not bare `<g>`
+- Initial Python regex `<g[^>]*id="..."` matched 0 — must use `<svg:g[^>]*id="..."` for this project
+- `grep -c "obj_"` works because it doesn't care about element namespace
+- `grep -c "vtracer-output"` returns 0 after the fix (was the only top-level group before)
+
+### Why the unit tests didn't catch this
+- T16 unit tests use a stub renderer pattern that doesn't exercise the SegmentedRenderer's set_segmentation path
+- T15's stub-renderer pipeline test was fully isolated from the renderer
+- The integration gap was hidden by the stub layer — only an end-to-end run with a real YOLO seg model and the actual SegmentedRenderer reveals it
+- Lesson: stub-renderer pipeline tests are necessary but not sufficient for renderer-injection patterns
+
+### Architectural takeaway
+- Pipeline→renderer injection via `isinstance(renderer, XRenderer)` guard is a pragmatic pattern when:
+  1. Only one (or few) renderer subclass(es) need the extra context
+  2. The pipeline already builds the context (no need to bloat every renderer's __init__)
+  3. The other renderers are no-op if `set_*` is never called
+- This is similar to the optional context pattern used by `trace_with_capture` and friends
+- An alternative would be a `RendererContext` dataclass that gets passed to the renderer factory, but that's overkill for 1 optional dependency

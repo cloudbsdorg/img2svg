@@ -63,3 +63,13 @@ def screenshot_path() -> Path:
 @pytest.fixture
 def corrupt_path() -> Path:
     return _FIXTURES_DIR / "corrupt.bin"
+
+
+@pytest.fixture
+def real_photo_path() -> Path:
+    """A real photo from tests/testimg/ for SEGMENTED mode testing.
+
+    The testimg/ directory contains 50+ real photos provided by the user
+    for real-world photo testing (per the photo-quality-push plan).
+    """
+    return _FIXTURES_DIR.parent / "testimg" / "Designer (1).jpeg"

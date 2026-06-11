@@ -335,7 +335,10 @@ def _convert_cmd(
     mode: str = typer.Option(
         "auto",
         "--mode",
-        help="auto, labels, visual, annotated, trace",
+        help=(
+            "Output mode: auto, labels, visual, annotated, trace, "
+            "poster, detailed, edge, watercolor, segmented"
+        ),
         callback=_mode_callback,
     ),
     model: str = typer.Option("yolo11x.pt", "--model", help="YOLO model name"),

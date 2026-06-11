@@ -249,3 +249,168 @@ def test_cli_module_exports_version() -> None:
     """`img2svg.cli.__version__` is the canonical version string."""
     assert __version__ == "0.1.0"
     assert isinstance(__version__, str)
+
+
+# ----------------------------------------------------------------------
+# New preprocessing / segmentation / size flags (T1, T5, T14, T20)
+# ----------------------------------------------------------------------
+
+
+def test_cli_preprocess_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--preprocess bilateral --preprocess unsharp` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app,
+            [
+                str(logo),
+                "-o",
+                str(out),
+                "--mode",
+                "labels",
+                "--preprocess",
+                "bilateral",
+                "--preprocess",
+                "unsharp",
+            ],
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_denoise_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--denoise bilateral` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--denoise", "bilateral"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_sharpen_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--sharpen unsharp` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--sharpen", "unsharp"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_max_colors_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--max-colors 8` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--max-colors", "8"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_quality_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--quality 75` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--quality", "75"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_no_preprocess_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--no-preprocess` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--no-preprocess"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_seg_model_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--seg-model yolo11s-seg` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app,
+            [str(logo), "-o", str(out), "--mode", "labels", "--seg-model", "yolo11s-seg"],
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_seg_model_rejects_invalid_value(tmp_path: Path) -> None:
+    """`--seg-model yolo99-seg` is rejected with exit code 2 (BadParameter)."""
+    result = runner.invoke(app, ["nonexistent.png", "--seg-model", "yolo99-seg"])
+    assert result.exit_code == 2, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_no_seg_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--no-seg` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--no-seg"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_max_svg_size_flag_passes_through(tmp_path: Path, fixtures_dir: Path) -> None:
+    """`--max-svg-size 10` is accepted and the run exits 0."""
+    logo = fixtures_dir / "logo.png"
+    out = tmp_path / "out.svg"
+    with _PatchStack(_success_patches()):
+        result = runner.invoke(
+            app, [str(logo), "-o", str(out), "--mode", "labels", "--max-svg-size", "10"]
+        )
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_max_svg_size_rejects_out_of_range(tmp_path: Path) -> None:
+    """`--max-svg-size 0` is rejected with exit code 2 (below min=1)."""
+    result = runner.invoke(app, ["nonexistent.png", "--max-svg-size", "0"])
+    assert result.exit_code == 2, f"got {result.exit_code}: {result.output}"
+
+
+def test_cli_help_documents_all_ten_modes() -> None:
+    """`img2svg convert --help` lists all 10 output modes in the --mode help text."""
+    result = runner.invoke(app, ["convert", "--help"])
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    for mode in (
+        "auto",
+        "labels",
+        "visual",
+        "annotated",
+        "trace",
+        "poster",
+        "detailed",
+        "edge",
+        "watercolor",
+        "segmented",
+    ):
+        assert mode in result.output, f"convert --help is missing mode: {mode}"
+
+
+def test_cli_convert_help_documents_new_flags() -> None:
+    """`img2svg convert --help` mentions all 9 new flags."""
+    result = runner.invoke(app, ["convert", "--help"])
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    for flag in (
+        "--preprocess",
+        "--denoise",
+        "--sharpen",
+        "--max-colors",
+        "--quality",
+        "--no-preprocess",
+        "--seg-model",
+        "--no-seg",
+        "--max-svg-size",
+    ):
+        assert flag in result.output, f"convert --help is missing flag: {flag}"

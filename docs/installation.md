@@ -80,13 +80,25 @@ pip install img2svg
 
 ROCm PyTorch wheels are **not** on PyPI; they live under `https://download.pytorch.org/whl/rocm6.2` (or `rocm6.3`, `rocm6.4` for newer ROCm releases). Linux x86_64 only.
 
-> **iGPU caveat (512 MB).** APU iGPUs such as the Radeon 890M typically expose only 512 MB of addressable VRAM, which is not enough to load YOLO11x (the default model). The pipeline will fail with an out-of-memory error on those devices. Use a smaller model — `yolo11n.pt` (~5 MB weights, runs comfortably in 1-2 GB of VRAM) or `yolo11s.pt` — or fall back to CPU:
+> **iGPU caveat (512 MB).** APU iGPUs such as the Radeon 890M typically expose only 512 MB of addressable VRAM, which is not enough to load YOLO11x (the default detection model) or the YOLO11x-seg segmentation model. The pipeline will fail with an out-of-memory error on those devices. For detection, use a smaller model — `yolo11n.pt` (~5 MB weights, runs comfortably in 1-2 GB of VRAM) or `yolo11s.pt`:
 >
 > ```bash
 > img2svg photo.png -o photo.svg --model yolo11n.pt
 > ```
 >
-> YOLO11x is only realistic on a discrete AMD card with at least 6 GB of VRAM.
+> For segmentation (`--mode segmented`), use `--seg-model yolo11n-seg` or `--seg-model yolo11s-seg`:
+>
+> ```bash
+> img2svg photo.jpg -o photo.svg --mode segmented --seg-model yolo11n-seg
+> ```
+>
+> Or fall back to CPU:
+>
+> ```bash
+> img2svg photo.png -o photo.svg --device cpu --model yolo11n.pt
+> ```
+>
+> YOLO11x is only realistic on a discrete AMD card with at least 6 GB of VRAM. The segmentor additionally auto-falls-back to a smaller model on out-of-memory errors, so a 512 MB iGPU can still run `segmented` mode (it'll fall back to `yolo11n-seg`, then to bbox detection only).
 
 ### How to verify
 
@@ -184,3 +196,20 @@ img2svg list-gpus --strategy power
 ```
 
 You should see the version, OS string, and a list of detected compute devices. If `list-gpus` reports "No GPUs detected" on a system that does have one, see [Troubleshooting](troubleshooting.md#no-gpu-detected).
+
+## YOLO model availability
+
+The pipeline uses two YOLO model families, both downloaded on first use and cached under `$XDG_CACHE_HOME/img2svg/models/`:
+
+- **Detection** — `yolo11x.pt` (default, ~50 MB). Configurable via `--model`. Smaller variants: `yolo11n.pt` (~5 MB), `yolo11s.pt` (~20 MB), `yolo11m.pt` (~40 MB), `yolo11l.pt` (~50 MB).
+- **Segmentation** — `yolo11s-seg.pt` (default, ~20 MB). Configurable via `--seg-model`. Smaller and larger variants: `yolo11n-seg` (~5 MB), `yolo11m-seg` (~40 MB), `yolo11l-seg` (~50 MB), `yolo11x-seg` (~100 MB).
+
+The segmentation models are used by `--mode segmented` to produce a multi-layer editable SVG with one group per detected object. The detection models power the bounding-box overlays in `--mode labels` and `--mode annotated`.
+
+VRAM guidance:
+
+- 512 MB (typical iGPU): use `yolo11n.pt` for detection, `yolo11n-seg` for segmentation. The pipeline auto-falls-back to a smaller segmentation model on OOM errors.
+- 2 GB (entry-level discrete): `yolo11s.pt` and `yolo11s-seg` run comfortably.
+- 6 GB+ (mid-range discrete): `yolo11x.pt` and `yolo11x-seg` both fit.
+
+Run `img2svg info` to see the resolved backend and devices after install.

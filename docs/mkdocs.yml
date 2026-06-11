@@ -20,6 +20,7 @@ nav:
   - Usage: usage.md
   - Python API: api.md
   - Output modes: modes.md
+  - Photo modes: photo-modes.md
   - GPU setup: gpu.md
   - Configuration: configuration.md
   - Troubleshooting: troubleshooting.md

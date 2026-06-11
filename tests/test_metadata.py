@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from img2svg.metadata import compute_file_hash, read_sidecar, write_sidecar
-from img2svg.models import Sidecar
+from img2svg.models import BoundingBox, RegionInfo, Sidecar
 
 
 def _make_sidecar(tmp_path: Path) -> Sidecar:
@@ -91,3 +91,70 @@ def test_read_sidecar_rejects_invalid_json(tmp_path: Path) -> None:
     bad.write_text("not json", encoding="utf-8")
     with pytest.raises(Exception):
         read_sidecar(bad)
+
+
+def test_sidecar_preprocessing_field_round_trip(tmp_path: Path) -> None:
+    sidecar = _make_sidecar(tmp_path)
+    sidecar.preprocessing = ["bilateral", "unsharp"]
+    out = tmp_path / "pp.json"
+    write_sidecar(sidecar, out)
+    loaded = read_sidecar(out)
+    assert loaded.preprocessing == ["bilateral", "unsharp"]
+
+
+def test_sidecar_regions_field_round_trip(tmp_path: Path) -> None:
+    sidecar = _make_sidecar(tmp_path)
+    sidecar.regions = [
+        RegionInfo(
+            class_id=0,
+            class_name="person",
+            confidence=0.9,
+            bbox=BoundingBox(x1=10.0, y1=20.0, x2=110.0, y2=220.0),
+            area_pixels=20000,
+            polygon=[(10.0, 20.0), (110.0, 20.0), (110.0, 220.0), (10.0, 220.0)],
+            mask_path=None,
+        )
+    ]
+    out = tmp_path / "regions.json"
+    write_sidecar(sidecar, out)
+    loaded = read_sidecar(out)
+    assert len(loaded.regions) == 1
+    assert loaded.regions[0].class_name == "person"
+    assert loaded.regions[0].area_pixels == 20000
+    assert loaded.regions[0].polygon == [
+        (10.0, 20.0),
+        (110.0, 20.0),
+        (110.0, 220.0),
+        (10.0, 220.0),
+    ]
+
+
+def test_sidecar_model_variant_field_round_trip(tmp_path: Path) -> None:
+    sidecar = _make_sidecar(tmp_path)
+    sidecar.model_variant = "yolo11s-seg"
+    out = tmp_path / "variant.json"
+    write_sidecar(sidecar, out)
+    loaded = read_sidecar(out)
+    assert loaded.model_variant == "yolo11s-seg"
+
+
+def test_sidecar_new_fields_default_to_empty(tmp_path: Path) -> None:
+    sidecar = _make_sidecar(tmp_path)
+    assert sidecar.preprocessing == []
+    assert sidecar.regions == []
+    assert sidecar.model_variant == ""
+
+
+def test_sidecar_loads_legacy_json_without_new_fields(tmp_path: Path) -> None:
+    legacy = (
+        '{"version":"0.1.0","input_path":"/tmp/in.png","input_hash":"h",'
+        '"output_path":"/tmp/out.svg","output_size":100,'
+        '"mode_used":"visual","mode_reasoning":"r","model":"yolo11x.pt",'
+        '"device":"auto","image_type":"photo","detections":[]}'
+    )
+    bad = tmp_path / "legacy.json"
+    bad.write_text(legacy, encoding="utf-8")
+    loaded = read_sidecar(bad)
+    assert loaded.preprocessing == []
+    assert loaded.regions == []
+    assert loaded.model_variant == ""

@@ -284,3 +284,9 @@ def test_trace_region_return_type(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(offset, tuple)
     assert len(offset) == 2
     assert all(isinstance(v, int) for v in offset)
+
+
+def test_real_photo_path_exists(real_photo_path: Path) -> None:
+    """Smoke test: real_photo_path fixture returns a valid image file."""
+    assert real_photo_path.exists()
+    assert real_photo_path.stat().st_size > 50_000  # > 50KB

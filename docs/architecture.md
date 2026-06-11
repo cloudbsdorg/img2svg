@@ -30,32 +30,36 @@ The full sequence from input image to SVG + sidecar:
 ```mermaid
 flowchart LR
     A[Image Input] --> B[Loader]
-    B --> C[Classifier]
+    B --> P[Preprocessing]
+    P --> C[Classifier]
     C --> D[YOLO Detector]
     C --> E[Geometric Analysis]
-    D --> F[Pipeline]
+    D --> S[Segmentation]
+    S --> F[Pipeline]
     E --> F
     F --> G[Renderer]
     G --> H[SVG Output]
     F --> I[Sidecar JSON]
 ```
 
-The 12 steps inside the `Pipeline.run()` are documented inline in the source with step-marker comments. The high-level flow is:
+The pipeline steps inside the `Pipeline.run()` are documented inline in the source with step-marker comments. The high-level flow is:
 
 1. **Load** the image via `img2svg.loader.load_image()`.
-2. **Analyze globally** — dominant colors, edge density, contour count, alpha presence (`img2svg.patterns.analyze_global`).
-3. **Classify** the image type (`logo`, `photo`, `diagram`, `screenshot`, `line_art`, `unknown`).
-4. **Select mode** — if the user passed `Mode.AUTO`, pick a concrete mode from the classification. Otherwise honor the user's choice.
-5. **Detect** objects with YOLO segmentation (skipped for `Mode.TRACE`).
-6. (Per-ROI analysis is currently a no-op; the spec defers it.)
-7. **Resolve device** — pick the GPU per the strategy, or fall back to CPU.
-8. **Build the renderer** from the resolved mode.
-9. **Render** the SVG via the renderer's `.render(svg, image, detections, analysis)` method.
-10. **Write** the SVG atomically.
-11. **Write** the sidecar JSON atomically.
-12. **Return** the `ConversionResult`.
+2. **Preprocess** — apply the configured OpenCV filter chain (denoise, sharpen, posterize, edge detection). Off by default; opt in with `--preprocess` or the `--denoise` / `--sharpen` shortcuts.
+3. **Analyze globally** — dominant colors, edge density, contour count, alpha presence (`img2svg.patterns.analyze_global`).
+4. **Classify** the image type (`logo`, `photo`, `diagram`, `screenshot`, `line_art`, `unknown`).
+5. **Select mode** — if the user passed `Mode.AUTO`, pick a concrete mode from the classification. Otherwise honor the user's choice.
+6. **Detect** objects with YOLO detection (skipped for `Mode.TRACE`).
+7. **Segment** — for `Mode.SEGMENTED`, run YOLO instance segmentation and trace each region with vtracer. Falls back to bbox detection on VRAM pressure. Skipped when `--no-seg` is set or for non-segmented modes.
+8. (Per-ROI analysis is currently a no-op; the spec defers it.)
+9. **Resolve device** — pick the GPU per the strategy, or fall back to CPU.
+10. **Build the renderer** from the resolved mode.
+11. **Render** the SVG via the renderer's `.render(svg, image, detections, analysis)` method. The `SegmentedRenderer` also receives the `SegmentationResult` via `set_segmentation()`.
+12. **Write** the SVG atomically (capped at `max_svg_size_mb`).
+13. **Write** the sidecar JSON atomically.
+14. **Return** the `ConversionResult`.
 
-`Mode.AUTO` is the only mode that goes through step 4; explicit modes skip it. The pipeline is strict about this — `RENDERER_REGISTRY` does not have an entry for `Mode.AUTO`, so the lookup would fail if step 4 were skipped.
+`Mode.AUTO` is the only mode that goes through step 5; explicit modes skip it. The pipeline is strict about this — `RENDERER_REGISTRY` does not have an entry for `Mode.AUTO`, so the lookup would fail if step 5 were skipped.
 
 ## Renderer composition
 
@@ -68,13 +72,23 @@ flowchart TB
     B --> D[Mode.VISUAL]
     B --> E[Mode.ANNOTATED]
     B --> F[Mode.TRACE]
+    B --> K[Mode.DETAILED]
+    B --> L[Mode.POSTER]
+    B --> M[Mode.EDGE]
+    B --> N[Mode.WATERCOLOR]
+    B --> O[Mode.SEGMENTED]
     C --> G[LabelsRenderer]
     D --> H[VisualRenderer]
     E --> I[AnnotatedRenderer]
     F --> J[TraceRenderer]
+    K --> P[DetailedRenderer]
+    L --> Q[PosterRenderer]
+    M --> R[EdgeRenderer]
+    N --> S[WatercolorRenderer]
+    O --> T[SegmentedRenderer]
 ```
 
-The four renderer classes all subclass `img2svg.renderers.base.Renderer`, which defines the contract:
+The ten renderer classes all subclass `img2svg.renderers.base.Renderer`, which defines the contract:
 
 ```python
 class Renderer:
@@ -86,14 +100,21 @@ class Renderer:
 
 The constructor stashes the inputs, and `.render()` is the only side-effecting call. This makes renderers trivial to unit-test: build a `SVGDocument` and a fake `LoadedImage`, call the renderer, and assert the SVG tree.
 
-| Mode         | Renderer class                          | What it does                                       |
-|--------------|------------------------------------------|----------------------------------------------------|
-| `LABELS`     | `img2svg.renderers.labels.LabelsRenderer` | Embeds image, draws labeled bounding boxes.      |
-| `VISUAL`     | `img2svg.renderers.visual.VisualRenderer` | Embeds image, vectorizes with vtracer.            |
-| `ANNOTATED`  | `img2svg.renderers.annotated.AnnotatedRenderer` | vtracer output plus labeled bounding boxes.  |
-| `TRACE`      | `img2svg.renderers.trace.TraceRenderer`  | vtracer output only, no image, no labels.         |
+| Mode         | Renderer class                                | What it does                                                |
+|--------------|-----------------------------------------------|-------------------------------------------------------------|
+| `LABELS`     | `img2svg.renderers.labels.LabelsRenderer`     | Embeds image, draws labeled bounding boxes.                 |
+| `VISUAL`     | `img2svg.renderers.visual.VisualRenderer`     | Embeds image, vectorizes with vtracer.                      |
+| `ANNOTATED`  | `img2svg.renderers.annotated.AnnotatedRenderer` | vtracer output plus labeled bounding boxes.              |
+| `TRACE`      | `img2svg.renderers.trace.TraceRenderer`       | vtracer output only, no image, no labels.                   |
+| `POSTER`     | `img2svg.renderers.poster.PosterRenderer`     | vtracer `poster` preset: flat color regions.                |
+| `DETAILED`   | `img2svg.renderers.detailed.DetailedRenderer` | vtracer `photo_hifi` preset: high-fidelity photo trace.     |
+| `EDGE`       | `img2svg.renderers.edge.EdgeRenderer`         | vtracer `bw_edge` preset: line-art, polygon mode.            |
+| `WATERCOLOR` | `img2svg.renderers.watercolor.WatercolorRenderer` | vtracer `watercolor` preset: soft painterly output.     |
+| `SEGMENTED`  | `img2svg.renderers.segmented.SegmentedRenderer` | Multi-layer SVG: one `<g>` per YOLO detection.            |
 
 The `VisualRenderer` and `TraceRenderer` share a private helper `_render_with_vtracer()` that lives in `visual.py` and is imported by `trace.py`. The `AnnotatedRenderer` calls the same helper first, then appends detection groups — the vtracer group is the background, the detection groups are the foreground. SVG paint order follows document order, so this layering works out automatically.
+
+The `SegmentedRenderer` is a special case. It accepts a `SegmentationResult` via `set_segmentation()` between the segmentor call and `render()`. The renderer falls back to `VisualRenderer` behavior when no segmentation result is set or every mask is empty, which makes the renderer testable without YOLO. See [Photo modes](photo-modes.md#segmented) for the per-region tracing flow.
 
 ## GPU dispatch
 
@@ -196,5 +217,6 @@ The renderers are leaf-ish: they depend on `base`, `vectorizer`, and the SVG bui
 
 - [Python API](api.md) — public surface.
 - [Output modes](modes.md) — when to use each mode.
+- [Photo modes](photo-modes.md) — the five photo modes, the preprocessing chain, and the segmentation workflow.
 - [GPU setup](gpu.md) — vendor-specific install and dispatch.
 - [Development](development.md) — TDD workflow and code conventions.

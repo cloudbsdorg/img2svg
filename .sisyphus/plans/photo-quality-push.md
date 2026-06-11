@@ -2237,7 +2237,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/pipeline.py`, `src/img2svg/cli.py`, `src/img2svg/models.py`, `tests/test_pipeline.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py tests/test_cli.py -q && uv run ruff check src/img2svg/pipeline.py src/img2svg/cli.py src/img2svg/models.py`
 
-- [ ] 21. Create new test files: `test_preprocessing.py`, `test_segmentation.py`, `test_renderers.py`
+- [x] 21. Create new test files: `test_preprocessing.py`, `test_segmentation.py`, `test_renderers.py`
 
   **What to do**:
   - Create `tests/test_preprocessing.py` (~150 lines):
@@ -2325,7 +2325,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `tests/test_preprocessing.py`, `tests/test_segmentation.py`, `tests/test_renderers.py`
   - Pre-commit: `uv run pytest tests/test_preprocessing.py tests/test_segmentation.py tests/test_renderers.py -q && uv run ruff check tests/`
 
-- [ ] 22. Update existing tests for new modes + auto-mode behavior + new fields
+- [x] 22. Update existing tests for new modes + auto-mode behavior + new fields
 
   **What to do**:
   - Update `tests/test_presets.py`:
@@ -2411,7 +2411,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `tests/test_presets.py`, `tests/test_pipeline.py`, `tests/test_models.py`, `tests/test_metadata.py`, `tests/test_cli.py`, `tests/test_manpage.py`, `tests/test_examples.py`, `src/img2svg/__init__.py`
   - Pre-commit: `uv run pytest -m "not slow" -q && uv run ruff check tests/ src/img2svg/__init__.py`
 
-- [ ] 23. Use existing `tests/testimg/` directory for real-photo tests (no new fixtures)
+- [x] 23. Use existing `tests/testimg/` directory for real-photo tests (no new fixtures)
 
   **What to do**:
   - **No new fixtures needed** — use the existing `tests/testimg/` directory which contains 50+ real photos
@@ -2478,7 +2478,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `tests/conftest.py`, `tests/test_segmentation.py`
   - Pre-commit: `uv run pytest tests/test_segmentation.py -q`
 
-- [ ] 24. End-to-end verification on user's `rtlogo-1.png` + testimg samples
+- [x] 24. End-to-end verification on user's `rtlogo-1.png` + testimg samples (incl. SEGMENTED bug fix)
 
   **What to do**:
   - Run end-to-end conversion of `/home/mlapointe/Documents/rtlogo-1.png` for each of the 10 modes:
@@ -2571,7 +2571,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `.sisyphus/evidence/task-24-*.svg`, `.sisyphus/evidence/task-24-*.json`
   - Pre-commit: `uv run pytest -m "not slow" -q && uv run img2svg --version`
 
-- [ ] 25. Documentation updates (NEW `docs/photo-modes.md` + update README, man page, mkdocs)
+- [x] 25. Documentation updates (NEW `docs/photo-modes.md` + update README, man page, mkdocs)
 
   **What to do**:
   - Create `docs/photo-modes.md` (~400 lines):
@@ -2674,7 +2674,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `docs/photo-modes.md`, `README.md`, `man/img2svg.1`, `mkdocs.yml`, `docs/usage.md`, `docs/api.md`, `docs/architecture.md`, `docs/installation.md`, `docs/index.md`, `docs/changelog.md`, `docs/modes.md`
   - Pre-commit: `uv run pytest tests/test_docs.py tests/test_manpage.py -q && uv run mkdocs build --strict`
 
-- [ ] 26. Add lessons to Honcho workspace (capture key decisions from this plan)
+- [x] 26. Add lessons to Honcho workspace (capture key decisions from this plan)
 
   **What to do**:
   - Use the `honcho_add_conclusions` tool to add lessons learned to the Honcho workspace

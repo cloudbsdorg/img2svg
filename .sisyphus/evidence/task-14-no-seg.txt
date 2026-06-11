@@ -1,0 +1,7 @@
+OK: no_seg=True stored correctly
+OK: seg_model=yolo11n-seg accepted
+OK: seg_model=yolo11s-seg accepted
+OK: seg_model=yolo11m-seg accepted
+OK: seg_model=yolo11l-seg accepted
+OK: seg_model=yolo11x-seg accepted
+OK: defaults seg_model=yolo11s-seg, no_seg=False

@@ -1,16 +1,23 @@
 # Output modes
 
-`img2svg` has five rendering modes that control how the source image is converted to SVG. `auto` is the default and runs the classifier to pick a mode based on the image. The other four are explicit overrides for predictable output.
+`img2svg` has ten rendering modes that control how the source image is converted to SVG. `auto` is the default and runs the classifier to pick a mode based on the image. The other nine are explicit overrides for predictable output.
+
+Five of the explicit modes target photographs and other complex raster sources: `poster`, `detailed`, `edge`, `watercolor`, and `segmented`. They live in a separate [Photo modes](photo-modes.md) guide because they share a common pipeline (preprocessing, segmentation, per-mode renderer) that's worth a deep dive of its own. The other four — `labels`, `visual`, `annotated`, `trace` — are covered in full on this page.
 
 ## Mode summary
 
 | Mode         | Image type          | What it produces                                  |
 |--------------|---------------------|---------------------------------------------------|
-| `auto`       | Any                 | Classifier picks `labels`/`visual`/`annotated`/`trace`. |
+| `auto`       | Any                 | Classifier picks `visual` or `detailed`.          |
 | `labels`     | Logos, line art     | Bounding boxes with class labels over the image.  |
 | `visual`     | Photos, paintings   | Vectorized via vtracer, no overlays.              |
 | `annotated`  | Photos with objects | Vectorized via vtracer plus bounding-box labels.  |
 | `trace`      | Sketches, line art  | vtracer output only, no image, no labels.         |
+| `poster`     | Posters, prints     | Stylized, limited-color vtracer output.           |
+| `detailed`   | Photos              | High-fidelity vtracer `photo_hifi` trace.         |
+| `edge`       | Sketches, line art  | Line-art, polygon-mode vtracer output.            |
+| `watercolor` | Art, illustrations  | Soft, painterly vtracer output.                   |
+| `segmented`  | Photos with objects | Multi-layer SVG, one group per YOLO detection.    |
 
 The mode enum is in `img2svg.enums.Mode`. The Python API takes the enum or its string value; the CLI takes the string.
 
@@ -24,12 +31,12 @@ opts2 = ConversionOptions(mode="labels")          # str — auto-coerced
 
 ## auto
 
-The default. The classifier inspects alpha, dominant colors, and edge density and picks one of the four explicit modes:
+The default. The classifier inspects alpha, dominant colors, and edge density and picks one of the explicit modes:
 
-- Logos and clean line art → `labels`.
-- Photos with detectable objects → `annotated`.
-- Photos without strong detections → `visual`.
-- Sketches and line art → `trace`.
+- Photos → `detailed` (the high-fidelity photo trace).
+- Logos, clean line art, diagrams, screenshots, unknown → `visual`.
+
+`auto` never picks `labels`, `annotated`, `poster`, `edge`, `watercolor`, or `segmented` — those are explicit-only modes. See [Photo modes](photo-modes.md#choosing-a-photo-mode) for the rationale.
 
 The classification is heuristic; if the auto mode picks something unexpected, force the mode explicitly with `--mode`.
 
@@ -121,6 +128,7 @@ convert("cat.png", "cat.svg", options=ConversionOptions(mode=Mode.ANNOTATED))
 
 ## See also
 
+- [Photo modes](photo-modes.md) — the five photo modes (`poster`, `detailed`, `edge`, `watercolor`, `segmented`), the optional preprocessing chain, and the segmentation workflow.
 - [Usage](usage.md) — CLI examples for each mode.
 - [Architecture](architecture.md) — how modes map to renderer classes (with diagram).
 - [Python API](api.md) — `ConversionOptions` reference.

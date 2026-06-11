@@ -6,7 +6,10 @@ Convert raster images to clean, optimized SVG using YOLO segmentation and [vtrac
 
 ## Highlights
 
-- **Auto mode selection**: the classifier inspects the image and routes to `labels`, `visual`, `annotated`, or `trace`.
+- **Ten output modes**: `auto`, `labels`, `visual`, `annotated`, `trace`, `poster`, `detailed`, `edge`, `watercolor`, and `segmented`. The classifier picks a sensible default for `auto`; the photo modes give you a stylistic and fidelity dial for photographs and other complex sources.
+- **Auto mode selection**: the classifier inspects the image and routes `photo` to `detailed` and other image types to `visual`. Explicit-only modes (`labels`, `annotated`, `segmented`) are never picked automatically.
+- **Optional preprocessing**: an OpenCV filter chain (denoise, sharpen, posterize, edge detection) runs before vtracer for cleaner output on noisy sources.
+- **Multi-layer editable SVG**: `segmented` mode runs YOLO instance segmentation, traces each detected object with vtracer, and emits one `<g>` group per object.
 - **Batch-friendly**: a single call walks a directory, expands a glob, or processes a list of paths.
 - **GPU-aware**: detects NVIDIA, AMD, and Apple Silicon devices, with a recommendation strategy (`power` or `availability`).
 - **Atomic writes**: every output is written to a temp file and renamed into place, so partial outputs never appear in the final directory.
@@ -48,6 +51,7 @@ See [Usage](usage.md) for the full flag reference and batch examples, or jump st
 - [Usage](usage.md): CLI flag reference, batch processing, GPU selection.
 - [Python API](api.md): `convert()`, `convert_batch()`, `ConversionOptions`, and friends.
 - [Output modes](modes.md): when to use `auto`, `labels`, `visual`, `annotated`, or `trace`.
+- [Photo modes](photo-modes.md): the five photo modes (`poster`, `detailed`, `edge`, `watercolor`, `segmented`), the optional preprocessing chain, and the segmentation workflow.
 - [GPU setup](gpu.md): NVIDIA CUDA, AMD ROCm, Apple Silicon MPS.
 - [Configuration](configuration.md): XDG Base Directory paths and the config file.
 - [Troubleshooting](troubleshooting.md): common errors and their fixes.

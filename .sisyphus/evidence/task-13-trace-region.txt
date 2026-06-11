@@ -1,0 +1,1 @@
+OK: paths=2, offset=(20, 10)

@@ -15,7 +15,9 @@ Use it from the command line for one-off conversions and batch jobs, or call the
 
 ## Features
 
-- Five output modes (`auto`, `labels`, `visual`, `annotated`, `trace`) covering semantic SVGs, traced bitmaps, and annotated overlays
+- Ten output modes (`auto`, `labels`, `visual`, `annotated`, `trace`, `poster`, `detailed`, `edge`, `watercolor`, `segmented`) covering semantic SVGs, traced bitmaps, annotated overlays, and photo-specific rendering pipelines
+- Optional OpenCV preprocessing chain (denoise, sharpen, posterize, edge detection) for cleaner vector output on noisy sources
+- YOLO instance segmentation with multi-layer editable SVG output and per-region vtracer tracing
 - Automatic content classification that picks a sensible mode without user input
 - YOLO 11 detection integrated with vtracer for clean, semantically grouped paths
 - Batch conversion with glob, directory, and recursive directory inputs
@@ -34,6 +36,18 @@ Install the package, convert a single image, and inspect the output.
 pip install img2svg
 img2svg photo.png -o photo.svg
 cat photo.json
+```
+
+For photographs, the `detailed` mode produces a high-fidelity trace and is the `auto` default for photos:
+
+```bash
+img2svg photo.jpg -o photo.detailed.svg --mode detailed
+```
+
+For multi-layer editable output (one SVG group per detected object), use `segmented` with a YOLO segmentation model:
+
+```bash
+img2svg group.jpg -o group.svg --mode segmented --seg-model yolo11s-seg
 ```
 
 ## Installation
@@ -193,6 +207,13 @@ The `--mode` flag controls how the renderer combines YOLO detections with vtrace
 | `visual` | vtracer default preset. Photographic, color-rich, no detection overlays. |
 | `annotated` | vtracer default preset plus YOLO detection overlays. Useful for inspection and debugging. |
 | `trace` | vtracer photo preset. Higher path fidelity for detailed photographs. |
+| `poster` | Stylized, limited-color output. Best for posters, prints, and graphic-design assets. |
+| `detailed` | Photographic, high-fidelity trace (vtracer `photo_hifi`). The `auto` default for photos. |
+| `edge` | Line-art, edge-only output (vtracer `bw_edge`). Pairs well with `--preprocess median`. |
+| `watercolor` | Soft, painterly output. Lower corner thresholds and larger splines. |
+| `segmented` | Object-by-object vectorization using YOLO segmentation. Multi-layer editable SVG. |
+
+See [Photo modes](docs/photo-modes.md) for the deep dive on the five photo modes, the optional preprocessing chain, and the segmentation workflow.
 
 ## GPU Support
 

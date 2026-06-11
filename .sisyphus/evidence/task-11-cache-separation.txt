@@ -1,0 +1,10 @@
+Scenario: get_segmentor caches separately from get_detector
+Result: PASS
+d1 is d2: True
+s1 is s2: True
+d1 is not s1: True
+d1 type: YOLODetector
+s1 type: YOLOSegmentor
+_MODEL_CACHE size: 1
+_SEGMENTOR_CACHE size: 1
+predict() call after cache check: SUCCESS

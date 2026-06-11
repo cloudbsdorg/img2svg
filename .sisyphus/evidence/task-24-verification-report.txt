@@ -1,0 +1,87 @@
+================================================================================
+T24 E2E Verification: rtlogo-1.png across 10 modes
+================================================================================
+
+[PASS] mode=auto
+  path=/tmp/qa24/qa-photo-auto.svg
+  size=19740 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  check has_labels_elements = False
+  note: resolved to detailed, no LABELS/ANNOTATED selected
+
+[PASS] mode=labels
+  path=/tmp/qa24/qa-photo-labels.svg
+  size=1324 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_rect = True
+  check has_text = True
+  note: has <rect> + <text> (bbox + label)
+
+[PASS] mode=visual
+  path=/tmp/qa24/qa-photo-visual.svg
+  size=19442 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  note: has <g id='vtracer-output'>
+
+[PASS] mode=annotated
+  path=/tmp/qa24/qa-photo-annotated.svg
+  size=20261 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  check has_det_group = True
+  note: has <g id='vtracer-output'> + <g id='det_...'>
+
+[PASS] mode=trace
+  path=/tmp/qa24/qa-photo-trace.svg
+  size=27126 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  note: has <g id='vtracer-output'>
+
+[PASS] mode=poster
+  path=/tmp/qa24/qa-photo-poster.svg
+  size=19442 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  note: has <g id='vtracer-output'>
+
+[PASS] mode=detailed
+  path=/tmp/qa24/qa-photo-detailed.svg
+  size=19740 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  note: has <g id='vtracer-output'>
+
+[PASS] mode=edge
+  path=/tmp/qa24/qa-photo-edge.svg
+  size=965 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  note: has <g id='vtracer-output'>
+
+[PASS] mode=watercolor
+  path=/tmp/qa24/qa-photo-watercolor.svg
+  size=9841 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_vtracer_output = True
+  note: has <g id='vtracer-output'>
+
+[PASS_FALLBACK] mode=segmented
+  path=/tmp/qa24/qa-photo-segmented.svg
+  size=16453 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  check has_background = False
+  check has_obj_groups = 0
+  check has_vtracer_fallback = True
+  note: no detections → vtracer-output fallback (per T18 spec)
+
+================================================================================
+SEGMENTED on real photo: tests/testimg/Designer (1).jpeg
+================================================================================
+
+path=/tmp/qa24/qa-seg-photo.svg
+  size=8036185 bytes, valid_xml=True, root={http://www.w3.org/2000/svg}svg
+  sidecar regions=1, model_variant='yolo11s-seg'
+  check has_background = False
+  check has_obj_groups = 0
+  check has_vtracer_fallback = True
+
+  multi_layer (bg + >=1 obj_) = False
+  *** BUG: segmentation found regions, but SegmentedRenderer output is fallback
+  *** Pipeline.py never calls renderer.set_segmentation(segmentation_result)
+
+================================================================================
+OVERALL: SOME FAIL (see BUG note)
+================================================================================

@@ -65,11 +65,16 @@ def test_before_after_md_exists() -> None:
     assert "tests/fixtures/" in text, "before_after.md should reference tests/fixtures/"
 
 
-def test_sample_outputs_contains_at_least_eight_svgs() -> None:
-    """sample_outputs/ must contain at least 8 .svg files."""
+MIN_SVGS = 13
+
+
+def test_sample_outputs_contains_at_least_thirteen_svgs() -> None:
+    """sample_outputs/ must contain at least 13 .svg files (8 original + 5 new modes)."""
     assert SAMPLE_OUTPUTS_DIR.is_dir(), f"missing dir {SAMPLE_OUTPUTS_DIR}"
     svgs = sorted(SAMPLE_OUTPUTS_DIR.glob("*.svg"))
-    assert len(svgs) >= 8, f"expected >=8 SVGs, found {len(svgs)}: {[p.name for p in svgs]}"
+    assert len(svgs) >= MIN_SVGS, (
+        f"expected >={MIN_SVGS} SVGs, found {len(svgs)}: {[p.name for p in svgs]}"
+    )
 
 
 def test_all_sample_svgs_parse_as_valid_xml() -> None:

@@ -49,6 +49,11 @@ Only files with supported extensions (`.png .jpg .jpeg .bmp .webp .tiff .tif .gi
 | `visual`     | Photos. Vectorizes the image with vtracer.                  |
 | `annotated`  | Photos with detectable objects. Vectorize + label overlays.  |
 | `trace`      | Sketches and line art. Path-only output, no labels.         |
+| `poster`     | Stylized, limited-color output. Best for posters and prints. |
+| `detailed`   | Photographic, high-fidelity trace (the `auto` default for photos). |
+| `edge`       | Line-art, edge-only output. Pairs well with `median` preprocessing. |
+| `watercolor` | Soft, painterly output. Lower corner thresholds, larger splines. |
+| `segmented`  | Object-by-object vectorization using YOLO segmentation. Use with `--seg-model`. |
 
 See [Output modes](modes.md) for examples and the underlying renderer mapping.
 
@@ -56,6 +61,61 @@ See [Output modes](modes.md) for examples and the underlying renderer mapping.
 img2svg logo.png -o logo.svg --mode labels
 img2svg photo.jpg -o photo.svg --mode visual
 img2svg group.png -o group.svg --mode annotated
+img2svg photo.jpg -o photo.svg --mode detailed
+img2svg photo.jpg -o photo.svg --mode segmented --seg-model yolo11s-seg
+```
+
+## Preprocessing
+
+The `--preprocess`, `--denoise`, `--sharpen`, `--max-colors`, and `--quality` flags control an optional preprocessing pipeline that runs on the input image *before* vtracer traces it. By default preprocessing is off; turn it on for noisy or low-detail inputs.
+
+`--preprocess` is repeatable and accepts a sequence of filter names. The available filters are `bilateral`, `nlmeans`, `median` (denoise), and `unsharp` (sharpen). The filters run in the order given:
+
+```bash
+img2svg photo.png -o photo.svg --preprocess bilateral --preprocess unsharp
+```
+
+`--denoise` and `--sharpen` are convenience shortcuts for the most common single-filter use cases. Pass one of `bilateral`, `nlmeans`, or `median` for `--denoise`, and `unsharp` for `--sharpen`. Leave the value empty (the default) to skip:
+
+```bash
+img2svg photo.png -o photo.svg --denoise bilateral
+img2svg photo.png -o photo.svg --sharpen unsharp
+```
+
+`--max-colors` caps the number of distinct colors in the output SVG. The range is `0` (no cap, the default) to `256`. Use a small value like `8` to force a posterized look:
+
+```bash
+img2svg photo.png -o photo.svg --max-colors 8
+```
+
+`--quality` is a JPEG-style quality hint (1-100, default `90`) recorded in the sidecar for reproducibility. It does not change the SVG output.
+
+`--no-preprocess` disables all preprocessing, overriding any `--preprocess`, `--denoise`, or `--sharpen` choices. Useful when an upstream caller has already cleaned the image and you want the raw trace:
+
+```bash
+img2svg photo.png -o photo.svg --no-preprocess
+```
+
+## Segmentation
+
+`--seg-model` picks the YOLO segmentation model variant used by `--mode segmented`. The available models are `yolo11n-seg`, `yolo11s-seg` (default), `yolo11m-seg`, `yolo11l-seg`, and `yolo11x-seg`. Smaller models are faster; larger models are more accurate:
+
+```bash
+img2svg photo.jpg -o photo.svg --mode segmented --seg-model yolo11s-seg
+```
+
+`--no-seg` disables segmentation even when the active mode would normally invoke the segmentor. Useful for `--mode annotated` when you want the vtracer output but no detection overlays:
+
+```bash
+img2svg photo.jpg -o photo.svg --mode annotated --no-seg
+```
+
+## Output size limit
+
+`--max-svg-size` sets a hard upper bound (in MB) on the rendered SVG's on-disk size. If the output exceeds the cap, the file is deleted and the run fails. The range is `1` to `1024` MB; the default is `50`. Use this to catch runaway traces on large images:
+
+```bash
+img2svg 4k.png -o 4k.svg --max-svg-size 10
 ```
 
 ## GPU selection
@@ -135,5 +195,6 @@ The CLI has three top-level subcommands:
 
 - For the programmatic interface, see [Python API](api.md).
 - For mode selection details, see [Output modes](modes.md).
+- For the five photo modes (`poster`, `detailed`, `edge`, `watercolor`, `segmented`), the preprocessing chain, and the segmentation workflow, see [Photo modes](photo-modes.md).
 - For GPU-specific setup, see [GPU setup](gpu.md).
 - For a per-flag reference, see `man img2svg` (after install) or `docs/man/img2svg.1` in the source tree.
