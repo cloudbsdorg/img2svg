@@ -45,6 +45,18 @@ class Detection(BaseModel):
     bbox: BoundingBox
 
 
+class RegionInfo(BaseModel):
+    """Per-region metadata for SEGMENTED mode output."""
+
+    class_id: int
+    class_name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    bbox: BoundingBox
+    area_pixels: int = Field(ge=0)
+    polygon: list[tuple[float, float]] = Field(default_factory=list)
+    mask_path: str | None = None
+
+
 class GeometricAnalysis(BaseModel):
     """Geometric (non-ML) analysis of an image."""
 
@@ -144,7 +156,24 @@ class ConversionOptions(BaseModel):
     gpu_strategy: DeviceStrategy = DeviceStrategy.POWER
     no_clobber: bool = False
     force_overwrite: bool = False
-    palette_size: int = Field(default=8, ge=2, le=64)
+    preprocess: list[str] = Field(default_factory=list)
+    """List of preprocessing filter names to apply (e.g. ``["bilateral", "unsharp"]``).
+    Empty list means no preprocessing."""
+    denoise: str = ""
+    """Denoise filter to apply before tracing. One of ``"bilateral"``,
+    ``"nlmeans"``, ``"median"``, or ``""`` (disabled)."""
+    sharpen: str = ""
+    """Sharpening filter to apply before tracing. One of ``"unsharp"`` or
+    ``""`` (disabled)."""
+    max_colors: int = Field(default=0, ge=0, le=256)
+    """Maximum number of distinct colors in the output. ``0`` means no cap
+    (use the vtracer default). Valid range: 0-256."""
+    quality: int = Field(default=90, ge=1, le=100)
+    """JPEG-style quality hint stored for reproducibility. The SVG output
+    is not affected; this records the source image's effective quality."""
+    no_preprocess: bool = False
+    """When True, force-disable all preprocessing regardless of any
+    ``preprocess`` entries. Wins over positive ``--preprocess`` choices."""
 
     @model_validator(mode="after")
     def _forward_device_to_backend(self) -> ConversionOptions:
@@ -201,6 +230,9 @@ class Sidecar(BaseModel):
     geometric: GeometricAnalysis | None = None
     timings: dict[str, float] = Field(default_factory=dict)
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    preprocessing: list[str] = Field(default_factory=list)
+    regions: list[RegionInfo] = Field(default_factory=list)
+    model_variant: str = ""
 
 
 class ConversionResult(BaseModel):

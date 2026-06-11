@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from img2svg.api import convert, convert_batch
 from img2svg.enums import DeviceStrategy, ImageType, Mode
-from img2svg.models import ConversionOptions, ConversionResult, Sidecar
+from img2svg.models import ConversionOptions, ConversionResult, RegionInfo, Sidecar
 
 __all__ = [
     "ConversionOptions",
@@ -26,6 +26,7 @@ __all__ = [
     "DeviceStrategy",
     "ImageType",
     "Mode",
+    "RegionInfo",
     "Sidecar",
     "convert",
     "convert_batch",

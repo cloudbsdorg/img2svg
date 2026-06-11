@@ -89,7 +89,12 @@ def test_conversion_options_defaults() -> None:
     assert o.conf == 0.25
     assert o.iou == 0.7
     assert o.gpu_strategy == DeviceStrategy.POWER
-    assert o.palette_size == 8
+    assert o.preprocess == []
+    assert o.denoise == ""
+    assert o.sharpen == ""
+    assert o.max_colors == 0
+    assert o.quality == 90
+    assert o.no_preprocess is False
 
 
 def test_conversion_options_conf_bounds() -> None:
