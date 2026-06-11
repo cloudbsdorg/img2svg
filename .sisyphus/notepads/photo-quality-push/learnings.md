@@ -1506,3 +1506,55 @@ Files /tmp/qa-mc-4.svg and /tmp/qa-mc-64.svg differ
 4. **Test fakes must match real signatures**: The `_install_fake_vtracer` factory in `test_segmentation.py` was a `def _factory(preset: str = "default")` that didn't accept `params_override`. When I added the new parameter to the real `VtracerVectorizer`, all 5 tests in that file failed until I updated the fake factory's signature. This is a common pattern with monkeypatched fakes — they need to be kept in sync with the real signature.
 
 5. **Mode-specific test fixtures matter**: The denoise/sharpen tests initially used `--mode labels` (which doesn't use vtracer). When I switched the max-colors test to `--mode detailed` (which uses vtracer), the test caught a real wiring bug — the SVGs were byte-identical because labels mode doesn't call vtracer at all. Mode choice matters for these tests.
+
+## Plan Closure — F1-F4 Final Wave (2026-06-11)
+
+### Final State
+- **30/30 tasks complete** (T1-T26 implementation + F1-F4 final verification)
+- **28 commits** on main, all pushed to origin/main
+- HEAD: `1a7f755` ("chore(plan): close photo-quality-push plan, F1-F4 approve")
+- **615/616 fast tests pass** (1 pre-existing i18n failure acceptable per plan)
+- **0 new ruff issues** (32 pre-existing baseline unchanged)
+- Working tree clean
+
+### F1-F4 Verdicts (Post-Remediation)
+| Reviewer | Verdict | Key evidence |
+|----------|---------|--------------|
+| F1 Plan Compliance | APPROVE | 15/15 Must Have, 10/10 Must NOT Have, 26/26 tasks |
+| F2 Code Quality | APPROVE | 9 ruff format files fixed, 18 mypy errors fixed, 0 new issues |
+| F3 Real Manual QA | APPROVE | 5/9 → 9/9 CLI flags working; SEGMENTED multi-layer verified |
+| F4 Scope Fidelity | APPROVE | 25/26 tasks spec-compliant (T26 fix: see below) |
+
+### F4 False Positive Resolution
+The F4 subagent reported "REJECT" for T26 (Honcho lessons) because it queried
+`peer_id="planner"` instead of the actual `peer_id="sisyphus"`. Direct verification
+of the Honcho workspace shows:
+- 13 photo-quality-push conclusions recorded at 2026-06-11T08:47:47Z
+- Peer card updated with current task state
+- All user requirements captured: 8 CLI flags architecture, 3 vtracer presets,
+  multi-layer SVG z-order, YOLO11 segmentation approach, palette_size removal,
+  file size override, testimg usage, explicit-only LABELS/ANNOTATED, etc.
+
+**Lesson for future reviews**: When verifying Honcho state, query with the
+correct `peer_id` (currently "sisyphus" for the planner/orchestrator role).
+Wrong peer_id silently returns 0 results and triggers false-positive REJECT.
+
+### Two Critical Bug Fixes During Execution
+1. **Commit b5a8124** — SEGMENTED multi-layer output: pipeline now injects
+   SegmentationResult into SegmentedRenderer via `renderer.set_segmentation()`.
+   Without this, SegmentedRenderer fell back to single `<g id="vtracer-output">`
+   instead of `<g id="background">` + per-region `<g id="obj_...">`.
+2. **Commit a6fa9fd** — 4 broken CLI flags wired: --denoise, --sharpen, --max-colors,
+   --quality. T5 added the fields/flags but T17/T18 didn't consume them. Wired
+   via _resolve_preprocessing_steps() for denoise/sharpen, new
+   _max_colors_to_color_precision() for max-colors (propagates through
+   set_vtracer_params_override() on Renderer base class), and Sidecar.quality
+   field for --quality.
+
+### Coverage Notes
+- Final coverage: 87% (below 90% target)
+- Primary gaps: renderers/segmented.py (42%), detector.py (68%) — heavy YOLO/vtracer
+  paths not unit-tested by design
+- 615 unit tests cover the wired integration points and edge cases
+- 0% on new SegmentedRenderer because integration test (real YOLO inference)
+  would require network/model download — not appropriate for fast suite
