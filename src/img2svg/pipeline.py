@@ -24,7 +24,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from img2svg.classifier import classify
-from img2svg.detector import get_detector
+from img2svg.detector import (
+    compute_mask_area,
+    get_detector,
+    get_segmentor,
+    get_tight_bbox,
+)
 from img2svg.enums import Mode
 from img2svg.errors import OutputPathCollisionError
 from img2svg.loader import load_image
@@ -32,8 +37,10 @@ from img2svg.logging import get_logger
 from img2svg.metadata import compute_file_hash, write_sidecar
 from img2svg.models import (
     BackendSpec,
+    BoundingBox,
     ConversionOptions,
     ConversionResult,
+    RegionInfo,
     Sidecar,
 )
 from img2svg.patterns import analyze_global
@@ -50,6 +57,7 @@ from img2svg.renderers.watercolor import WatercolorRenderer
 from img2svg.svg_builder import SVGDocument
 
 if TYPE_CHECKING:
+    from img2svg.detector import SegmentationResult
     from img2svg.models import Detection, GeometricAnalysis, LoadedImage  # noqa: F401
 
 _logger = get_logger("img2svg.pipeline")
@@ -102,6 +110,7 @@ class Pipeline:
     def __init__(self, options: ConversionOptions) -> None:
         """Store options. The YOLO detector is loaded lazily on first `.run()`."""
         self.options = options
+        self._segmentation_result: SegmentationResult | None = None
 
     def run(self, input_path: Path, output_path: Path) -> ConversionResult:
         """Run the full conversion pipeline on a single image.
@@ -176,6 +185,42 @@ class Pipeline:
 
         # 6. (Per-ROI analysis skipped for the critical path.)
 
+        # 6b. YOLO segmentation (SEGMENTED mode only).
+        t0 = time.perf_counter()
+        segmentation_result: SegmentationResult | None = None
+        region_infos: list[RegionInfo] = []
+        model_variant = ""
+        if mode_used == Mode.SEGMENTED and not options.no_seg:
+            segmentor = get_segmentor(
+                model_name=options.seg_model, backend=options.backend
+            )
+            segmentation_result = segmentor.predict(
+                loaded.np_array, conf=options.conf, iou=options.iou
+            )
+            model_variant = options.seg_model
+            for i, det in enumerate(segmentation_result.boxes):
+                mask = segmentation_result.masks[i]
+                poly = segmentation_result.polygons[i]
+                mask_x1, mask_y1, mask_x2, mask_y2 = get_tight_bbox(mask)
+                region_infos.append(
+                    RegionInfo(
+                        class_id=det.class_id,
+                        class_name=det.class_name,
+                        confidence=det.confidence,
+                        bbox=BoundingBox(
+                            x1=float(mask_x1),
+                            y1=float(mask_y1),
+                            x2=float(mask_x2),
+                            y2=float(mask_y2),
+                        ),
+                        area_pixels=compute_mask_area(mask),
+                        polygon=[(float(x), float(y)) for x, y in poly],
+                        mask_path=None,
+                    )
+                )
+        self._segmentation_result = segmentation_result
+        timings["segment"] = time.perf_counter() - t0
+
         # 7. Build the empty SVG document.
         svg = SVGDocument(loaded.width, loaded.height, title=input_path.name)
 
@@ -214,6 +259,9 @@ class Pipeline:
             detections=detections,
             geometric=analysis_global,
             timings=timings,
+            preprocessing=list(options.preprocess),
+            regions=region_infos,
+            model_variant=model_variant,
         )
 
         # 12. Write the sidecar JSON next to the SVG.
