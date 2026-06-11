@@ -287,6 +287,117 @@ def test_trace_region_return_type(monkeypatch: pytest.MonkeyPatch) -> None:
     assert all(isinstance(v, int) for v in offset)
 
 
+def test_trace_region_accepts_rgba_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: 4-channel RGBA input must not blow up ``np.dstack`` -> 5 channels.
+
+    Source images often carry an alpha channel; ``trace_region`` must
+    drop it before dstack with the mask or ``PIL.Image.fromarray``
+    raises ``TypeError: Cannot handle this data type: (1, 1, 5), |u1``.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    fake = _install_fake_vtracer(monkeypatch, num_paths=1)
+    # 4-channel RGBA, deterministic values so we can verify the alpha
+    # channel was actually dropped (not used as a 4th color channel).
+    img = np.zeros((10, 10, 4), dtype=np.uint8)
+    img[..., 0] = 200  # R
+    img[..., 1] = 100  # G
+    img[..., 2] = 50   # B
+    img[..., 3] = 128  # A — must be dropped, not propagated
+    mask = np.zeros((10, 10), dtype=np.uint8)
+    mask[3:8, 3:8] = 1  # 5x5 center square
+
+    paths, offset = trace_region(img, mask, preset="photo_hifi")
+
+    # Returns successfully and vtracer was called once.
+    assert len(paths) == 1
+    assert offset == (3, 3)
+    assert len(fake.calls) == 1
+
+    # The on-disk PNG is 4-channel (RGB + alpha-from-mask) and the
+    # RGB channels carry the source RGB values, NOT the alpha value.
+    saved = np.asarray(Image.open(BytesIO(fake.calls[0]["input_bytes"])).convert("RGBA"))
+    assert saved.shape == (5, 5, 4)
+    # RGB channels preserved from the source (allow ±1 for uint8 round-trip).
+    assert int(saved[..., 0].max()) >= 195  # R
+    assert int(saved[..., 1].max()) >= 95   # G
+    assert int(saved[..., 2].max()) >= 45   # B
+    # Alpha channel = the mask. The 5x5 crop is fully inside the mask
+    # region, so every pixel is alpha=1. Critical: the original alpha
+    # value (128) must NOT have leaked into the alpha channel.
+    assert int(saved[..., 3].max()) == 1
+    assert int(saved[..., 3].min()) == 1
+
+
+def test_trace_region_accepts_grayscale_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """1-channel grayscale (H, W) input must be expanded to RGB before dstack.
+
+    vtracer requires 3-channel input; without expansion dstack yields
+    a 2-channel array and ``PIL.Image.fromarray`` rejects it.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    fake = _install_fake_vtracer(monkeypatch, num_paths=1)
+    # 2D (H, W) grayscale — typical of a single-channel input.
+    img = np.full((12, 12), 128, dtype=np.uint8)
+    mask = np.zeros((12, 12), dtype=np.uint8)
+    mask[4:9, 4:9] = 1  # 5x5 center square
+
+    paths, offset = trace_region(img, mask)
+
+    # Returns successfully.
+    assert len(paths) == 1
+    assert offset == (4, 4)
+    assert len(fake.calls) == 1
+
+    # On-disk PNG: 3 RGB channels (all carrying the grayscale value)
+    # + 1 alpha = mask. The shape must be (5, 5, 4).
+    saved = np.asarray(Image.open(BytesIO(fake.calls[0]["input_bytes"])).convert("RGBA"))
+    assert saved.shape == (5, 5, 4)
+    # All three RGB channels carry the original grayscale value (128).
+    assert int(saved[..., 0].max()) == 128
+    assert int(saved[..., 1].max()) == 128
+    assert int(saved[..., 2].max()) == 128
+    # Alpha is the mask.
+    assert int(saved[..., 3].max()) == 1
+
+
+def test_trace_region_accepts_grayscale_3d_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """3D (H, W, 1) grayscale must also be expanded to RGB."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    fake = _install_fake_vtracer(monkeypatch, num_paths=1)
+    img = np.full((8, 8, 1), 64, dtype=np.uint8)
+    mask = np.zeros((8, 8), dtype=np.uint8)
+    mask[2:6, 2:6] = 1
+
+    paths, offset = trace_region(img, mask)
+
+    assert len(paths) == 1
+    assert offset == (2, 2)
+    saved = np.asarray(Image.open(BytesIO(fake.calls[0]["input_bytes"])).convert("RGBA"))
+    assert saved.shape == (4, 4, 4)
+
+
+def test_trace_region_accepts_3d_mask(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ultralytics sometimes returns masks as (H, W, 1); must not break dstack."""
+    _install_fake_vtracer(monkeypatch, num_paths=1)
+    img = np.random.randint(0, 255, (10, 10, 3), dtype=np.uint8)
+    mask = np.zeros((10, 10, 1), dtype=np.uint8)  # 3D with trailing 1
+    mask[3:7, 3:7, 0] = 1
+
+    paths, offset = trace_region(img, mask)
+
+    assert len(paths) == 1
+    assert offset == (3, 3)
+
+
 def test_real_photo_path_exists(real_photo_path: Path) -> None:
     """Smoke test: real_photo_path fixture returns a valid image file."""
     assert real_photo_path.exists()

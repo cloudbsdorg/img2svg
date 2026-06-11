@@ -530,12 +530,23 @@ def trace_region(
     """
     if not (mask > 0).any():
         return ([], (0, 0))
+    # ultralytics sometimes returns masks as (H, W, 1) instead of (H, W).
+    if mask.ndim == 3:
+        mask = mask[..., 0]
     x1, y1, x2, y2 = get_tight_bbox(mask)
     # ``get_tight_bbox`` returns inclusive max indices; add 1 for
     # half-open numpy slicing so the rightmost/bottom mask pixel is
     # included in the crop.
     crop_img = image[y1 : y2 + 1, x1 : x2 + 1]
     crop_mask = mask[y1 : y2 + 1, x1 : x2 + 1]
+    # vtracer needs 3-channel RGB; coerce before dstack. Source images
+    # may be RGBA (drop alpha) or 1-channel grayscale (expand to RGB).
+    if crop_img.ndim == 2:
+        crop_img = np.repeat(crop_img[..., None], 3, axis=-1)
+    elif crop_img.shape[-1] == 1:
+        crop_img = np.repeat(crop_img, 3, axis=-1)
+    elif crop_img.shape[-1] == 4:
+        crop_img = crop_img[..., :3]
     rgba = np.dstack([crop_img, crop_mask])
 
     with tempfile.TemporaryDirectory() as td:
