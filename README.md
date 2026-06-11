@@ -40,6 +40,21 @@ cat photo.json
 
 img2svg targets Python 3.10 or newer. Pick the install method that fits your workflow.
 
+### What GPU do you have?
+
+The runtime picks the right compute backend automatically. The decision tree below helps you pick the right PyTorch wheel **before** you install, because PyTorch's GPU support is baked into the wheel and cannot be changed after the fact.
+
+- **NVIDIA discrete GPU** (`nvidia-smi` works) → see [NVIDIA (CUDA)](docs/installation.md#nvidia-cuda). Install the matching `cu1xx` PyTorch wheel.
+- **AMD discrete GPU or APU** (`lspci | grep -i amd` shows a Radeon device) → see [AMD (ROCm)](docs/installation.md#amd-rocm). Install the `rocm6.x` wheel. If the AMD device is an iGPU with only 512 MB of addressable VRAM, use `--model yolo11n.pt` (YOLO11x will not fit).
+- **Apple Silicon Mac** (`uname -m` reports `arm64`) → see [Apple Silicon (MPS)](docs/installation.md#apple-silicon-mps). The default macOS wheel includes MPS support.
+- **No GPU / CPU only** (Intel Mac, headless server, CI runner) → see [CPU (no GPU)](docs/installation.md#cpu-no-gpu). The default PyPI wheel is CPU-only.
+
+Not sure? The bundled script probes the host and prints the right install command:
+
+```bash
+./scripts/install_backend.sh
+```
+
 ### pip
 
 ```bash
@@ -60,6 +75,10 @@ cd img2svg
 uv sync --all-extras
 uv run img2svg --version
 ```
+
+### Detailed instructions
+
+The full per-vendor guide (what you have → what to install → how to verify) lives in the [installation docs](docs/installation.md). The four first-class backends are NVIDIA CUDA, AMD ROCm, Apple MPS, and CPU.
 
 ## Usage: CLI
 
@@ -129,6 +148,39 @@ flowchart LR
     Renderer --> SVG[SVG Output]
     Pipeline --> Sidecar[Sidecar JSON]
 ```
+
+### Backend architecture
+
+The compute side of the pipeline goes through a vendor-neutral `DeviceBackend` protocol. Four concrete backends ship in the box, and a central `BackendRegistry` owns the auto-detect chain.
+
+```mermaid
+flowchart LR
+    User[User: --device flag or ConversionOptions.backend] --> Spec[BackendSpec]
+    Spec --> Reg[BackendRegistry]
+    Reg --> Cuda[CudaBackend]
+    Reg --> Rocr[RocmBackend]
+    Reg --> Mps[MpsBackend]
+    Reg --> Cpu[CpuBackend]
+    Cuda --> Yolo[YOLO / ultralytics]
+    Rocr --> Yolo
+    Mps --> Yolo
+    Cpu --> Yolo
+```
+
+The four backends and the priority order in which the registry tries them:
+
+| Order | Backend    | When it wins                                  |
+|-------|------------|-----------------------------------------------|
+| 1     | CUDA       | A CUDA-capable NVIDIA GPU is visible to PyTorch. |
+| 2     | ROCM       | PyTorch is a ROCm build and an AMD device is present. |
+| 3     | MPS        | Running on Apple Silicon with a recent PyTorch. |
+| 4     | CPU        | Always available. Universal fallback.         |
+
+Priority is `CUDA > ROCM > MPS > CPU`. The first backend that reports `is_available()` wins; CPU is the always-on safety net. Each backend reports device name, total and free memory, and the ultralytics string the YOLO loader needs (`cuda:N`, `mps`, `cpu`).
+
+v1 dispatches the YOLO detector through PyTorch wheels, not ONNX Runtime. This keeps the runtime surface uniform across vendors (PyTorch hides the CUDA/ROCm/HIP distinction). An ONNX Runtime migration is on the v2 roadmap.
+
+For a deeper dive into the `DeviceBackend` protocol, the `BackendType` enum, and how to add a new backend, see [`docs/backends.md`](docs/backends.md).
 
 ## Output Modes
 

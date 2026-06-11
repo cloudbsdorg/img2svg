@@ -46,6 +46,7 @@ dependencies = [
     "typer>=0.12,<1",
     "rich>=13.0,<14",
     "pytest-cov>=5.0.0",
+    "pydantic>=2.0,<3",
 ]
 
 [project.optional-dependencies]
@@ -65,6 +66,7 @@ dev = [
     "ruff>=0.6,<1",
     "mypy>=1.10,<2",
     "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.0,<10",
     "mkdocstrings[python]>=0.25,<1",
 ]
 

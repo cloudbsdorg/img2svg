@@ -1,0 +1,3 @@
+WARN: AMD iGPU also present (see above). The 512 MB iGPU cannot run
+WARN: YOLO11x and will be ignored; install img2svg[amd] only if you
+WARN: plan to use a smaller model on a discrete AMD GPU.

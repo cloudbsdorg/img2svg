@@ -4,12 +4,16 @@
   "session_ids": [
     "ses_15060960fffedotFt4laGplFZy",
     "ses_14b7959c8ffe9k61KcS7676OUu",
-    "ses_14b790817ffeKxpOAMp5ctgN0Q"
+    "ses_14b790817ffeKxpOAMp5ctgN0Q",
+    "ses_14b788ef7ffeYpQ2IMwO6zdU5O",
+    "ses_14b696137ffe5M2796RbuhJSgq"
   ],
   "session_origins": {
     "ses_15060960fffedotFt4laGplFZy": "direct",
     "ses_14b7959c8ffe9k61KcS7676OUu": "appended",
-    "ses_14b790817ffeKxpOAMp5ctgN0Q": "appended"
+    "ses_14b790817ffeKxpOAMp5ctgN0Q": "appended",
+    "ses_14b788ef7ffeYpQ2IMwO6zdU5O": "appended",
+    "ses_14b696137ffe5M2796RbuhJSgq": "appended"
   },
   "plan_name": "multi-vendor-gpu",
   "agent": "atlas",
@@ -36,10 +40,10 @@
       "task_key": "todo:13",
       "task_label": "13",
       "task_title": "**Smart install script + pyproject extras**",
-      "session_id": "ses_14b790817ffeKxpOAMp5ctgN0Q",
+      "session_id": "ses_14b696137ffe5M2796RbuhJSgq",
       "agent": "Sisyphus-Junior",
-      "category": "writing",
-      "updated_at": "2026-06-11T02:33:24.897Z"
+      "category": "quick",
+      "updated_at": "2026-06-11T03:05:36.662Z"
     }
   }
 }

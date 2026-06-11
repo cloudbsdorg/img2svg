@@ -1,0 +1,14 @@
+
+img2svg backend install
+Host:  Linux (x86_64)
+NVIDIA:
+  c2:00.0 VGA compatible controller [0300]: NVIDIA Corporation GB206M [GeForce RTX 5070 Max-Q / Mobile] [10de:2d58] (rev a1)
+AMD:
+  c3:00.0 Display controller [0380]: Advanced Micro Devices, Inc. [AMD/ATI] Strix [Radeon 880M / 890M] [1002:150e] (rev c1)
+
+Detected: NVIDIA + AMD
+
+Dry-run: would run:
+    pip install img2svg[nvidia]
+
+Pass --apply to install.

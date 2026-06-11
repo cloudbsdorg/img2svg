@@ -13,10 +13,12 @@ The `img2svg` package exposes a small, stable Python API. Most callers will only
 | `Sidecar`           | `img2svg.models.Sidecar`   |
 | `Detection`         | `img2svg.models.Detection` |
 | `GPUInfo`           | `img2svg.models.GPUInfo`   |
+| `BackendSpec`       | `img2svg.models.BackendSpec` |
 | `Mode`              | `img2svg.enums.Mode`       |
 | `ImageType`         | `img2svg.enums.ImageType`  |
 | `DeviceStrategy`    | `img2svg.enums.DeviceStrategy` |
 | `GpuVendor`         | `img2svg.enums.GpuVendor`  |
+| `BackendType`       | `img2svg.backends.BackendType` |
 
 The `img2svg.api` module re-exports `Pipeline` from `img2svg.pipeline` for advanced callers that want direct control over the orchestrator.
 
@@ -141,7 +143,8 @@ for r in results:
 |-----------------|------------------|----------------|------------------------------------------|
 | `mode`          | `Mode`           | `Mode.AUTO`    | `auto`, `labels`, `visual`, `annotated`, `trace`. |
 | `model`         | `str`            | `"yolo11x.pt"` | YOLO weights file.                      |
-| `device`        | `str`            | `"auto"`       | `auto`, `cpu`, `cuda`, `cuda:N`, `mps`.  |
+| `device`        | `str`            | `"auto"`       | **Deprecated.** Use `backend` instead.   |
+| `backend`       | `BackendSpec`    | `BackendSpec()` | The new structured selector. See [BackendSpec](#backendspec). |
 | `conf`          | `float`          | `0.25`         | Confidence threshold, 0.0 to 1.0.       |
 | `iou`           | `float`          | `0.7`          | IoU threshold for NMS.                   |
 | `gpu_strategy`  | `DeviceStrategy` | `POWER`        | `auto`, `power`, `availability`.        |
@@ -150,6 +153,95 @@ for r in results:
 | `palette_size`  | `int`            | `8`            | Number of colors for vectorization, 2-64.|
 
 The validators on `conf`, `iou`, and `palette_size` reject out-of-range values at construction time. The CLI does the same checks via option-level callbacks for friendlier error messages.
+
+### The `backend=` parameter (replaces `device=`)
+
+New code should use the structured `BackendSpec` selector via the `backend` field rather than the legacy `device` string. The two are equivalent today; the structured form is forward-compatible with the auto-detect chain and with vendor names that do not fit the legacy `cuda:N` shape (MPS, ROCm, CPU).
+
+```python
+from img2svg import ConversionOptions
+from img2svg.models import BackendSpec
+
+# Default: auto-detect the best backend.
+opts = ConversionOptions()
+
+# Force a specific backend.
+opts = ConversionOptions(backend=BackendSpec(requested="cuda"))
+
+# Pick a specific device index on a multi-GPU box.
+opts = ConversionOptions(backend=BackendSpec(requested="cuda", index=1))
+
+# AMD discrete GPU on a Linux host with a ROCm PyTorch build.
+opts = ConversionOptions(backend=BackendSpec(requested="rocm", index=0))
+
+# Apple Silicon.
+opts = ConversionOptions(backend=BackendSpec(requested="mps"))
+
+# CPU fallback.
+opts = ConversionOptions(backend=BackendSpec(requested="cpu"))
+```
+
+### Deprecation warning on `device=`
+
+The legacy `device` field is still accepted and round-trips into `BackendSpec` under the hood, but emits a `DeprecationWarning` when set explicitly. The shim is a transient aid for callers migrating from the 0.1.x API:
+
+```python
+import warnings
+from img2svg import ConversionOptions
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    opts = ConversionOptions(device="cuda:0")
+
+assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+assert opts.backend.requested == "cuda"
+assert opts.backend.index == 0
+```
+
+If both `device` and `backend` are passed, the explicit `backend` wins and the deprecation warning still fires. The `device` field will be removed in 0.3.0.
+
+## BackendSpec
+
+`BackendSpec` is a frozen Pydantic v2 model that parses user-supplied device strings into a structured selector. It lives in `img2svg.models` and is the canonical way to address a compute backend from the Python API.
+
+```python
+from img2svg.models import BackendSpec
+
+# Plain form
+spec = BackendSpec(requested="cuda")
+
+# Indexed form (multi-GPU)
+spec = BackendSpec(requested="cuda:1")          # index=1, requested="cuda"
+
+# AMD
+spec = BackendSpec(requested="rocm:0")          # index=0, requested="rocm"
+
+# Apple Silicon
+spec = BackendSpec(requested="mps")
+
+# CPU fallback
+spec = BackendSpec(requested="cpu")
+
+# Auto-detect (default)
+spec = BackendSpec(requested="auto")
+```
+
+| Field         | Type                                                  | Default      | Notes                          |
+|---------------|-------------------------------------------------------|--------------|--------------------------------|
+| `requested`   | `Literal["auto", "cuda", "rocm", "mps", "cpu"]`       | `"auto"`     | The selector token.            |
+| `index`       | `int \| None`                                         | `None`       | Device index for `cuda`/`rocm`.|
+
+The model is **frozen** — assignment to a field raises `ValidationError`. To produce a new spec, build a fresh one. The `requested` field is a `Literal` so unknown selectors like `"directml"` are rejected at construction time. The `model_construct` escape hatch is reserved for the registry's deferred-validation path; prefer the regular constructor in user code.
+
+The validator splits indexed forms like `"cuda:2"` and `"rocm:0"` into `(base, index)` so the `Literal` type can stay closed:
+
+```python
+spec = BackendSpec.model_validate({"requested": "cuda:2"})
+assert spec.requested == "cuda"
+assert spec.index == 2
+```
+
+Only `cuda` and `rocm` support `:N` indexing; `"mps:0"` and `"cpu:0"` are rejected at validation time.
 
 ## ConversionResult
 
@@ -173,12 +265,31 @@ The JSON metadata written next to every SVG. The fields are stable and machine-r
 - `mode_used: Mode` — the resolved mode (never `AUTO`; the pipeline resolves it).
 - `mode_reasoning: str` — human-readable explanation of the mode choice.
 - `model: str` — YOLO weights file used.
-- `device: str` — runtime device string.
+- `device: str` — runtime device string. **Deprecated for new consumers**; use `backend_resolved` instead.
+- `backend_requested: str` — the user's original selector (e.g. `"auto"`, `"cuda:0"`, `"mps"`). Empty string when not set.
+- `backend_resolved: str` — the concrete backend the pipeline dispatched to (e.g. `"cuda:0"`, `"mps"`). Empty string when not set.
 - `image_type: ImageType` — `logo`, `photo`, `diagram`, `screenshot`, `line_art`, or `unknown`.
 - `detections: list[Detection]` — same as `ConversionResult.detections`.
 - `geometric: GeometricAnalysis | None` — dominant colors, edge density, contour count, alpha.
 - `timings: dict[str, float]` — per-step timings in seconds (`load`, `classify`, `detect`, `render`, `total`, ...).
 - `timestamp: str` — ISO 8601 timestamp of when the conversion ran.
+
+The `backend_requested` / `backend_resolved` pair is the structured successor to the legacy `device` field. New code should read the new pair; the legacy `device` field is preserved for backward compatibility with consumers that already parse the sidecar.
+
+```json
+{
+  "version": "0.2.0",
+  "input_hash": "a1b2c3...",
+  "mode_used": "labels",
+  "model": "yolo11x.pt",
+  "device": "cuda:0",
+  "backend_requested": "cuda",
+  "backend_resolved": "cuda:0",
+  "image_type": "diagram",
+  "timings": {"load": 0.05, "classify": 0.12, "detect": 1.43, "render": 0.08, "total": 1.68},
+  "timestamp": "2026-06-10T14:22:08.123456+00:00"
+}
+```
 
 ## Working with the pipeline directly
 
