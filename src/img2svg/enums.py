@@ -56,4 +56,5 @@ class GpuVendor(StrEnum):
     AMD = "amd"
     APPLE = "apple"
     INTEL = "intel"
+    CPU = "cpu"
     UNKNOWN = "unknown"

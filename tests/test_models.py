@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from img2svg.enums import DeviceStrategy, GpuVendor, ImageType, Mode
 from img2svg.models import (
+    BackendSpec,
     BoundingBox,
     ConversionOptions,
     ConversionResult,
@@ -143,3 +144,155 @@ def test_conversion_result_basic() -> None:
     )
     assert r.detections == []
     assert r.errors == []
+
+
+def test_backend_spec_default() -> None:
+    b = BackendSpec()
+    assert b.requested == "auto"
+    assert b.index is None
+
+
+def test_backend_spec_cuda_indexed_parses() -> None:
+    assert BackendSpec.model_validate({"requested": "cuda:0"}) == BackendSpec(
+        requested="cuda", index=0
+    )
+    assert BackendSpec.model_validate({"requested": "cuda:3"}) == BackendSpec(
+        requested="cuda", index=3
+    )
+
+
+def test_backend_spec_rocm_indexed_parses() -> None:
+    assert BackendSpec.model_validate({"requested": "rocm:0"}) == BackendSpec(
+        requested="rocm", index=0
+    )
+    assert BackendSpec.model_validate({"requested": "rocm:2"}) == BackendSpec(
+        requested="rocm", index=2
+    )
+
+
+def test_backend_spec_plain_backends_have_no_index() -> None:
+    assert BackendSpec(requested="cpu") == BackendSpec(requested="cpu", index=None)
+    assert BackendSpec(requested="mps") == BackendSpec(requested="mps", index=None)
+    assert BackendSpec(requested="cuda") == BackendSpec(requested="cuda", index=None)
+    assert BackendSpec(requested="rocm") == BackendSpec(requested="rocm", index=None)
+    assert BackendSpec(requested="auto") == BackendSpec(requested="auto", index=None)
+
+
+def test_backend_spec_rejects_bogus() -> None:
+    with pytest.raises(ValidationError):
+        BackendSpec.model_validate({"requested": "bogus"})
+
+
+def test_backend_spec_rejects_unsupported_indexed_backends() -> None:
+    with pytest.raises(ValidationError):
+        BackendSpec.model_validate({"requested": "mps:0"})
+    with pytest.raises(ValidationError):
+        BackendSpec.model_validate({"requested": "cpu:0"})
+    with pytest.raises(ValidationError):
+        BackendSpec.model_validate({"requested": "auto:0"})
+
+
+def test_backend_spec_rejects_non_integer_index() -> None:
+    with pytest.raises(ValidationError):
+        BackendSpec.model_validate({"requested": "cuda:abc"})
+
+
+def test_backend_spec_rejects_negative_index() -> None:
+    with pytest.raises(ValidationError):
+        BackendSpec.model_validate({"requested": "cuda:-1"})
+
+
+def test_backend_spec_is_frozen() -> None:
+    b = BackendSpec(requested="cpu")
+    with pytest.raises(ValidationError):
+        b.requested = "cuda"
+
+
+def test_conversion_options_default_backend() -> None:
+    o = ConversionOptions()
+    assert o.backend == BackendSpec(requested="auto")
+    assert o.backend.index is None
+
+
+def test_conversion_options_explicit_backend() -> None:
+    o = ConversionOptions(backend=BackendSpec(requested="cuda", index=1))
+    assert o.backend.requested == "cuda"
+    assert o.backend.index == 1
+
+
+def test_conversion_options_device_deprecation_warning_and_populates_backend() -> None:
+    with pytest.warns(DeprecationWarning):
+        o = ConversionOptions(device="cuda:0")
+    assert o.backend.requested == "cuda"
+    assert o.backend.index == 0
+    assert o.device == "cuda:0"
+
+
+def test_conversion_options_device_default_emits_no_warning() -> None:
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        o = ConversionOptions()
+    assert o.backend == BackendSpec(requested="auto")
+    assert o.device == "auto"
+
+
+def test_conversion_options_explicit_backend_wins_over_device() -> None:
+    with pytest.warns(DeprecationWarning):
+        o = ConversionOptions(
+            device="cpu", backend=BackendSpec(requested="cuda", index=2)
+        )
+    assert o.backend.requested == "cuda"
+    assert o.backend.index == 2
+    assert o.device == "cpu"
+
+
+def test_sidecar_new_backend_fields_construct() -> None:
+    s = Sidecar(
+        version="0.1.0",
+        input_path=Path("/tmp/in.png"),
+        input_hash="h",
+        output_path=Path("/tmp/out.svg"),
+        output_size=100,
+        mode_used=Mode.LABELS,
+        mode_reasoning="r",
+        model="yolo11x.pt",
+        device="cpu",
+        image_type=ImageType.PHOTO,
+        backend_requested="auto",
+        backend_resolved="cuda:0",
+    )
+    assert s.backend_requested == "auto"
+    assert s.backend_resolved == "cuda:0"
+    assert s.device == "cpu"
+
+
+def test_sidecar_new_backend_fields_default_to_empty() -> None:
+    s = Sidecar(
+        version="0.1.0",
+        input_path=Path("/tmp/in.png"),
+        input_hash="h",
+        output_path=Path("/tmp/out.svg"),
+        output_size=100,
+        mode_used=Mode.LABELS,
+        mode_reasoning="r",
+        model="yolo11x.pt",
+        device="cpu",
+        image_type=ImageType.PHOTO,
+    )
+    assert s.backend_requested == ""
+    assert s.backend_resolved == ""
+
+
+def test_sidecar_loads_legacy_json_without_new_fields() -> None:
+    legacy_json = (
+        '{"version":"0.1.0","input_path":"/tmp/in.png","input_hash":"h",'
+        '"output_path":"/tmp/out.svg","output_size":100,'
+        '"mode_used":"labels","mode_reasoning":"r","model":"yolo11x.pt",'
+        '"device":"cpu","image_type":"photo"}'
+    )
+    s = Sidecar.model_validate_json(legacy_json)
+    assert s.device == "cpu"
+    assert s.backend_requested == ""
+    assert s.backend_resolved == ""
