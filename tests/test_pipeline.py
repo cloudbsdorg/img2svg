@@ -22,6 +22,7 @@ import pytest
 from img2svg.enums import ImageType, Mode
 from img2svg.errors import OutputPathCollisionError
 from img2svg.models import (
+    BackendSpec,
     BoundingBox,
     ConversionOptions,
     ConversionResult,
@@ -61,10 +62,14 @@ def _make_detection(class_name: str = "person", conf: float = 0.9) -> Detection:
     )
 
 
-def _make_mock_detector(detections: list[Detection] | None = None) -> Any:
+def _make_mock_detector(
+    detections: list[Detection] | None = None,
+    resolved_device: str = "cpu",
+) -> Any:
     """Return a mock `YOLODetector` with a `.detect()` method returning `detections`."""
     mock_det = mock.MagicMock()
     mock_det.detect.return_value = detections if detections is not None else []
+    mock_det.device = resolved_device
     return mock_det
 
 
@@ -274,3 +279,80 @@ def test_pipeline_records_timings(tmp_path: Path, logo_path: Path) -> None:
         assert t[key] >= 0.0
     # total is measured independently and should be >= max(parts)
     assert t["total"] >= 0.0
+
+
+# ----------------------------------------------------------------------
+# BackendSpec wiring (T10)
+# ----------------------------------------------------------------------
+
+
+def test_pipeline_uses_explicit_backend_spec(
+    tmp_path: Path, logo_path: Path
+) -> None:
+    """`ConversionOptions(backend=BackendSpec(requested='cpu'))` is honored."""
+    out_svg = tmp_path / "out.svg"
+    options = ConversionOptions(mode=Mode.LABELS, backend=BackendSpec(requested="cpu"))
+    with mock.patch(
+        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
+    ) as mock_get:
+        Pipeline(options).run(logo_path, out_svg)
+
+    mock_get.assert_called_once_with(
+        model_name="yolo11x.pt", backend=BackendSpec(requested="cpu")
+    )
+
+
+def test_pipeline_sidecar_records_backend_requested_and_resolved(
+    tmp_path: Path, logo_path: Path
+) -> None:
+    """`backend_requested` (canonical) and `backend_resolved` (detector's
+    `.device`) can differ when the user passes `auto` and the detector
+    dispatches to `cuda:0`."""
+    out_svg = tmp_path / "out.svg"
+    options = ConversionOptions(mode=Mode.LABELS, backend=BackendSpec(requested="cuda"))
+    mock_det = _make_mock_detector(resolved_device="cuda:0")
+    with mock.patch("img2svg.pipeline.get_detector", return_value=mock_det):
+        result = Pipeline(options).run(logo_path, out_svg)
+
+    assert result.sidecar.backend_requested == "cuda"
+    assert result.sidecar.backend_resolved == "cuda:0"
+    assert result.sidecar.device == "cuda:0"
+
+    raw = json.loads(out_svg.with_suffix(".json").read_text(encoding="utf-8"))
+    assert raw["backend_requested"] == "cuda"
+    assert raw["backend_resolved"] == "cuda:0"
+
+
+def test_pipeline_indexed_backend_formats_as_cuda_0(
+    tmp_path: Path, logo_path: Path
+) -> None:
+    """Indexed `BackendSpec(requested='cuda', index=0)` is passed to the detector."""
+    out_svg = tmp_path / "out.svg"
+    options = ConversionOptions(
+        mode=Mode.LABELS, backend=BackendSpec(requested="cuda", index=0)
+    )
+    with mock.patch(
+        "img2svg.pipeline.get_detector", return_value=_make_mock_detector([])
+    ) as mock_get:
+        Pipeline(options).run(logo_path, out_svg)
+
+    mock_get.assert_called_once_with(
+        model_name="yolo11x.pt", backend=BackendSpec(requested="cuda", index=0)
+    )
+
+
+def test_pipeline_legacy_device_field_still_works(
+    tmp_path: Path, logo_path: Path
+) -> None:
+    """`ConversionOptions(device='cpu')` still works via T2's deprecation shim."""
+    out_svg = tmp_path / "out.svg"
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])) as mock_get,
+        pytest.warns(DeprecationWarning, match="device is deprecated"),
+    ):
+        options = ConversionOptions(mode=Mode.LABELS, device="cpu")
+        Pipeline(options).run(logo_path, out_svg)
+
+    mock_get.assert_called_once_with(
+        model_name="yolo11x.pt", backend=BackendSpec(requested="cpu")
+    )

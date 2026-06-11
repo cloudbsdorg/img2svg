@@ -31,6 +31,7 @@ from img2svg.loader import load_image
 from img2svg.logging import get_logger
 from img2svg.metadata import compute_file_hash, write_sidecar
 from img2svg.models import (
+    BackendSpec,
     ConversionOptions,
     ConversionResult,
     Sidecar,
@@ -64,6 +65,19 @@ RENDERER_REGISTRY: dict[Mode, type[Renderer]] = {
 }
 
 
+def _format_backend_requested(spec: BackendSpec) -> str:
+    """Render a `BackendSpec` as the ultralytics-style device string.
+
+    Produces ``"cuda:0"`` for indexed CUDA/ROCm backends and the bare
+    backend name (``"cpu"``, ``"mps"``, ``"auto"``) otherwise. This is
+    the canonical "what the user asked for" form, suitable for both the
+    detector cache key and the ``sidecar.backend_requested`` field.
+    """
+    if spec.index is not None:
+        return f"{spec.requested}:{spec.index}"
+    return spec.requested
+
+
 class Pipeline:
     """Orchestrate a single image → SVG conversion.
 
@@ -73,7 +87,7 @@ class Pipeline:
     to multiple `.run()` calls in a batch to amortize setup.
 
     Args:
-        options: User-facing conversion options (mode, model, device, ...).
+        options: User-facing conversion options (mode, model, backend, ...).
     """
 
     def __init__(self, options: ConversionOptions) -> None:
@@ -143,11 +157,13 @@ class Pipeline:
 
         # 5. YOLO detection
         t0 = time.perf_counter()
-        detector = get_detector(model_name=options.model, device_str=options.device)
+        detector = get_detector(model_name=options.model, backend=options.backend)
         detections: list[Detection] = detector.detect(
             loaded.np_array, conf=options.conf, iou=options.iou
         )
         timings["detect"] = time.perf_counter() - t0
+        backend_requested = _format_backend_requested(options.backend)
+        backend_resolved = detector.device
 
         # 6. (Per-ROI analysis skipped for the critical path.)
 
@@ -182,7 +198,9 @@ class Pipeline:
             mode_used=mode_used,
             mode_reasoning=mode_reasoning,
             model=options.model,
-            device=options.device,
+            device=backend_resolved,
+            backend_requested=backend_requested,
+            backend_resolved=backend_resolved,
             image_type=image_type,
             detections=detections,
             geometric=analysis_global,

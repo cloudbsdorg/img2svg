@@ -455,7 +455,15 @@ def _torch_fallback() -> list[GPUInfo]:
             cc = f"{props.major}.{props.minor}"
         except AttributeError:
             cc = None
-        vendor = GpuVendor.NVIDIA  # Could be AMD if PyTorch is ROCm build
+        # Use torch.version.hip to distinguish a ROCm build of PyTorch from
+        # a CUDA build. CUDA builds have torch.version.hip == None; ROCm
+        # builds have a version string (e.g. "6.2.41134").
+        if getattr(torch, "version", None) is not None and getattr(
+            torch.version, "hip", None
+        ):
+            vendor = GpuVendor.AMD
+        else:
+            vendor = GpuVendor.NVIDIA
         gpus.append(
             GPUInfo(
                 index=i,

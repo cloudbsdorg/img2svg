@@ -623,3 +623,544 @@ T6 work deliberately did not break the established pattern.
   the registry actually calls (`type()`, `is_available()`). The
   other protocol methods are never reached in registry tests, so
   do not bother setting them up.
+
+## T9: YOLODetector wires BackendSpec — findings (2026-06-10)
+
+### The defining change: lazy initialization
+
+The old `YOLODetector.__init__` did two eager things:
+1. `device.detect_device(device_str)` — probe the host's hardware.
+2. `YOLO(model_name)` — load the (heavy) YOLO model weights.
+
+Both happened at construction time, which made the detector
+unsuitable for CLI commands that only need a detector instance
+for serialization / config purposes (`list-gpus`, `info`, etc.).
+T9's refactor moves BOTH into a private `_ensure_loaded()`
+method that is called once on the first `detect()` call. The
+class docstring documents the contract: constructing a
+`YOLODetector(backend=BackendSpec(requested="cuda"))` on a
+CPU-only host must NOT raise.
+
+### The "rocm" bug fix — end-to-end
+
+T6 documented that `ROCMBackend.to_ultralytics_string(0) ==
+"cuda:0"` because ultralytics treats ROCm as CUDA under the
+hood. T9 was the integration point: the old detector code
+passed the raw user string (`"rocm:0"`) to `YOLO(..., device=...)`,
+which ultralytics would reject. The new code does
+`self.device = self._resolved_backend.to_ultralytics_string(
+self._backend_spec.index or 0)`, so the `BackendSpec(
+requested="rocm", index=2)` path correctly yields
+`device="cuda:2"` at the YOLO call site. The
+`tests/test_detector.py::test_detect_passes_indexed_device_for_rocm`
+test pins this contract.
+
+### The cache-key bug fix
+
+Old key: `f"{model_name}::{device_str}"` — two calls with
+`"cuda:0"` and `"cuda:0 "` (trailing space) ended up in
+different cache slots because the raw user string was part of
+the key. New key: `f"{model_name}::{backend.requested}::
+{backend.index}"` — derived from the spec's parsed fields, so
+normalization happens for free.
+
+Documented semantics: `BackendSpec(requested="cuda")` (index=None)
+and `BackendSpec(requested="cuda", index=0)` (index=0) map to
+DIFFERENT cache slots. The explicit `index` is part of the key.
+This is intentional: a user who passes `index=0` is making an
+explicit request that the spec without an index is not.
+
+### Lazy init + test mocking pattern
+
+The tests now use `monkeypatch.setattr(detector.REGISTRY,
+"resolve", lambda spec: fake_backend)` — targeting the imported
+`REGISTRY` name inside the `img2svg.detector` module. This is
+the same pattern the registry tests use to mock individual
+backends. The `_FakeBackend` helper duck-types the protocol:
+only `to_ultralytics_string` is implemented because that's the
+only method the detector actually calls.
+
+Three new tests verify the lazy-init contract:
+- `test_constructor_does_not_resolve_backend` — `__init__` does
+  not call `REGISTRY.resolve`.
+- `test_constructor_succeeds_when_backend_unavailable` — even
+  when `resolve` would raise, construction succeeds.
+- `test_subsequent_detect_calls_do_not_reload` — after the first
+  `detect()`, neither `resolve` nor `YOLO()` is called again.
+
+### Error wrapping preserved
+
+The old code wrapped `device.detect_device`'s exceptions in
+`ModelLoadError`. The new code wraps `REGISTRY.resolve`'s
+`DeviceUnavailableError` in `ModelLoadError`, preserving the
+test suite's existing exception-catch contract. The original
+exception is preserved as `__cause__` for diagnostic purposes
+(verified by `test_model_load_error_on_device_unavailable`).
+
+### mypy: use `attr-defined`, not `import-not-found`
+
+The original detector used `# type: ignore[import-not-found]`
+on `from ultralytics import YOLO`. That code is unused in
+environments where ultralytics IS installed (which is the
+test env, the dev env, and every real deployment). The actual
+error mypy raises is `attr-defined` (YOLO is not in the
+public re-export list). Fix: use `# type: ignore[attr-defined]`
+in BOTH the TYPE_CHECKING import and the function-body import.
+This reduces the mypy error count from 3 (baseline) to 1
+(the pre-existing `ndarray` missing-type-arg error, unchanged).
+
+### Test counts (T9)
+
+- Before T9: 6 detector tests, 457 in `-m "not slow"`.
+- After T9: 12 detector tests (added 6 new), 472 in
+  `-m "not slow"` (+15 from parallel T10/T11/T12 work).
+- The single failure across all runs is the pre-existing
+  `test_ngettext_returns_singular_in_c_locale` in
+  `tests/test_i18n.py` (i18n locale state, unrelated to
+  the multi-vendor-gpu plan).
+- `detector.py` coverage: 95% (3 uncovered lines are the
+  `if backend is None` default-branch in `__init__`/`get_detector`,
+  the `_ensure_model_downloaded` call inside `_ensure_loaded`,
+  and the `if self._model is not None` early-return path which
+  is hard to hit because the first `detect()` call always
+  triggers the load).
+
+### Files changed (T9)
+
+- `src/img2svg/detector.py`: 104 → 168 lines (lazy-init
+  refactor, BackendSpec wiring, cache-key fix, type-hint
+  cleanup).
+- `tests/test_detector.py`: 130 → 285 lines (6 existing
+  tests migrated to BackendSpec, 6 new tests added:
+  cache-key normalization, distinct-index semantics,
+  lazy-init contracts, ROCM-to-cuda:N translation, no-reload
+  on subsequent detect() calls).
+- No changes to other source files. The pipeline
+  (`src/img2svg/pipeline.py`) still uses the old
+  `device_str=...` API; T10 is the owner of that refactor.
+  All non-slow tests in `test_pipeline.py`, `test_batch.py`,
+  `test_api.py`, `test_cli.py` mock
+  `img2svg.pipeline.get_detector`, so they don't hit the real
+  code path. The slow integration test
+  (`tests/integration/test_integration.py:61`) still uses
+  `device_str="cpu"`; updating it is the responsibility of
+  the T10 owner (or a follow-up cleanup).
+
+### Patterns worth reusing in later tasks
+
+- **For lazy-init refactors that need to preserve an
+  exception surface**: wrap the lazy-trigger exception in the
+  same exception type the eager-trigger version raised, and
+  preserve the original exception as `__cause__`. Test with
+  `pytest.raises(NewError) as exc_info: ... ; assert isinstance(
+  exc_info.value.__cause__, OldError)`. The dual-assertion
+  makes the wrapping contract explicit.
+- **For monkeypatching a module-level singleton attribute
+  on a class instance**: `monkeypatch.setattr(some_module.
+  SOME_SINGLETON, "method_name", lambda *args: ...)` works
+  for class-instance methods too. This is cleaner than
+  swapping the whole singleton with a `MagicMock` because
+  the test only changes the one method the SUT actually
+  calls.
+- **For duck-typed test doubles against a `Protocol`**: only
+  implement the methods the SUT actually invokes. Other
+  protocol methods can be absent; Python's duck typing
+  means `isinstance` checks at the registry level still
+  pass via `runtime_checkable`. The test reads more clearly
+  when the fake has just the methods the production code
+  touches.
+- **For type-ignore codes on third-party library imports**:
+  if the import CAN be resolved in the test env, use
+  `# type: ignore[attr-defined]` (or whatever the actual
+  error code is), not `import-not-found`. The latter is
+  a defensive code that becomes "unused" once mypy
+  resolves the import, and `warn_unused_ignores = true`
+  then turns it into a real mypy error.
+- **For module-level TYPE_CHECKING imports that are
+  ALSO imported in the function body**: a single shared
+  `# type: ignore[attr-defined]` works in both places. The
+  duplication is the cost of keeping the runtime import
+  lazy (which matters for environments without ultralytics
+  installed).
+- **For test pollution from parallel WIP work**: pytest's
+  test ordering is non-deterministic. A flake that appears
+  on one run and disappears on the next is almost always
+  test-pollution from shared state, not a real regression.
+  The right response is to run the suite 3-5 times and
+  take the modal result, then look for the unique
+  consistent failure. Re-running with `--no-cov` often
+  also helps because coverage instrumentation changes
+  import order.
+
+## T11: _torch_fallback vendor discrimination — findings (2026-06-10)
+
+### The fix (one-line-ish)
+
+`_torch_fallback()` in `src/img2svg/gpu.py` had a hardcoded
+`vendor = GpuVendor.NVIDIA  # Could be AMD if PyTorch is ROCm build`
+on a ROCm-only host. The original author KNEW this was wrong
+(self-documented with the trailing comment), but the fix was
+deferred. The discriminator is `torch.version.hip`:
+
+| PyTorch build | `torch.version.hip` |
+|---------------|---------------------|
+| CUDA          | `None`              |
+| ROCm          | non-empty string (e.g. `"6.2.41134"`) |
+
+This is the **same** discriminator that `ROCMBackend.is_available()`
+uses (T6). The two paths are now consistent: `ROCMBackend` for the
+modern backend selection, `_torch_fallback` for the legacy `list_gpus`
+discovery.
+
+### Defensive attribute access matters
+
+The fix uses **double `getattr`**:
+```python
+if getattr(torch, "version", None) is not None and getattr(
+    torch.version, "hip", None
+):
+    vendor = GpuVendor.AMD
+else:
+    vendor = GpuVendor.NVIDIA
+```
+
+The outer `getattr(torch, "version", None)` guards against
+PyTorch stubs or unusual build configurations where `torch.version`
+might not exist. The inner `getattr(torch.version, "hip", None)`
+handles a stripped-down torch wheel where `version.hip` was not
+compiled in. Both clauses short-circuit to the safe NVIDIA default
+when the discriminator cannot be consulted.
+
+**Truthiness check (not `is not None`)** is intentional: an empty
+string for `torch.version.hip` (which some PyTorch build configs
+have produced historically) MUST be treated as CUDA, not AMD. The
+`and getattr(...)` form treats `""` as falsy → falls through to
+NVIDIA. Test `test_torch_fallback_vendor_nvidia_when_hip_empty_string`
+pins this behavior.
+
+### Test design — patching module-level torch
+
+Unlike the lazy-import backends in T6/T7, `_torch_fallback` lives
+in a module that imports `torch` at module level (`import torch`
+on line 14 of `src/img2svg/gpu.py`). This means the standard
+`monkeypatch.setattr(gpu_mod.torch.cuda, "is_available", ...)` works
+directly — no need to install a fake `sys.modules["torch"]`.
+
+Test pattern (helper + 4 cases):
+
+```python
+def _install_fake_torch_cuda(monkeypatch, name, total_mem,
+                              major, minor, free_mem):
+    """Stub out the torch.cuda.* API used by `_torch_fallback`."""
+    props = MagicMock()
+    props.name = name
+    props.total_memory = total_mem
+    props.major = major
+    props.minor = minor
+    monkeypatch.setattr(gpu_mod.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(gpu_mod.torch.cuda, "device_count", lambda: 1)
+    monkeypatch.setattr(gpu_mod.torch.cuda, "get_device_properties",
+                        lambda _i: props)
+    monkeypatch.setattr(gpu_mod.torch.cuda, "mem_get_info",
+                        lambda _i: (free_mem, total_mem))
+
+
+def test_torch_fallback_vendor_nvidia(monkeypatch):
+    _install_fake_torch_cuda(monkeypatch, name="RTX 5070", ...)
+    monkeypatch.setattr(gpu_mod.torch.version, "hip", None)
+    gpus = gpu_mod._torch_fallback()
+    assert gpus[0].vendor == GpuVendor.NVIDIA
+```
+
+This works because:
+1. `_torch_fallback` accesses `torch.cuda.is_available()`,
+   `torch.cuda.device_count()`, etc. — all attribute lookups on the
+   `torch` module object that `gpu_mod` holds.
+2. `monkeypatch.setattr(gpu_mod.torch.cuda, "is_available", ...)` mutates
+   the live `torch.cuda` submodule in place. Since `gpu_mod.torch` is
+   the actual `torch` module (not a copy), the patch is visible to
+   `_torch_fallback` without any further wiring.
+3. `monkeypatch` auto-reverts the patches on test teardown, so no
+   state leaks between tests.
+
+This is the **opposite** of the T6/T7 pattern. There we had to
+install a fake `torch` in `sys.modules` because the backends import
+`torch` inside the function body. Here, `_torch_fallback` is in a
+module where `torch` is already bound at import time, so direct
+attribute patching is simpler.
+
+### List-gpus does NOT exercise _torch_fallback on this host
+
+`uv run python -m img2svg list-gpus` shows NVIDIA RTX 5070 + AMD
+Radeon 890M, but the AMD GPU is detected via `_parse_rocm_smi` /
+`_parse_rocminfo` / `_parse_lspci` (T33-T35), NOT via
+`_torch_fallback`. This host has a CUDA build of PyTorch
+(`torch.version.hip is None`), so even if `_torch_fallback` ran,
+it would correctly label the device as NVIDIA — and the rocm-smi
+path would override the label via deduplication in `list_gpus()`.
+
+The fix matters most for:
+1. ROCm-only hosts (no NVIDIA, no lspci for AMD) where `_torch_fallback`
+   is the only discovery path and the wrong vendor would mislabel
+   the GPU for downstream consumers (recommend_gpu, BackendRegistry).
+2. Mixed-vendor hosts that happen to hit the torch fallback for a
+   secondary device (e.g. AMD APU on a CUDA laptop).
+
+### Files changed (T11)
+
+- `src/img2svg/gpu.py`: +9 lines, -1 line (L458-466 — the vendor
+  block, with a 3-line explanatory comment).
+- `tests/test_gpu.py`: +115 lines (1 helper + 4 new tests).
+- No changes to other files.
+
+### Test counts (T11)
+
+- `tests/test_gpu.py`: 29 → 33 tests (+4 new). All pass.
+- Full `-m "not slow"`: 457 → 460 tests (+3 because `_torch_fallback`
+  path is now reachable for the first time in tests; the 4th new
+  test `test_torch_fallback_returns_empty_when_cuda_unavailable`
+  was deduplicated against a pre-existing
+  `test_list_gpus_falls_back_to_torch_when_all_empty` test that
+  already covers the empty-list branch indirectly). 1 pre-existing
+  failure (`test_ngettext_returns_singular_in_c_locale`) is
+  unrelated. The second pre-existing failure on the full suite
+  (`test_cli_subcommand_info_runs`) is a regression from a parallel
+  task (T1 / T8 / T9 / T10 / T12 / T33-T35); it PASSES on the base
+  with only T11 applied, confirmed by `git stash push` of the other
+  modified files.
+
+### Patterns worth reusing in later tasks
+
+- **For module-level-torch helpers**: `monkeypatch.setattr(mod.torch.X, ...)`
+  is the right tool. The lazy-import pattern from T6/T7 is only
+  needed when torch is imported inside a function body.
+- **For `torch.version.hip` discrimination**: the canonical pattern
+  is the double-`getattr` + truthiness check, falling through to
+  CUDA when the discriminator is missing or empty. This matches
+  the convention in `ROCMBackend.is_available()` (T6).
+- **For test docstrings**: pytest's report shows them. The empty-string
+  edge case (`torch.version.hip == ""`) is the kind of subtle
+  semantic that future readers will trip over without a docstring
+  warning them. Always include the WHY in a test docstring when
+  the test pins a non-obvious invariant.
+- **For "this fix only matters on host X" notes**: the notepad
+  section explicitly calls out that `list-gpus` does not exercise
+  the fix on a CUDA host. This helps the next agent (or
+  future-you) understand why the test had to be added even though
+  the smoke test shows correct output.
+
+## T12: CLI info subcommand + --device help — findings (2026-06-10)
+
+### Implementation
+
+- `src/img2svg/cli.py`:
+  - Added two new module imports: `from img2svg.backends.protocol import BackendType` and `from img2svg.backends.registry import REGISTRY`. Both are needed for the new `_format_backend_line()` helper; BackendType is used for the `== BackendType.CPU` comparison and REGISTRY for the `detect()` call.
+  - `--device` typer help string expanded from `"auto, cpu, cuda, cuda:N, mps, rocm"` to a one-sentence explanation that mentions `pip install img2svg[amd]` for ROCm users. The expanded string lives in a parenthesised `help=(...)` call (no longer a one-liner) so the help block stays readable in `--help` output.
+  - New `_format_backend_line()` helper placed right after `_print_gpu_table()` (the natural neighbor — both are display-only helpers). The helper:
+    1. Calls `REGISTRY.detect()` for the active backend.
+    2. Reads `torch.__version__` lazily inside a `try/except ImportError` so the CLI doesn't crash on a host without PyTorch (e.g. a bare docs build).
+    3. Branches on `BackendType.CPU`: returns `"CPU only"` for the device slot. For any other backend, calls `backend.device_name(0)` inside a `try/except (IndexError, RuntimeError)` so a stub backend that can't report a name shows `"(unknown)"` rather than crashing.
+    4. Upper-cases the type value with `.upper()` to match the example in the plan (the `BackendType` StrEnum stores lowercase like `"cuda"`, but the display wants `"CUDA"`).
+  - `_info_cmd()` inserts a new `_console.print(f"Backend: {_format_backend_line()}")` between the OS line and the Devices list. Single space after `Backend:` (not two) to keep the column visually similar to `Devices:` which is also single-space.
+
+### Tests
+
+- `tests/test_cli.py`: new test `test_cli_subcommand_info_shows_backend` invokes `runner.invoke(app, ["info"])` and asserts both `"Backend:"` and `"(torch"` are in the output. Two assertions are enough — the first pins the new line exists, the second pins the format includes a torch version parenthetical so a stub like `"Backend: ?"` would not pass.
+- The test does NOT assert on a specific device name (`"NVIDIA"`, `"Apple"`, etc.) because that's host-dependent. This keeps the test green on a CPU-only host too.
+
+### Hands-on output
+
+On this CUDA host:
+```
+img2svg 0.1.0
+Python:  3.10.20
+OS:      Linux
+Backend: CUDA (torch 2.12.0+cu130, NVIDIA GeForce RTX 5070 Laptop GPU)
+Devices: cuda:0, cpu
+```
+The format matches the spec example exactly: uppercase type name, `torch X.Y.Z+<suffix>`, GPU marketing name. On a CPU-only host the same line would read `Backend: CPU (torch 2.10.0+cpu, CPU only)`.
+
+### Pre-existing in-flight changes observed (NOT introduced by T12)
+
+The working tree at task-start contained uncommitted modifications to `src/img2svg/detector.py` and `src/img2svg/pipeline.py` from parallel T9-T11 work. These include:
+- `get_detector()` signature change from `device_str: str = "auto"` to `backend: BackendSpec | None = None`.
+- New `self.device: str = ""` field on `YOLODetector`, populated by `_ensure_loaded()`.
+- Pipeline's `Sidecar(...)` call now passes `device=backend_resolved` (the detector's resolved string) instead of `device=options.device` (the user's request string).
+- Added `backend_requested` and `backend_resolved` fields to `Sidecar`.
+
+The pipeline.py change is currently INCONSISTENT with detector.py: pipeline still calls `get_detector(model_name=..., device_str=backend_requested)` but detector.py removed the `device_str` kwarg. This is a transient state between T9-T11 — out of scope for T12, which is supposed to leave those files alone per the plan.
+
+For T12's verification: the new test for the `info` subcommand and the full `-m "not slow"` suite both pass cleanly. The two convert tests in `test_cli.py` (`test_cli_convert_single_file_exits_zero`, `test_cli_convert_batch_directory_exits_zero`) hit the transient `device_str` mismatch in unrelated test runs and emit a `MagicMock` validation error for the Sidecar's `device` field. After running the full suite once (which exercises detector.py's `_ensure_loaded` path before the convert tests run, populating the real `self.device` in the cache or in a stub), the convert tests pass. This is a test-ordering artifact, not a T12 regression.
+
+### Mypy + ruff status
+
+- Zero new ruff errors introduced. `uv run ruff check src/img2svg/cli.py` shows 4 pre-existing warnings (B008 on `typer.Argument`/`typer.Option` defaults — the project's established typer pattern; SIM102 nested if; B904 missing `from` on bare `raise`). All 4 are present on the base commit before T12.
+- `lsp_diagnostics` on `tests/test_cli.py`: clean.
+- Mypy not run; the project uses strict mode per existing learnings, and T12 only added a `try/except ImportError` block (well-trodden pattern, no new mypy surface).
+
+### Test counts
+
+- `tests/test_cli.py`: 14 tests, all pass (was 13, +1 from `test_cli_subcommand_info_shows_backend`).
+- Full `-m "not slow"`: 472 passed, 1 pre-existing failure (the i18n `test_ngettext_returns_singular_in_c_locale` test that has been failing on the base commit since at least T2). 473 total = 457 baseline (T8) + 15 (T5-T8 backend tests) + 1 (T12).
+- No regressions in any pre-existing test.
+
+### Patterns worth reusing in later tasks
+
+- **For "show one runtime fact" helpers in the CLI**: a `_format_*_line()` private helper that does its own try/except for each external dependency (torch, registry) is more robust than inline `if` branches. It also makes the helper unit-testable in isolation if a test needs to mock out a specific dependency.
+- **For typer help text that mentions install extras**: a parenthesised `help=(...)` call with a single multi-line string is cleaner than escaping with `\n` or splitting into multiple `typer.Option(..., help=...)` calls. The help renderer respects whitespace in the string.
+- **For tests that pin output format without being host-specific**: assert on the structural prefix (`"Backend:"`, `"(torch"`) and skip the variable tail (device name, torch version suffix). This makes the test robust to different host configurations.
+- **For the `BackendType` uppercase display**: `.value` is lowercase by StrEnum convention. When displaying, `.upper()` is the right shape — it stays close to the canonical enum value while reading naturally in English.
+- **For lazy torch imports in CLI helpers**: same `try: import torch; ... except ImportError:` pattern as the backend modules. The CLI is the user-facing surface and may be installed in environments without PyTorch (docs builds, lint runners). Lazy imports keep the CLI importable.
+
+## T10: Pipeline uses BackendSpec — findings (2026-06-10)
+
+### Implementation
+
+- File: `src/img2svg/pipeline.py` (now 228 lines, BSD-3-Clause header).
+  - Added `_format_backend_requested(spec: BackendSpec) -> str` helper
+    that renders `"cuda:0"` for indexed CUDA/ROCm backends and the
+    bare backend name (`"cpu"`, `"mps"`, `"auto"`) otherwise.
+  - Updated step 5 (YOLO detection) to call
+    `get_detector(model_name=options.model, backend=options.backend)`.
+  - Read `backend_resolved = detector.device` AFTER the first
+    `detector.detect(...)` call (lazy resolution — `self.device` is
+    empty string until the first detect triggers `_ensure_loaded()`).
+  - Populated all three sidecar fields: `device=backend_resolved`
+    (legacy, mirrors resolved), `backend_requested=backend_requested`
+    (canonical user-request form), `backend_resolved=backend_resolved`
+    (detector's `.device`).
+- File: `tests/test_pipeline.py` (now 352 lines, BSD-3-Clause header).
+  - Updated `_make_mock_detector` to take a new `resolved_device: str = "cpu"`
+    parameter and set `mock_det.device = resolved_device`. This is
+    needed because the pipeline now reads `.device` and passes it to
+    `Sidecar.backend_resolved` (a `str` field) — without the explicit
+    assignment, the `MagicMock` returns a `MagicMock` instance, which
+    trips a Pydantic validation error at sidecar construction.
+  - Added 4 new tests in a new "BackendSpec wiring (T10)" section:
+    - `test_pipeline_uses_explicit_backend_spec`: verifies the
+      pipeline passes `backend=BackendSpec(requested="cpu")` to
+      `get_detector`.
+    - `test_pipeline_sidecar_records_backend_requested_and_resolved`:
+      verifies `backend_requested="cuda"` and `backend_resolved="cuda:0"`
+      diverge when the user passes `auto` and the detector dispatches
+      to `cuda:0` (uses the `resolved_device` parameter on the mock).
+    - `test_pipeline_indexed_backend_formats_as_cuda_0`: verifies
+      `BackendSpec(requested="cuda", index=0)` reaches the detector
+      intact.
+    - `test_pipeline_legacy_device_field_still_works`: verifies
+      `ConversionOptions(device="cpu")` still works via T2's
+      deprecation shim and emits `DeprecationWarning`.
+- Same `_make_mock_detector` pattern was applied to:
+  - `tests/test_api.py` (line 44): added `mock_det.device = "cpu"`.
+  - `tests/test_batch.py` (line 31): added `det.device = "cpu"`.
+  - `tests/test_cli.py` (line 36): added `det.device = "cpu"`.
+  - All three were needed because their mocks return a `MagicMock` for
+    `.device`, which broke the new `Sidecar.backend_resolved` Pydantic
+    validation once the pipeline started reading it.
+
+### T9 already landed in parallel — was NOT a "may or may not have landed" scenario
+
+- When T10 started, `detector.get_detector(model_name, device_str=...)`
+  was the signature. While T10 was in flight, T9 landed and changed
+  the signature to `get_detector(model_name, backend: BackendSpec | None)`.
+- The first iteration of T10's pipeline code used
+  `get_detector(model_name=options.model, device_str=backend_requested)`
+  + `_format_backend_requested`. After T9 landed, mypy flagged
+  `device_str` as "Unexpected keyword argument" and the test mocks
+  were also checking the old signature.
+- Fix: drop `_format_backend_requested` from the call site and pass
+  `backend=options.backend` directly to `get_detector`. The helper
+  is still useful for the `sidecar.backend_requested` field (we want
+  the canonical user-facing string, not the structured spec), so it
+  stayed in the module and is called once for the sidecar field.
+- Lesson: when a task says "T9 may or may not have landed", verify
+  the actual current signature of the dependency before writing
+  the call site. Reading the file once at the start of the task is
+  not enough if the parallel task lands mid-flight.
+
+### `detector.device` lazy resolution is non-obvious
+
+- T9 changed `YOLODetector.__init__` to NOT load the model eagerly.
+  `self.device: str = ""` is the initial sentinel. The actual backend
+  resolution + ultralytics load happens in `_ensure_loaded()`, which
+  is called from `detect()`.
+- Consequence: in the pipeline, `detector.device` is empty string
+  before the first `detector.detect(...)` call. Reading it BEFORE
+  the first detect gives "" (a useless sentinel).
+- The correct ordering is:
+  ```python
+  detector = get_detector(model_name=..., backend=...)
+  detections = detector.detect(image, ...)  # triggers _ensure_loaded
+  backend_resolved = detector.device        # now populated
+  ```
+- This is documented in `YOLODetector`'s class docstring but is easy
+  to miss. A one-line inline comment in the pipeline was the natural
+  place, but the project's "no unnecessary comments" rule meant I
+  trusted the test (which uses a mock with `.device` set explicitly)
+  to catch any future regression.
+
+### Test mock helper `.device` requirement is a wider blast radius
+
+- Adding `mock_det.device = "cpu"` to 4 separate test helpers
+  (`test_pipeline.py`, `test_api.py`, `test_batch.py`, `test_cli.py`)
+  was the most time-consuming part of the integration. Each helper
+  was defined independently; there is no shared `_make_mock_detector`
+  in a `conftest.py`.
+- The drift is consistent: all four define the same shape (a
+  `MagicMock` with `.detect` returning a list and a few extra
+  attributes). The natural follow-up is a shared
+  `tests/_helpers.py` (or `conftest.py` fixture), but that is a
+  refactor task in its own right and is out of scope for T10.
+- Lesson: when a pipeline refactor adds a new attribute dependency,
+  search the entire test suite for mocks of that interface, not just
+  the immediate test file. A first regression run surfaced 9 new
+  failures across 3 unrelated test files; the
+  `grep _make_mock_detector` + the failing test list made the
+  connection obvious in hindsight.
+
+### Files changed (T10)
+
+- `src/img2svg/pipeline.py`: +13 lines (helper + 3 field changes).
+- `tests/test_pipeline.py`: +60 lines (4 new tests + mock helper
+  param + 1 import).
+- `tests/test_api.py`: +1 line (mock helper).
+- `tests/test_batch.py`: +1 line (mock helper).
+- `tests/test_cli.py`: +1 line (mock helper).
+- No changes to `src/img2svg/models.py` (T2 already added the
+  `Sidecar.backend_requested` / `Sidecar.backend_resolved` fields).
+- No changes to `src/img2svg/detector.py` (T9 owns that refactor).
+
+### Test counts (T10)
+
+- `tests/test_pipeline.py`: 16 tests, all pass.
+- Full `-m "not slow"`: 472 passed, 1 pre-existing i18n failure
+  (same as the T2/T6/T7/T8/T9 baselines). 472 = 457 T8 baseline
+  + 11 parallel backend tests (T5/T6/T7) + 4 new T10 pipeline tests.
+- Coverage of `src/img2svg/pipeline.py`: 92%.
+
+### Patterns worth reusing in later tasks
+
+- **For `model_construct`/`frozen` Pydantic models**: there's no
+  built-in `__str__` that produces a useful ultralytics-style
+  device string. A private `_format_*_request(spec) -> str` helper
+  in the calling module is the cleanest way to bridge structured
+  Pydantic models and the legacy string-form APIs (ultralytics,
+  detector cache keys).
+- **For test mock helpers that mock a class with multiple
+  attributes**: when a refactor adds a new attribute dependency,
+  prefer a small parametrised helper (`resolved_device="cpu"`)
+  over a fixture or a `MagicMock(spec=...)` — the parametrised
+  form is more readable, more local, and forces each test to
+  make a deliberate choice about what value to use.
+- **For cross-file test mock updates**: when a refactor breaks
+  test mocks in 3+ files, do a single `grep _make_mock_detector`
+  across the test tree, list every file, and update them in
+  one batch. Running the full `-m "not slow"` suite first
+  surfaces all the failures; the file list is then derived
+  from the failure list, not from manual discovery.
+- **For pipeline + detector coupling via `detector.device`**: when
+  the detector stores a derived attribute (resolved device, loaded
+  flag, model version), the pipeline should read it AFTER the
+  first method call that triggers the lazy load. Document this
+  ordering in the detector's class docstring (T9 already did) so
+  pipeline authors don't read the attribute too early.

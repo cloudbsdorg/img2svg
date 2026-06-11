@@ -8,11 +8,12 @@ NVIDIA CUDA, AMD ROCm, Apple MPS, and CPU. Each concrete backend
 (``CPUBackend``, ``CudaBackend``, ``MpsBackend``, ...) implements the
 :class:`DeviceBackend` protocol declared in :mod:`img2svg.backends.protocol`.
 
-The current public surface is intentionally minimal: a :class:`BackendType`
-str-enum (selector key), the :class:`DeviceBackend` protocol, the always-
-available :class:`CPUBackend` implementation, and its module-level
-``CPU_BACKEND`` singleton. A registry/factory and the GPU-specific backends
-are added in later tasks.
+The public surface includes the :class:`BackendType` str-enum (selector
+key), the :class:`DeviceBackend` protocol, all four concrete backends and
+their module-level singletons (``CPU_BACKEND``, ``CUDA_BACKEND``,
+``ROCM_BACKEND``, ``MPS_BACKEND``), the :class:`BackendRegistry` class
+that owns the auto-detect chain, and the module-level ``REGISTRY``
+singleton the rest of the codebase imports.
 """
 
 from __future__ import annotations
@@ -21,13 +22,16 @@ from img2svg.backends.cpu import CPU_BACKEND, CPUBackend
 from img2svg.backends.cuda import CUDA_BACKEND, CUDABackend
 from img2svg.backends.mps import MPS_BACKEND, MPSBackend
 from img2svg.backends.protocol import BackendType, DeviceBackend
+from img2svg.backends.registry import REGISTRY, BackendRegistry
 from img2svg.backends.rocm import ROCM_BACKEND, ROCMBackend
 
 __all__ = [
     "CPU_BACKEND",
     "CUDA_BACKEND",
     "MPS_BACKEND",
+    "REGISTRY",
     "ROCM_BACKEND",
+    "BackendRegistry",
     "BackendType",
     "CPUBackend",
     "CUDABackend",

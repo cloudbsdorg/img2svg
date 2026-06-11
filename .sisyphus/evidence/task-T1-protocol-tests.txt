@@ -1,0 +1,61 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.20, pytest-8.4.2, pluggy-1.6.0 -- /home/mlapointe/PyCharmMiscProject/.venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.10.20', 'Platform': 'Linux-7.0.0-22-generic-x86_64-with-glibc2.43', 'Packages': {'pytest': '8.4.2', 'pluggy': '1.6.0'}, 'Plugins': {'cov': '5.0.0', 'tap': '3.5', 'metadata': '3.1.1', 'mock': '3.15.1', 'json-report': '1.5.0'}}
+rootdir: /home/mlapointe/PyCharmMiscProject
+configfile: pyproject.toml
+plugins: cov-5.0.0, tap-3.5, metadata-3.1.1, mock-3.15.1, json-report-1.5.0
+collecting ... collected 12 items
+
+tests/test_backends/test_protocol.py::test_backend_type_cuda_value_is_lowercase PASSED [  8%]
+tests/test_backends/test_protocol.py::test_backend_type_is_str_enum PASSED [ 16%]
+tests/test_backends/test_protocol.py::test_backend_type_all_expected_members_present PASSED [ 25%]
+tests/test_backends/test_protocol.py::test_backend_type_re_exported_from_package PASSED [ 33%]
+tests/test_backends/test_protocol.py::test_mock_backend_satisfies_protocol PASSED [ 41%]
+tests/test_backends/test_protocol.py::test_protocol_lists_all_nine_methods PASSED [ 50%]
+tests/test_backends/test_protocol.py::test_object_lacking_methods_does_not_satisfy_protocol PASSED [ 58%]
+tests/test_backends/test_protocol.py::test_backend_type_round_trips_via_value[auto-auto] PASSED [ 66%]
+tests/test_backends/test_protocol.py::test_backend_type_round_trips_via_value[cuda-cuda] PASSED [ 75%]
+tests/test_backends/test_protocol.py::test_backend_type_round_trips_via_value[rocm-rocm] PASSED [ 83%]
+tests/test_backends/test_protocol.py::test_backend_type_round_trips_via_value[mps-mps] PASSED [ 91%]
+tests/test_backends/test_protocol.py::test_backend_type_round_trips_via_value[cpu-cpu] PASSED [100%]
+
+---------- coverage: platform linux, python 3.10.20-final-0 ----------
+Name                                 Stmts   Miss  Cover   Missing
+------------------------------------------------------------------
+src/img2svg/__main__.py                  3      3     0%   9-12
+src/img2svg/api.py                     101     81    20%   57-60, 65, 70, 75-77, 84-88, 107-136, 150-155, 169-181, 218-223, 267-302
+src/img2svg/backends/cpu.py             64     39    39%   52-59, 78-80, 89, 93, 103-109, 119-131, 141-153, 157, 164-169, 178
+src/img2svg/backends/protocol.py        24      1    96%   37
+src/img2svg/classifier.py               24     18    25%   34-70
+src/img2svg/cli.py                     161    161     0%   27-439
+src/img2svg/detector.py                 48     34    29%   27-32, 41, 53-66, 76-104
+src/img2svg/device.py                   49     43    12%   26-42, 47-58, 67-82
+src/img2svg/enums.py                    30      1    97%   15
+src/img2svg/errors.py                   60     37    38%   19, 22, 29-38, 43, 53-58, 61, 68-73, 76, 86-88, 94-95, 106-107, 110, 120-125, 132-134
+src/img2svg/gpu.py                     280    280     0%   6-615
+src/img2svg/i18n.py                     23     23     0%   11-51
+src/img2svg/loader.py                   42     24    43%   33, 49-85
+src/img2svg/logging.py                  31     16    48%   41-57, 68-76, 86-94
+src/img2svg/metadata.py                 31     22    29%   27-42, 47, 52-56
+src/img2svg/models.py                  106     22    79%   28, 32, 36, 100-120, 158-169
+src/img2svg/paths.py                    38     25    34%   18, 27-30, 35-38, 43-46, 51-53, 58, 63-70
+src/img2svg/patterns.py                 82     72    12%   21, 28-66, 71-81, 86-97, 110-118, 128-136
+src/img2svg/pipeline.py                 65     39    40%   81, 115-205
+src/img2svg/presets.py                  12      5    58%   39-42, 50
+src/img2svg/renderers/annotated.py      24      9    62%   67-93
+src/img2svg/renderers/base.py           14      5    64%   43-46, 51
+src/img2svg/renderers/labels.py         25     11    56%   40-76
+src/img2svg/renderers/trace.py           8      1    88%   31
+src/img2svg/renderers/visual.py         42     23    45%   48-55, 64-73, 83-90, 105
+src/img2svg/svg_builder.py              94     72    23%   28, 35-41, 44, 57-71, 81-92, 103-112, 125-135, 139, 155-173, 180-182, 189, 195-199
+src/img2svg/vectorizer.py               18      8    56%   98-101, 108-115
+------------------------------------------------------------------
+TOTAL                                 1508   1075    29%
+
+3 files skipped due to complete coverage.
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+
+
+============================== 12 passed in 1.42s ==============================

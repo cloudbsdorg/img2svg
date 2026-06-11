@@ -37,6 +37,7 @@ def _mock_detector(detections: list[Detection] | None = None) -> Any:
     """Return a MagicMock detector with the given detections (default empty)."""
     det = mock.MagicMock()
     det.detect.return_value = detections if detections is not None else []
+    det.device = "cpu"
     return det
 
 
@@ -206,6 +207,14 @@ def test_cli_subcommand_info_runs() -> None:
     assert "img2svg" in result.output
     assert "Python" in result.output
     assert "OS" in result.output
+
+
+def test_cli_subcommand_info_shows_backend() -> None:
+    """`img2svg info` (subcommand) prints the active compute backend."""
+    result = runner.invoke(app, ["info"])
+    assert result.exit_code == 0, f"got {result.exit_code}: {result.output}"
+    assert "Backend:" in result.output
+    assert "(torch" in result.output
 
 
 def test_cli_subcommand_list_gpus_runs() -> None:

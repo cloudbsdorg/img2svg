@@ -645,3 +645,118 @@ def test_list_gpus_rocminfo_only_when_rocm_smi_missing(monkeypatch: object) -> N
     assert gpus[0].vendor == GpuVendor.AMD
     assert gpus[0].name == "AMD Radeon 890M Graphics"
 
+
+def _install_fake_torch_cuda(
+    monkeypatch: object,
+    name: str,
+    total_mem: int,
+    major: int,
+    minor: int,
+    free_mem: int,
+) -> None:
+    """Stub out the torch.cuda.* API used by `_torch_fallback`.
+
+    `_torch_fallback` calls `torch.cuda.is_available()`,
+    `torch.cuda.device_count()`, `torch.cuda.get_device_properties(i)`,
+    and `torch.cuda.mem_get_info(i)`. We install minimal fakes so the
+    fallback enters the loop body and reports a single device.
+    """
+    import img2svg.gpu as gpu_mod
+
+    props = MagicMock()
+    props.name = name
+    props.total_memory = total_mem
+    props.major = major
+    props.minor = minor
+
+    monkeypatch.setattr(gpu_mod.torch.cuda, "is_available", lambda: True)  # type: ignore[attr-defined]
+    monkeypatch.setattr(gpu_mod.torch.cuda, "device_count", lambda: 1)  # type: ignore[attr-defined]
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        gpu_mod.torch.cuda,
+        "get_device_properties",
+        lambda _i: props,
+    )
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        gpu_mod.torch.cuda,
+        "mem_get_info",
+        lambda _i: (free_mem, total_mem),
+    )
+
+
+def test_torch_fallback_vendor_nvidia(monkeypatch: object) -> None:
+    """torch.version.hip is None on a CUDA build → vendor must be NVIDIA."""
+    import img2svg.gpu as gpu_mod
+
+    _install_fake_torch_cuda(
+        monkeypatch,
+        name="NVIDIA GeForce RTX 5070",
+        total_mem=8 * 1024 * 1024 * 1024,
+        major=12,
+        minor=0,
+        free_mem=7 * 1024 * 1024 * 1024,
+    )
+    # CUDA build of PyTorch: torch.version.hip is None.
+    monkeypatch.setattr(gpu_mod.torch.version, "hip", None)  # type: ignore[attr-defined]
+    gpus = gpu_mod._torch_fallback()
+    assert len(gpus) == 1
+    assert gpus[0].vendor == GpuVendor.NVIDIA
+    assert gpus[0].name == "NVIDIA GeForce RTX 5070"
+    assert gpus[0].compute_capability == "12.0"
+
+
+def test_torch_fallback_vendor_rocm(monkeypatch: object) -> None:
+    """torch.version.hip is a non-empty string on a ROCm build → vendor must be AMD."""
+    import img2svg.gpu as gpu_mod
+
+    _install_fake_torch_cuda(
+        monkeypatch,
+        name="AMD Radeon RX 7900 XTX",
+        total_mem=24 * 1024 * 1024 * 1024,
+        major=11,
+        minor=0,
+        free_mem=20 * 1024 * 1024 * 1024,
+    )
+    # ROCm build of PyTorch: torch.version.hip is a version string.
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        gpu_mod.torch.version, "hip", "6.2.41134"
+    )
+    gpus = gpu_mod._torch_fallback()
+    assert len(gpus) == 1
+    assert gpus[0].vendor == GpuVendor.AMD
+    assert gpus[0].name == "AMD Radeon RX 7900 XTX"
+    assert gpus[0].compute_capability == "11.0"
+
+
+def test_torch_fallback_vendor_nvidia_when_hip_empty_string(monkeypatch: object) -> None:
+    """Empty-string torch.version.hip is treated as CUDA (not AMD).
+
+    Defensive guard: some PyTorch build configurations may surface
+    `torch.version.hip` as an empty string instead of None. The
+    `getattr(..., None)` check uses truthiness, so an empty string
+    must NOT be classified as AMD.
+    """
+    import img2svg.gpu as gpu_mod
+
+    _install_fake_torch_cuda(
+        monkeypatch,
+        name="Test CUDA GPU",
+        total_mem=4 * 1024 * 1024 * 1024,
+        major=8,
+        minor=6,
+        free_mem=2 * 1024 * 1024 * 1024,
+    )
+    monkeypatch.setattr(gpu_mod.torch.version, "hip", "")  # type: ignore[attr-defined]
+    gpus = gpu_mod._torch_fallback()
+    assert len(gpus) == 1
+    assert gpus[0].vendor == GpuVendor.NVIDIA
+
+
+def test_torch_fallback_returns_empty_when_cuda_unavailable(monkeypatch: object) -> None:
+    """torch.cuda.is_available() == False → _torch_fallback returns [] without crashing."""
+    import img2svg.gpu as gpu_mod
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        gpu_mod.torch.cuda, "is_available", lambda: False
+    )
+    assert gpu_mod._torch_fallback() == []
+

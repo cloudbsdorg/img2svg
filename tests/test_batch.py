@@ -32,6 +32,7 @@ def _mock_detector() -> Any:
     """Return a MagicMock detector with empty detections."""
     det = mock.MagicMock()
     det.detect.return_value = []
+    det.device = "cpu"
     return det
 
 

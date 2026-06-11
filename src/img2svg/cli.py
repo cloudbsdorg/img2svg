@@ -36,6 +36,8 @@ from rich.table import Table
 
 from img2svg.api import convert as api_convert
 from img2svg.api import convert_batch
+from img2svg.backends.protocol import BackendType
+from img2svg.backends.registry import REGISTRY
 from img2svg.device import list_available_devices
 from img2svg.enums import DeviceStrategy, GpuVendor, Mode
 from img2svg.errors import (
@@ -253,6 +255,26 @@ def _print_gpu_table(gpus: list, recommended: object | None) -> None:
     _console.print(table)
 
 
+def _format_backend_line() -> str:
+    """Format the ``Backend: ...`` line for the ``info`` subcommand."""
+    backend = REGISTRY.detect()
+    backend_type = backend.type()
+    try:
+        import torch
+
+        torch_version = torch.__version__
+    except ImportError:
+        torch_version = "no-torch"
+    if backend_type == BackendType.CPU:
+        device_part = "CPU only"
+    else:
+        try:
+            device_part = backend.device_name(0)
+        except (IndexError, RuntimeError):
+            device_part = "(unknown)"
+    return f"{backend_type.value.upper()} (torch {torch_version}, {device_part})"
+
+
 # ----------------------------------------------------------------------
 # convert command (default)
 # ----------------------------------------------------------------------
@@ -280,7 +302,14 @@ def _convert_cmd(
         callback=_mode_callback,
     ),
     model: str = typer.Option("yolo11x.pt", "--model", help="YOLO model name"),
-    device: str = typer.Option("auto", "--device", help="auto, cpu, cuda, cuda:N, mps, rocm"),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help=(
+            "Compute backend: auto (default), cpu, cuda, cuda:N, mps, or rocm. "
+            "AMD ROCm requires a ROCm PyTorch build (pip install img2svg[amd])."
+        ),
+    ),
     gpu_strategy: str = typer.Option(
         "power",
         "--gpu-strategy",
@@ -435,5 +464,6 @@ def _info_cmd() -> None:
     _console.print(f"[bold]img2svg[/bold] [cyan]{__version__}[/cyan]")
     _console.print(f"Python:  {sys.version.split()[0]}")
     _console.print(f"OS:      {os_name}")
+    _console.print(f"Backend: {_format_backend_line()}")
     devs = list_available_devices()
     _console.print(f"Devices: {', '.join(devs) if devs else '(none detected)'}")

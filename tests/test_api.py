@@ -44,6 +44,7 @@ def _fake_vectorize_side_effect(body: str):
 def _make_mock_detector(detections: list[Detection] | None = None) -> Any:
     mock_det = mock.MagicMock()
     mock_det.detect.return_value = detections if detections is not None else []
+    mock_det.device = "cpu"
     return mock_det
 
 
