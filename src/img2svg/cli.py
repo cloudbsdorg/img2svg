@@ -171,6 +171,23 @@ def _gpu_strategy_callback(value: str) -> str:
     return value
 
 
+_VALID_SEG_MODELS: frozenset[str] = frozenset(
+    {"yolo11n-seg", "yolo11s-seg", "yolo11m-seg", "yolo11l-seg", "yolo11x-seg"}
+)
+
+
+def _seg_model_callback(value: str) -> str:
+    """Validate --seg-model at the option level. Raises BadParameter for bad values."""
+    if value is None:
+        return value
+    if value not in _VALID_SEG_MODELS:
+        valid = ", ".join(sorted(_VALID_SEG_MODELS))
+        raise typer.BadParameter(
+            f"invalid seg-model {value!r}. Valid models: {valid}"
+        ) from None
+    return value
+
+
 # ----------------------------------------------------------------------
 # Group-level callback (eager --version)
 # ----------------------------------------------------------------------
@@ -220,6 +237,8 @@ def _build_options(
     max_colors: int,
     quality: int,
     no_preprocess: bool,
+    seg_model: str,
+    no_seg: bool,
 ) -> ConversionOptions:
     """Build a ConversionOptions from validated CLI values."""
     # Mode and gpu_strategy are already validated by their callbacks.
@@ -238,6 +257,8 @@ def _build_options(
         max_colors=max_colors,
         quality=quality,
         no_preprocess=no_preprocess,
+        seg_model=seg_model,
+        no_seg=no_seg,
     )
 
 
@@ -368,6 +389,20 @@ def _convert_cmd(
         "--no-preprocess",
         help="Disable all preprocessing, overriding any --preprocess choices.",
     ),
+    seg_model: str = typer.Option(
+        "yolo11s-seg",
+        "--seg-model",
+        help=(
+            "YOLO segmentation model variant. One of: yolo11n-seg, yolo11s-seg, "
+            "yolo11m-seg, yolo11l-seg, yolo11x-seg. Used by the SEGMENTED mode."
+        ),
+        callback=_seg_model_callback,
+    ),
+    no_seg: bool = typer.Option(
+        False,
+        "--no-seg",
+        help="Disable segmentation even when the mode would normally use it.",
+    ),
     quiet: bool = typer.Option(False, "-q", "--quiet", help="Suppress non-essential output"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug output"),
 ) -> None:
@@ -410,6 +445,8 @@ def _convert_cmd(
             max_colors=max_colors,
             quality=quality,
             no_preprocess=no_preprocess,
+            seg_model=seg_model,
+            no_seg=no_seg,
         )
     except (ValueError, TypeError) as exc:
         _console.print(f"[red]invalid options:[/red] {exc}")

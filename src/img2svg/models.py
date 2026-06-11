@@ -174,6 +174,14 @@ class ConversionOptions(BaseModel):
     no_preprocess: bool = False
     """When True, force-disable all preprocessing regardless of any
     ``preprocess`` entries. Wins over positive ``--preprocess`` choices."""
+    seg_model: str = "yolo11s-seg"
+    """YOLO segmentation model variant. One of ``yolo11n-seg``,
+    ``yolo11s-seg`` (default), ``yolo11m-seg``, ``yolo11l-seg``, or
+    ``yolo11x-seg``. Used by the SEGMENTED mode and by any future
+    segmentation-aware pipeline stages."""
+    no_seg: bool = False
+    """When True, disable segmentation even if the active mode would
+    normally invoke the segmentor. Mirrors the ``--no-seg`` CLI flag."""
 
     @model_validator(mode="after")
     def _forward_device_to_backend(self) -> ConversionOptions:

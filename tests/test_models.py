@@ -95,6 +95,8 @@ def test_conversion_options_defaults() -> None:
     assert o.max_colors == 0
     assert o.quality == 90
     assert o.no_preprocess is False
+    assert o.seg_model == "yolo11s-seg"
+    assert o.no_seg is False
 
 
 def test_conversion_options_conf_bounds() -> None:
