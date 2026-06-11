@@ -6,14 +6,22 @@
     "ses_14b7959c8ffe9k61KcS7676OUu",
     "ses_14b790817ffeKxpOAMp5ctgN0Q",
     "ses_14b788ef7ffeYpQ2IMwO6zdU5O",
-    "ses_14b696137ffe5M2796RbuhJSgq"
+    "ses_14b696137ffe5M2796RbuhJSgq",
+    "ses_14b5765e1ffejfWtbbA2wDepxD",
+    "ses_14b5703afffe4eoBgXUtTzWxJ3",
+    "ses_14b569be1ffe5hqwUUa8k3aOIE",
+    "ses_14b561132ffeOttLmfuQYz4lyZ"
   ],
   "session_origins": {
     "ses_15060960fffedotFt4laGplFZy": "direct",
     "ses_14b7959c8ffe9k61KcS7676OUu": "appended",
     "ses_14b790817ffeKxpOAMp5ctgN0Q": "appended",
     "ses_14b788ef7ffeYpQ2IMwO6zdU5O": "appended",
-    "ses_14b696137ffe5M2796RbuhJSgq": "appended"
+    "ses_14b696137ffe5M2796RbuhJSgq": "appended",
+    "ses_14b5765e1ffejfWtbbA2wDepxD": "appended",
+    "ses_14b5703afffe4eoBgXUtTzWxJ3": "appended",
+    "ses_14b569be1ffe5hqwUUa8k3aOIE": "appended",
+    "ses_14b561132ffeOttLmfuQYz4lyZ": "appended"
   },
   "plan_name": "multi-vendor-gpu",
   "agent": "atlas",
@@ -44,6 +52,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-11T03:05:36.662Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_14b561132ffeOttLmfuQYz4lyZ",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-11T03:11:36.355Z"
     }
   }
 }

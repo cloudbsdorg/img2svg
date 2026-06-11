@@ -1,0 +1,17 @@
+# F3 Manual QA - Raw Command Outputs
+# Plan: multi-vendor-gpu
+# Date: 2026-06-10
+# Reviewer: Sisyphus-Junior (F3 wave)
+# Working directory: /home/mlapointe/PyCharmMiscProject
+# Git HEAD: 43adb2d
+#
+# Format: each section includes the literal command, its exit code,
+# and the verbatim stdout/stderr captured at run time.
+# Tabs separate command from exit code from output.
+
+================================================================================
+SCENARIO 1: img2svg list-gpus
+================================================================================
+Command: uv run img2svg list-gpus
+Exit code: (see below)
+
