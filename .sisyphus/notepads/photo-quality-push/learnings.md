@@ -935,3 +935,156 @@ when that test is added. For now it's only in my smoke test.
 ### Parallel work observed
 - During this T10 follow-up, T17 (Pipeline preprocessing integration) landed in parallel. The git diff shows ~95 lines of new code in pipeline.py from T17 (PIL import, PREPROCESSING_PRESETS import, _PREPROCESS_ALIASES dict, _format_preprocessing_label, _resolve_preprocessing_steps, the Pipeline.run preprocessing block).
 - These are T17's work, not mine. My 2 lines are the only T10 follow-up contribution.
+
+## T18: SEGMENTED fallback + vectorize timing (learned 2026-06-11)
+
+### Implementation
+- `src/img2svg/pipeline.py` step 8 (renderer lookup): added a fallback gate
+  that swaps `SegmentedRenderer` → `VisualRenderer` when
+  `mode_used == Mode.SEGMENTED and (options.no_seg or not (segmentation_result and segmentation_result.masks))`.
+- Added a separate `t_render_start` / `t_render_end` perf-counter pair
+  around the `renderer.render()` call so `timings["vectorize"]` is the
+  `render()` duration (subset of `timings["render"]` which includes
+  construction). For non-SEGMENTED modes, `timings["vectorize"] = 0.0`.
+- `mode_used` in the sidecar is NOT changed — the sidecar still says
+  `mode_used: segmented` so callers can see what was requested; the
+  warning log is the user-facing signal that the renderer was swapped.
+
+### Key design decisions
+- **No `mode_used` mutation**: the spec says "use VisualRenderer instead
+  of SegmentedRenderer for the rendering" — only the renderer is swapped,
+  not the sidecar's `mode_used`. This keeps the sidecar's `mode_reasoning`
+  field accurate (still says SEGMENTED was requested).
+- **`vectorize` for fallback case**: when fallback happens,
+  `vectorize = VisualRenderer.render()` time (a single whole-image vtracer
+  call). This is still "vtracer time" — just not per-region. The
+  alternative (0.0) would be misleading because vtracer actually ran.
+- **`renderer_cls: type[Renderer] = VisualRenderer`**: explicit annotation
+  is needed because the conditional assignment from two sources
+  (`RENDERER_REGISTRY[mode_used]` returns `type[Renderer]`, `VisualRenderer`
+  is `type[VisualRenderer]`) — without the annotation mypy could complain.
+  Actually mypy inferred the union correctly without the annotation, but
+  kept the annotation for explicit documentation.
+
+### Workspace contention
+- T20 (size cap) ran in parallel and inserted step 9a (size enforcement)
+  AFTER my edit. The file went from 398 → 447 lines mid-task. Verified
+  my changes at lines 344-372 were intact via `read` after the contention
+  was detected. The contention was clean: my code is BEFORE the T20 code.
+
+### Verification
+- `uv run pytest tests/test_pipeline.py -q` → 19 passed
+- `uv run ruff check src/img2svg/pipeline.py` → All checks passed!
+- Smoke tests (4 cases):
+  1. SEGMENTED + empty masks → fallback + warning, vectorize > 0
+  2. SEGMENTED + --no-seg → fallback + warning, vectorize > 0
+  3. Non-SEGMENTED (VISUAL) → vectorize = 0.0
+  4. SEGMENTED + 1 region → SegmentedRenderer, vectorize == render() time
+
+### Gotchas
+- The `segmentation_result` local variable is `None` when `options.no_seg`
+  is True (the `if mode_used == Mode.SEGMENTED and not options.no_seg`
+  block is skipped). The fallback check handles this via short-circuit:
+  `options.no_seg or not (segmentation_result and segmentation_result.masks)`
+  — when `options.no_seg` is True, the `or` short-circuits and never
+  evaluates the second clause.
+- The `vectorize` key was already in the test's expected timings list
+  (`test_pipeline_records_timings` line 286) but the pipeline never
+  recorded it before T18. The test was passing because... wait, let me
+  check. Actually the test uses `Mode.LABELS` which never went into the
+  SEGMENTED branch. Before T18, `timings["vectorize"]` was never set,
+  so the test should have been failing. Let me re-verify... actually
+  `assert key in t` would have failed. So this test was BROKEN before
+  T18 (the test expected the key but the pipeline didn't set it). T18
+  fixes this latent bug.
+
+## T19: test_pipeline_records_timings — 11 keys assertion (learned 2026-06-11)
+
+### What got done
+Updated `tests/test_pipeline.py::test_pipeline_records_timings` to assert all 11
+timing keys are present in `result.sidecar.timings`:
+- Original 8: `load`, `analyze`, `classify`, `select_mode`, `detect`, `render`, `write`, `total`
+- New 3 (T15/T17/T18): `preprocess`, `segment`, `vectorize`
+
+Also added `isinstance(t[key], float)` assertion (in addition to the existing `>= 0.0`)
+so we catch non-float contamination (e.g. accidentally storing a string).
+
+### Files modified
+- `tests/test_pipeline.py:331-355` — `test_pipeline_records_timings` updated
+  - Restructured the 8-tuple into a multi-line 11-tuple for readability
+  - Added `assert isinstance(t[key], float)` between the `in` check and the `>= 0.0` check
+
+### Verification
+- `uv run pytest tests/test_pipeline.py -q --no-cov` → 19 passed (T19 + 18 other tests including T20's)
+- `uv run pytest -m "not slow" -q --no-cov` → 498 passed, 3 pre-existing failures (test_docs, test_i18n, test_vectorizer) — same baseline as before T19
+- `uv run ruff check tests/test_pipeline.py` → 1 pre-existing N806 (MockVec on line 190, NOT introduced by T19)
+
+### Observations
+- T18's `timings["vectorize"]` is already in `src/img2svg/pipeline.py:369-376` (timed render() block, sets 0.0 for non-SEGMENTED modes, t_render for SEGMENTED)
+- T15's `timings["segment"]` is at line 339 (always present, 0.0 if segmentation skipped)
+- T17's `timings["preprocess"]` is at line 272 (always present, ~µs if no steps)
+- All 3 keys confirmed to be present in `result.sidecar.timings` for `Mode.LABELS`:
+  - `preprocess: 3.14e-06` (no steps)
+  - `segment: 1.77e-06` (no segmentation)
+  - `vectorize: 0.0` (no vtracer)
+
+### Pre-existing ruff state (not caused by T19)
+- `tests/test_pipeline.py:190:69 N806 Variable 'MockVec' in function should be lowercase` — pre-existing from a separate test, verified by `git stash` + `ruff check` on the bare working tree (no T19 changes) — same 1 error
+- The earlier F401 on `SVGSizeLimitError` import was a transient ruff state from T20's uncommitted work; on re-run ruff reported it correctly as used (it's in `pytest.raises(SVGSizeLimitError) as exc_info,`)
+
+### Pattern observations
+- The 3 new keys all follow the "always present, 0.0 if not run" contract — this is the same pattern T15 documented for `segment`
+- Test contract is robust: any future step that adds a timing key MUST update this test, otherwise `result.sidecar.timings` will silently gain a key with no assertion
+- Multi-line tuple format (one key per line, indented) keeps the assertion readable when the list grows past ~6 entries
+
+## T20: MAX_SVG_SIZE guard + --max-svg-size CLI override (learned 2026-06-11)
+
+### Implementation summary
+- `MAX_SVG_SIZE_MB: int = 50` constant added to `src/img2svg/pipeline.py` as the single source of truth for the default
+- `max_svg_size_mb: int = Field(default=50, ge=1, le=1024)` added to `ConversionOptions` in `src/img2svg/models.py` (after `no_seg`)
+- `SVGSizeLimitError` added to `src/img2svg/errors.py` (subclass of `Img2SvgError`, NOT of `OutputPathCollisionError` — distinct enough to deserve its own base, no double-catch concern)
+- `--max-svg-size` typer option in `src/img2svg/cli.py` with `min=1, max=1024` for Click-side validation
+- Size check inserted as "step 9a" in `Pipeline.run()` between `svg.write()` and the sidecar build
+- 3 new tests in `tests/test_pipeline.py`:
+  - `test_pipeline_enforces_max_svg_size` — oversize SVG → SVGSizeLimitError + file deleted
+  - `test_pipeline_max_svg_size_allows_under_cap` — under-cap SVG writes normally
+  - `test_conversion_options_max_svg_size_bounds` — Pydantic enforces 1..1024 range
+
+### Pattern: cross-file default invariant
+- Three places must stay in sync on the default value of 50: `MAX_SVG_SIZE_MB` constant, `ConversionOptions.max_svg_size_mb` Pydantic default, and `--max-svg-size` typer default
+- A short single-line comment above `MAX_SVG_SIZE_MB` is the load-bearing signal — without it, a future maintainer could "fix" the Pydantic default and forget the CLI
+- Mirrors the existing `_VERSION` comment ("Kept in sync with pyproject.toml version") one block above — established convention in this file
+
+### Pattern: mock SVGDocument.write to simulate file size
+- `mock.patch("img2svg.svg_builder.SVGDocument.write", _write_huge_svg)` with a closure that writes N bytes of garbage
+- Avoids needing a real multi-megabyte SVG fixture
+- The real `SVGDocument.write` is replaced wholesale (not just the file contents) — closure captures the `body` variable, so test config drives the on-disk size
+- Pattern: write a 3 MB "SVG" (well over the 1 MB cap) for the "exceeds" test, and a 1 KB "SVG" (well under the 50 MB cap) for the "allows" test
+
+### Pattern: measure-after-write (not before)
+- The spec said "check the output SVG file size after writing" — this is correct because the SVG document is fully rendered in memory; predicting size before the write would require a second pass through the serializer
+- Trade-off: the file exists on disk briefly before being deleted. Acceptable because:
+  1. The delete happens before the raise (no partial file left)
+  2. The unlink is wrapped in try/except OSError so a delete failure doesn't change the error semantics (the user still gets SVGSizeLimitError)
+  3. The user_message on SVGSizeLimitError tells them what to do (re-run with larger --max-svg-size)
+
+### Files modified
+- `src/img2svg/errors.py`: +SVGSizeLimitError class (~25 lines, BSD header unchanged)
+- `src/img2svg/models.py`: +max_svg_size_mb field (5 lines, after no_seg)
+- `src/img2svg/pipeline.py`: +SVGSizeLimitError import, +MAX_SVG_SIZE_MB constant, +size-check block (~25 lines net)
+- `src/img2svg/cli.py`: +max_svg_size_mb param in _build_options signature + body, +typer option in _convert_cmd (~20 lines net)
+- `tests/test_pipeline.py`: +SVGSizeLimitError import, +3 tests (~75 lines net)
+
+### Verification
+- `uv run pytest tests/test_pipeline.py tests/test_cli.py tests/test_models.py -q` → 61 passed (3 new + 58 pre-existing)
+- `uv run pytest -m "not slow" -q` → 498 passed, 3 pre-existing failures (test_docs, test_i18n, test_vectorizer) — 3 NEW tests added, 0 regressions
+- `uv run ruff check src/img2svg/pipeline.py src/img2svg/cli.py src/img2svg/models.py src/img2svg/errors.py` → 5 pre-existing issues (3× B008 for Typer pattern, 1× SIM102, 1× B904) — 0 new issues
+- `uv run img2svg convert --help` shows `--max-svg-size INTEGER RANGE [1<=x<=1024] [default: 50]`
+- Range validation works: `--max-svg-size 0` and `--max-svg-size 2000` both rejected with clean Click error message
+
+### Gotchas
+- The default value 50 must match in 3 places (constant, Pydantic field, typer option). A typo in any one would cause silent behavior drift — consider adding a smoke test in a future task that asserts all three defaults are equal
+- SVGSizeLimitError inherits from Img2SvgError (NOT OutputPathCollisionError) — they're conceptually different (one is a write-side failure, the other is a pre-check failure). The CLI's `except Img2SvgError` block catches both
+- The size check is OUTSIDE the timing block (between `write` and `total`) — small enough that timing it isn't worth a separate `timings["check_size"]` key
+- The `--max-svg-size 0` and `1025` edge cases are caught by BOTH the typer range check AND the Pydantic Field constraint. The typer check fires first (exit 2), so the user sees the cleaner error message
+

@@ -45,6 +45,15 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-06-11T09:53:58.483Z"
+    },
+    "todo:18": {
+      "task_key": "todo:18",
+      "task_label": "18",
+      "task_title": "Wire segmentation into `pipeline.py` (SEGMENTED mode only; inject result into renderer)",
+      "session_id": "ses_149e4bd29ffe6nuJlfyx2vKoPO",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-06-11T10:01:01.240Z"
     }
   }
 }

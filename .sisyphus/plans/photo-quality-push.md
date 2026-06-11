@@ -1976,7 +1976,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/pipeline.py`, `src/img2svg/preprocessing.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py src/img2svg/preprocessing.py`
 
-- [ ] 18. Wire segmentation into `pipeline.py` (SEGMENTED mode only; inject result into renderer)
+- [x] 18. Wire segmentation into `pipeline.py` (SEGMENTED mode only; inject result into renderer)
 
   **What to do**:
   - In `src/img2svg/pipeline.py:Pipeline.run()`, expand the existing segmentation block (from T15) to also inject the result into the renderer:
@@ -2067,7 +2067,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/pipeline.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py`
 
-- [ ] 19. Add timing instrumentation entries for new pipeline steps
+- [x] 19. Add timing instrumentation entries for new pipeline steps
 
   **What to do**:
   - In `src/img2svg/pipeline.py`, add timing entries for all new steps:
@@ -2136,7 +2136,7 @@ Max Concurrent: 5 (Waves 1-3) + 5 (Wave 6)
   - Files: `src/img2svg/pipeline.py`, `tests/test_pipeline.py`
   - Pre-commit: `uv run pytest tests/test_pipeline.py -q && uv run ruff check src/img2svg/pipeline.py`
 
-- [ ] 20. Add MAX_SVG_SIZE guard with user-overridable CLI flag (default 50MB)
+- [x] 20. Add MAX_SVG_SIZE guard with user-overridable CLI flag (default 50MB)
 
   **What to do**:
   - Add `MAX_SVG_SIZE_MB = 50` constant in `src/img2svg/pipeline.py`
