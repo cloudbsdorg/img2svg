@@ -214,9 +214,17 @@ def _build_options(
     gpu_strategy: str,
     conf: float,
     no_clobber: bool,
+    preprocess: list[str],
+    denoise: str,
+    sharpen: str,
+    max_colors: int,
+    quality: int,
+    no_preprocess: bool,
 ) -> ConversionOptions:
     """Build a ConversionOptions from validated CLI values."""
     # Mode and gpu_strategy are already validated by their callbacks.
+    # ``--no-preprocess`` wins over any positive ``--preprocess`` choices.
+    effective_preprocess: list[str] = [] if no_preprocess else preprocess
     return ConversionOptions(
         mode=Mode(mode),
         model=model,
@@ -224,6 +232,12 @@ def _build_options(
         conf=conf,
         gpu_strategy=DeviceStrategy(gpu_strategy),
         no_clobber=no_clobber,
+        preprocess=effective_preprocess,
+        denoise=denoise,
+        sharpen=sharpen,
+        max_colors=max_colors,
+        quality=quality,
+        no_preprocess=no_preprocess,
     )
 
 
@@ -320,6 +334,40 @@ def _convert_cmd(
     no_clobber: bool = typer.Option(
         False, "--no-clobber", help="Don't overwrite existing output files"
     ),
+    preprocess: list[str] = typer.Option(
+        [],
+        "--preprocess",
+        help=(
+            "Preprocessing filter to apply before tracing. May be repeated. "
+            "Filters: bilateral, nlmeans, median, unsharp. "
+            "Overridden by --no-preprocess."
+        ),
+    ),
+    denoise: str = typer.Option(
+        "",
+        "--denoise",
+        help="Denoise filter: bilateral, nlmeans, median, or empty to disable.",
+    ),
+    sharpen: str = typer.Option(
+        "",
+        "--sharpen",
+        help="Sharpen filter: unsharp, or empty to disable.",
+    ),
+    max_colors: int = typer.Option(
+        0,
+        "--max-colors",
+        help="Max distinct colors in the output (0 = no cap, 2-256).",
+    ),
+    quality: int = typer.Option(
+        90,
+        "--quality",
+        help="JPEG quality hint stored in the sidecar (1-100).",
+    ),
+    no_preprocess: bool = typer.Option(
+        False,
+        "--no-preprocess",
+        help="Disable all preprocessing, overriding any --preprocess choices.",
+    ),
     quiet: bool = typer.Option(False, "-q", "--quiet", help="Suppress non-essential output"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug output"),
 ) -> None:
@@ -356,6 +404,12 @@ def _convert_cmd(
             gpu_strategy=gpu_strategy,
             conf=conf,
             no_clobber=no_clobber,
+            preprocess=preprocess,
+            denoise=denoise,
+            sharpen=sharpen,
+            max_colors=max_colors,
+            quality=quality,
+            no_preprocess=no_preprocess,
         )
     except (ValueError, TypeError) as exc:
         _console.print(f"[red]invalid options:[/red] {exc}")
