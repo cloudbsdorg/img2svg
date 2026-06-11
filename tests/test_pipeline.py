@@ -20,7 +20,7 @@ from unittest import mock
 import pytest
 
 from img2svg.enums import ImageType, Mode
-from img2svg.errors import OutputPathCollisionError
+from img2svg.errors import OutputPathCollisionError, SVGSizeLimitError
 from img2svg.models import (
     BackendSpec,
     BoundingBox,
@@ -261,6 +261,69 @@ def test_pipeline_no_clobber_false_overwrites_existing_output(
 
 
 # ----------------------------------------------------------------------
+# Max-SVG-size guard (T20)
+# ----------------------------------------------------------------------
+
+
+def test_pipeline_enforces_max_svg_size(tmp_path: Path, logo_path: Path) -> None:
+    """An SVG larger than ``max_svg_size_mb`` is deleted and the run raises
+    :class:`SVGSizeLimitError` with the measured size and the limit."""
+    out_svg = tmp_path / "out.svg"
+
+    # 3 MB of "SVG" content — comfortably over the 1 MB cap below.
+    oversized_body = "X" * (3 * 1024 * 1024)
+
+    def _write_huge_svg(self: object, path: Path) -> None:
+        path.write_text(oversized_body, encoding="utf-8")
+
+    options = ConversionOptions(mode=Mode.LABELS, max_svg_size_mb=1)
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])),
+        mock.patch("img2svg.svg_builder.SVGDocument.write", _write_huge_svg),
+        pytest.raises(SVGSizeLimitError) as exc_info,
+    ):
+        Pipeline(options).run(logo_path, out_svg)
+
+    assert exc_info.value.path == str(out_svg)
+    assert exc_info.value.limit_mb == 1
+    assert exc_info.value.size_mb > 1.0
+    assert not out_svg.exists(), "oversize SVG must be deleted after raising"
+
+
+def test_pipeline_max_svg_size_allows_under_cap(tmp_path: Path, logo_path: Path) -> None:
+    """An SVG smaller than the cap writes cleanly and the run completes."""
+    out_svg = tmp_path / "out.svg"
+
+    # 1 KB of "SVG" content — well under the 50 MB default cap.
+    tiny_body = "X" * 1024
+
+    def _write_tiny_svg(self: object, path: Path) -> None:
+        path.write_text(tiny_body, encoding="utf-8")
+
+    with (
+        mock.patch("img2svg.pipeline.get_detector", return_value=_make_mock_detector([])),
+        mock.patch("img2svg.svg_builder.SVGDocument.write", _write_tiny_svg),
+    ):
+        result = Pipeline(ConversionOptions(mode=Mode.LABELS)).run(logo_path, out_svg)
+
+    assert out_svg.exists()
+    assert out_svg.stat().st_size == len(tiny_body)
+    assert result.svg_path == out_svg
+
+
+def test_conversion_options_max_svg_size_bounds() -> None:
+    """``max_svg_size_mb`` must be in the [1, 1024] range."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        ConversionOptions(max_svg_size_mb=0)
+    with pytest.raises(ValidationError):
+        ConversionOptions(max_svg_size_mb=1025)
+    ConversionOptions(max_svg_size_mb=1)
+    ConversionOptions(max_svg_size_mb=1024)
+
+
+# ----------------------------------------------------------------------
 # Timings
 # ----------------------------------------------------------------------
 
@@ -272,8 +335,21 @@ def test_pipeline_records_timings(tmp_path: Path, logo_path: Path) -> None:
         result = Pipeline(ConversionOptions(mode=Mode.LABELS)).run(logo_path, out_svg)
 
     t = result.sidecar.timings
-    for key in ("load", "analyze", "classify", "select_mode", "detect", "render", "write", "total"):
+    for key in (
+        "load",
+        "analyze",
+        "classify",
+        "select_mode",
+        "detect",
+        "render",
+        "write",
+        "total",
+        "preprocess",
+        "segment",
+        "vectorize",
+    ):
         assert key in t, f"missing timings key: {key!r}"
+        assert isinstance(t[key], float)
         assert t[key] >= 0.0
     # total is measured independently and should be >= max(parts)
     assert t["total"] >= 0.0

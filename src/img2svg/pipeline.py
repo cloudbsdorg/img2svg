@@ -33,7 +33,7 @@ from img2svg.detector import (
     get_tight_bbox,
 )
 from img2svg.enums import Mode
-from img2svg.errors import OutputPathCollisionError
+from img2svg.errors import OutputPathCollisionError, SVGSizeLimitError
 from img2svg.loader import load_image
 from img2svg.logging import get_logger
 from img2svg.metadata import compute_file_hash, write_sidecar
@@ -69,6 +69,10 @@ _logger = get_logger("img2svg.pipeline")
 # Sidecar's `version` field. Kept in sync with `pyproject.toml` `version`.
 # Inlined as a constant so the pipeline has no pyproject.toml parsing dep.
 _VERSION: str = "0.1.0"
+
+# Default cap on the rendered SVG's on-disk size (MB). Must match
+# ``ConversionOptions.max_svg_size_mb`` and the ``--max-svg-size`` CLI flag.
+MAX_SVG_SIZE_MB: int = 50
 
 # Map a resolved `Mode` to the corresponding renderer class. `Mode.AUTO` is
 # intentionally absent — the pipeline must resolve AUTO via `select_mode()`
@@ -339,15 +343,60 @@ class Pipeline:
 
         # 8. Look up the renderer and render in place.
         t0 = time.perf_counter()
-        renderer_cls = RENDERER_REGISTRY[mode_used]
+        # T18 fallback: SEGMENTED with no regions / --no-seg uses VisualRenderer
+        # so the user still gets a real SVG instead of an empty multi-layer one.
+        if (
+            mode_used == Mode.SEGMENTED
+            and (
+                options.no_seg
+                or not (segmentation_result and segmentation_result.masks)
+            )
+        ):
+            _logger.warning(
+                "SEGMENTED mode requested but no detections or --no-seg, "
+                "falling back to VisualRenderer"
+            )
+            renderer_cls: type[Renderer] = VisualRenderer
+        else:
+            renderer_cls = RENDERER_REGISTRY[mode_used]
         renderer = renderer_cls(svg, loaded, detections, analysis_global)
+        # `vectorize` is a subset of `render` — the render() call duration,
+        # which for SEGMENTED mode is the sum of per-region vtracer calls.
+        t_render_start = time.perf_counter()
         renderer.render()
+        t_render_end = time.perf_counter()
         timings["render"] = time.perf_counter() - t0
+        if mode_used == Mode.SEGMENTED:
+            timings["vectorize"] = t_render_end - t_render_start
+        else:
+            timings["vectorize"] = 0.0
 
         # 9. Write the SVG to disk.
         t0 = time.perf_counter()
         svg.write(output_path)
         timings["write"] = time.perf_counter() - t0
+
+        # 9a. Enforce the size cap. Cleanup happens BEFORE raising so no
+        #     partial file is left on disk.
+        size_bytes = output_path.stat().st_size
+        size_mb = size_bytes / (1024 * 1024)
+        if size_mb > options.max_svg_size_mb:
+            try:
+                output_path.unlink()
+            except OSError as unlink_exc:
+                _logger.warning(
+                    "failed to delete oversize SVG %s: %s",
+                    output_path,
+                    unlink_exc,
+                )
+            _logger.warning(
+                "SVG size %.1fMB exceeds limit %dMB, skipping write",
+                size_mb,
+                options.max_svg_size_mb,
+            )
+            raise SVGSizeLimitError(
+                str(output_path), size_mb, options.max_svg_size_mb
+            )
 
         # 10. Record total BEFORE building the sidecar so timings["total"]
         #     is part of what gets serialized.

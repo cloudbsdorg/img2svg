@@ -239,6 +239,7 @@ def _build_options(
     no_preprocess: bool,
     seg_model: str,
     no_seg: bool,
+    max_svg_size_mb: int,
 ) -> ConversionOptions:
     """Build a ConversionOptions from validated CLI values."""
     # Mode and gpu_strategy are already validated by their callbacks.
@@ -259,6 +260,7 @@ def _build_options(
         no_preprocess=no_preprocess,
         seg_model=seg_model,
         no_seg=no_seg,
+        max_svg_size_mb=max_svg_size_mb,
     )
 
 
@@ -403,6 +405,17 @@ def _convert_cmd(
         "--no-seg",
         help="Disable segmentation even when the mode would normally use it.",
     ),
+    max_svg_size_mb: int = typer.Option(
+        50,
+        "--max-svg-size",
+        min=1,
+        max=1024,
+        help=(
+            "Hard upper bound on the rendered SVG's on-disk size in MB. "
+            "If the output exceeds this cap, the file is deleted and the "
+            "run fails. Range: 1-1024. Default: 50."
+        ),
+    ),
     quiet: bool = typer.Option(False, "-q", "--quiet", help="Suppress non-essential output"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug output"),
 ) -> None:
@@ -447,6 +460,7 @@ def _convert_cmd(
             no_preprocess=no_preprocess,
             seg_model=seg_model,
             no_seg=no_seg,
+            max_svg_size_mb=max_svg_size_mb,
         )
     except (ValueError, TypeError) as exc:
         _console.print(f"[red]invalid options:[/red] {exc}")

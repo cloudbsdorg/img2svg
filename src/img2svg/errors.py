@@ -125,6 +125,34 @@ class VectorizationError(Img2SvgError):
         super().__init__(msg)
 
 
+class SVGSizeLimitError(Img2SvgError):
+    """Raised when the rendered SVG exceeds the configured max_svg_size_mb cap.
+
+    The pipeline writes the SVG to disk, then checks the file size; if the
+    on-disk size is greater than ``max_svg_size_mb``, the just-written file
+    is deleted and this exception is raised. Callers (CLI / batch) map it
+    to a non-zero exit code so the user is told why no SVG was produced.
+    """
+
+    def __init__(
+        self, path: str, size_mb: float, limit_mb: int
+    ) -> None:
+        self.path = path
+        self.size_mb = size_mb
+        self.limit_mb = limit_mb
+        super().__init__(
+            f"SVG output {path!r} is {size_mb:.1f}MB which exceeds the "
+            f"--max-svg-size limit of {limit_mb}MB; skipping write"
+        )
+
+    def user_message(self) -> str:
+        return (
+            f"Output SVG is {self.size_mb:.1f}MB, which exceeds the "
+            f"--max-svg-size limit of {self.limit_mb}MB. "
+            f"Re-run with a larger --max-svg-size or simplify the input."
+        )
+
+
 class ConfigError(Img2SvgError):
     """Raised when configuration cannot be loaded or is invalid."""
 

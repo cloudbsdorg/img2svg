@@ -182,6 +182,11 @@ class ConversionOptions(BaseModel):
     no_seg: bool = False
     """When True, disable segmentation even if the active mode would
     normally invoke the segmentor. Mirrors the ``--no-seg`` CLI flag."""
+    max_svg_size_mb: int = Field(default=50, ge=1, le=1024)
+    """Hard upper bound on the rendered SVG's on-disk size, in megabytes.
+    If the written SVG exceeds this cap, the file is deleted and an
+    :class:`img2svg.errors.SVGSizeLimitError` is raised. Valid range:
+    1-1024 MB. Mirrors the ``--max-svg-size`` CLI flag."""
 
     @model_validator(mode="after")
     def _forward_device_to_backend(self) -> ConversionOptions:
