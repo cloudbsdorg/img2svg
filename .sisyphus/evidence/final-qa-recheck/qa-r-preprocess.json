@@ -1,0 +1,68 @@
+{
+  "version": "0.1.0",
+  "input_path": "tests/testimg/Designer (1).jpeg",
+  "input_hash": "ed6056abfd64e564037965425883f190c0b4bdb0b4b3a387b17cad5ea99dc6c4",
+  "output_path": "/tmp/qa-r-preprocess.svg",
+  "output_size": 101574,
+  "mode_used": "detailed",
+  "mode_reasoning": "explicit override",
+  "model": "yolo11x.pt",
+  "device": "cuda:0",
+  "backend_requested": "auto",
+  "backend_resolved": "cuda:0",
+  "image_type": "unknown",
+  "detections": [],
+  "geometric": {
+    "dominant_colors": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        255,
+        255,
+        255
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ]
+    ],
+    "edge_density": 0.1234121322631836,
+    "contour_count": 266,
+    "has_alpha": false
+  },
+  "timings": {
+    "load": 0.0059558060002018465,
+    "preprocess": 0.006394784999429248,
+    "analyze": 0.1414083230010874,
+    "classify": 0.0006233240001165541,
+    "select_mode": 2.724998921621591e-6,
+    "detect": 1.7295145299995056,
+    "segment": 4.068000635015778e-6,
+    "render": 0.11572150900065026,
+    "vectorize": 0.0,
+    "write": 0.0003488220008875942,
+    "total": 2.000072905999332
+  },
+  "timestamp": "2026-06-11T11:24:19.269567+00:00",
+  "preprocessing": [
+    "median(k=3)",
+    "canny(low=80, high=180)"
+  ],
+  "regions": [],
+  "model_variant": "",
+  "quality": 90
+}

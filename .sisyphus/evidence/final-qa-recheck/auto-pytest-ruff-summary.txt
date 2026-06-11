@@ -1,0 +1,30 @@
+==========================================
+EVIDENCE: Auto mode (must NOT pick labels/annotated)
+==========================================
+  Designer (1).jpeg -> mode_used=visual
+  Designer (2).jpeg -> mode_used=detailed
+  Designer (5).jpeg -> mode_used=detailed
+  Designer (10).jpeg -> mode_used=detailed
+  Designer (25).jpeg -> mode_used=visual
+  Designer (50).jpeg -> mode_used=visual
+  rtlogo-1.png -> mode_used=detailed
+
+==========================================
+EVIDENCE: Pytest
+==========================================
+615 passed, 1 failed (pre-existing i18n: test_ngettext_returns_singular_in_c_locale), 8 deselected
+Matches: 615/616 expected per plan
+1 failed, 615 passed, 8 deselected, 19 warnings in 5.38s
+
+==========================================
+EVIDENCE: Ruff on src/img2svg/ (13 pre-existing baseline)
+==========================================
+4	RUF046	unnecessary-cast-to-int
+3	B008  	function-call-in-default-argument
+2	SIM108	if-else-block-instead-of-if-exp
+1	B904  	raise-without-from-inside-except
+1	F841  	unused-variable
+1	SIM102	collapsible-if
+1	SIM105	suppressible-exception
+Found 13 errors.
+No fixes available (9 hidden fixes can be enabled with the `--unsafe-fixes` option).

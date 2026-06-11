@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg:svg xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <svg:title>Designer (1).jpeg</svg:title>
+  <svg:style>text { font-family: sans-serif; } .detection { fill: none; stroke: black; stroke-width: 2; }</svg:style>
+  <svg:g id="vtracer-output">
+    <svg:path d="M0 0 C337.92 0 675.84 0 1024 0 C1024 337.92 1024 675.84 1024 1024 C686.08 1024 348.16 1024 0 1024 C0 686.08 0 348.16 0 0 Z " fill="#654EA3" transform="translate(0,0)"/>
+    <svg:path d="M0 0 C0.33 0 0.66 0 1 0 C1.1027 5.133 1.0333 9.9626 0 15 C-0.66 15 -1.32 15 -2 15 C-2.2546 9.5553 -1.7258 5.1774 0 0 Z " fill="#BD86DD" transform="translate(161,368)"/>
+    <svg:path d="M0 0 C0.33 0 0.66 0 1 0 C0.8581 1.2713 0.7113 2.542 0.5625 3.8125 C0.4813 4.5202 0.4001 5.2279 0.3164 5.957 C0 8 0 8 -1 11 C-1.66 11 -2.32 11 -3 11 C-2.6922 9.3533 -2.3786 7.7076 -2.0625 6.0625 C-1.8885 5.146 -1.7145 4.2295 -1.5352 3.2852 C-1.3586 2.5311 -1.182 1.777 -1 1 C-0.67 0.67 -0.34 0.34 0 0 Z " fill="#F6C3F1" transform="translate(409,485)"/>
+    <svg:path d="M0 0 C1.65 0 3.3 0 5 0 C5 1.32 5 2.64 5 4 C3.35 4 1.7 4 0 4 C0 2.68 0 1.36 0 0 Z " fill="#AFDEF5" transform="translate(195,345)"/>
+  </svg:g>
+</svg:svg>

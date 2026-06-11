@@ -1,0 +1,55 @@
+==========================================
+EVIDENCE: 4 Previously-Broken Flags
+==========================================
+
+--- --denoise bilateral (vs no-denoise) ---
+ 7669174 qa-r-denoise.svg
+ 8525685 qa-r-nodenoise.svg
+16194859 total
+denoise sidecar:    ['bilateral(d=5, sigma=50)']
+no-denoise sidecar: ['bilateral(d=5, sigma=50)', 'unsharp(sigma=2.0, amount=0.5)']
+
+--- --sharpen unsharp ---
+11054790 qa-r-sharpen.svg
+sharpen sidecar: ['unsharp(sigma=2.0, amount=0.5)']
+
+--- --max-colors 4 vs 64 ---
+   1319 qa-r-mc4.svg
+7985647 qa-r-mc64.svg
+7986966 total
+DIFFERENT (PASS)
+
+--- --quality 50 ---
+quality sidecar: 50
+
+==========================================
+EVIDENCE: 5 Previously-Working Flags
+==========================================
+preprocess:  ['median(k=3)', 'canny(low=80, high=180)']
+no-preprocess: []
+seg-model:   yolo11n-seg
+no-seg:      mode_used=segmented regions=0
+max-svg-size: ls: cannot access 'qa-r-sizecap.svg': No such file or directory
+
+==========================================
+EVIDENCE: 10 modes on rtlogo-1.png
+==========================================
+-rw------- 1 mlapointe mlapointe  1933 Jun 11 06:29 rtlogo-poster.json
+-rw-rw-r-- 1 mlapointe mlapointe 19442 Jun 11 06:29 rtlogo-poster.svg
+-rw------- 1 mlapointe mlapointe  2046 Jun 11 06:29 rtlogo-segmented.json
+-rw-rw-r-- 1 mlapointe mlapointe 16453 Jun 11 06:29 rtlogo-segmented.svg
+-rw------- 1 mlapointe mlapointe  1931 Jun 11 06:29 rtlogo-trace.json
+-rw-rw-r-- 1 mlapointe mlapointe 27126 Jun 11 06:29 rtlogo-trace.svg
+-rw------- 1 mlapointe mlapointe  1935 Jun 11 06:29 rtlogo-visual.json
+-rw-rw-r-- 1 mlapointe mlapointe 19442 Jun 11 06:29 rtlogo-visual.svg
+-rw------- 1 mlapointe mlapointe  2021 Jun 11 06:29 rtlogo-watercolor.json
+-rw-rw-r-- 1 mlapointe mlapointe  9841 Jun 11 06:29 rtlogo-watercolor.svg
+
+==========================================
+EVIDENCE: SEGMENTED multi-layer on Designer (1).jpeg
+==========================================
+-rw------- 1 mlapointe mlapointe   69746 Jun 11 06:29 qa-r-seg.json
+-rw-rw-r-- 1 mlapointe mlapointe 9503319 Jun 11 06:29 qa-r-seg.svg
+id="background"
+id="obj_person_0"
+sidecar regions: 1 regions, mode_used=segmented model=yolo11s-seg
